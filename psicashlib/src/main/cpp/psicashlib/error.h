@@ -25,8 +25,6 @@ public:
 
   std::string ToString() const;
 
-  friend std::ostream& operator<<(std::ostream& str, const Error& err);
-
 private:
   // Indicates that this error is actually set. (There must be a more elegant way to do this...)
   bool is_error_;
@@ -52,6 +50,7 @@ const Error nullerr;
 template<typename T>
 class Result : public nonstd::expected<T, Error> {
 public:
+  Result() = delete;
   Result(const T& val) : nonstd::expected<T, Error>(val) {}
   Result(const Error& err) : nonstd::expected<T, Error>((nonstd::unexpected_type<Error>)err) {}
 };
