@@ -2,69 +2,17 @@
 #include <ctime>
 
 #include "gtest/gtest.h"
+#include "test_helpers.h"
 #include "datastore.h"
 
 using namespace std;
 using namespace psicash;
 using json = nlohmann::json;
 
-class TestDatastore : public ::testing::Test
+class TestDatastore : public ::testing::Test, public TempDir
 {
   public:
     TestDatastore() {}
-
-  protected:
-    int RandInt()
-    {
-        static bool rand_seeded = false;
-        if (!rand_seeded)
-        {
-            std::srand(std::time(nullptr));
-            rand_seeded = true;
-        }
-        return std::rand();
-    }
-
-    string GetTempDir()
-    {
-        vector<string> env_vars = {"TMPDIR", "TMP", "TEMP", "TEMPDIR"};
-        const char *tmp = nullptr;
-        for (auto var : env_vars)
-        {
-            tmp = getenv(var.c_str());
-            if (tmp)
-            {
-                break;
-            }
-        }
-
-        if (!tmp)
-        {
-            tmp = "/tmp";
-        }
-
-        string res = tmp;
-        res += "/" + std::to_string(RandInt());
-
-#ifdef _MSC_VER
-        auto rmrf = "rmdir /S /Q \"" + res + "\" > nul 2>&1";
-        auto mkdirp = "mkdir \"" + res + "\"";
-#else
-        auto rmrf = "rm -rf " + res;
-        auto mkdirp = "mkdir -p " + res;
-#endif
-        system(rmrf.c_str());
-        system(mkdirp.c_str());
-
-        return res;
-    }
-
-    void WriteBadData(const char *datastoreRoot)
-    {
-        auto ds_file = string(datastoreRoot) + "/datastore";
-        auto make_bad_file = "echo nonsense > " + ds_file;
-        system(make_bad_file.c_str());
-    }
 };
 
 TEST_F(TestDatastore, InitSimple)
