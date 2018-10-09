@@ -8,8 +8,8 @@ set(CMAKE_CXX_STANDARD 14)
 file (GLOB SOURCES "*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
 file (GLOB TEST_SOURCES "*_test.cpp")
-message("SOURCES: ${SOURCES}")
-message("TEST_SOURCES: ${TEST_SOURCES}")
+#message("SOURCES: ${SOURCES}")
+#message("TEST_SOURCES: ${TEST_SOURCES}")
 
 add_library( # Sets the name of the library.
              psicash
