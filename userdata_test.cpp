@@ -43,10 +43,14 @@ protected:
     string res = tmp;
     res += "/" + std::to_string(RandInt());
 
+#ifdef _MSC_VER
+    auto rmrf = "rmdir /S /Q \"" + res + "\" > nul 2>&1";
+    auto mkdirp = "mkdir \"" + res + "\"";
+#else
     auto rmrf = "rm -rf " + res;
-    system(rmrf.c_str());
-
     auto mkdirp = "mkdir -p " + res;
+#endif
+    system(rmrf.c_str());
     system(mkdirp.c_str());
 
     return res;

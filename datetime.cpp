@@ -21,6 +21,10 @@ static constexpr const char *ISO8601_PARSE_STRING = "%Y-%m-%dT%H:%M:%SZ";
 // NOTE: Limited to GMT
 static constexpr const char *RFC7231_PARSE_STRING = "%a, %d %b %Y %H:%M:%S GMT"; // Wed, 03 Oct 2018 18:41:43 GMT
 
+#ifdef _MSC_VER
+#define timegm _mkgmtime
+#endif
+
 // TimePoints with different duration resolutions won't compare in an expected way, and can make
 // testing and reasoning difficult. We'll make sure that all TimePoints that we produce use the
 // same Duration.
@@ -148,19 +152,10 @@ bool DateTime::operator>(const DateTime& rhs) const {
   return time_point_ > rhs.time_point_;
 }
 
-bool datetime::operator==(const DateTime& lhs, const DateTime& rhs) {
+namespace datetime {
+bool operator==(const DateTime& lhs, const DateTime& rhs) {
   return lhs.time_point_ == rhs.time_point_;
 }
-
-int64_t datetime::DurationToInt64(const Duration& d) {
-  return d.count();
-}
-
-datetime::Duration datetime::DurationFromInt64(const int64_t d) {
-  return Duration(d);
-}
-
-namespace datetime {
 void to_json(json& j, const DateTime& dt) {
   int64_t ticks = dt.time_point_.time_since_epoch().count();
   j = ticks;
@@ -170,4 +165,12 @@ void from_json(const json& j, DateTime& dt) {
   auto ticks = j.get<int64_t>();
   dt.time_point_ = TimePoint(Duration(ticks));
 }
+
+int64_t DurationToInt64(const Duration& d) {
+  return d.count();
 }
+
+Duration DurationFromInt64(const int64_t d) {
+  return Duration(d);
+}
+} // namespace datetime
