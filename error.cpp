@@ -57,9 +57,4 @@ string Error::ToString() const {
   return os.str();
 }
 
-std::ostream& operator<<(std::ostream& str, const Error& err) {
-  str << err.ToString();
-  return str;
-}
-
 } // namespace error
