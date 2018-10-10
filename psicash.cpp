@@ -48,11 +48,10 @@ bool MakeHTTPRequestWithRetry(MakeHTTPRequestFn make_http_request_fn, string req
 //
 
 PsiCash::PsiCash()
-    : user_data_(nullptr), make_http_request_fn_(nullptr) {
+    : make_http_request_fn_(nullptr) {
 }
 
 PsiCash::~PsiCash() {
-  delete user_data_;
 }
 
 Error PsiCash::Init(const char *file_store_root, MakeHTTPRequestFn make_http_request_fn) {
@@ -62,10 +61,15 @@ Error PsiCash::Init(const char *file_store_root, MakeHTTPRequestFn make_http_req
 
   make_http_request_fn_ = make_http_request_fn;
 
-  user_data_ = new UserData();
+  user_data_ = std::make_unique<UserData>();
   auto err = user_data_->Init(file_store_root);
   if (err) {
-    return PassError(err);
+    // If UserData.Init fails, the only way to proceed to try to reset it and create a new one.
+    user_data_->Clear();
+    err = user_data_->Init(file_store_root);
+    if (err) {
+      return PassError(err);
+    }
   }
 
   return nullerr;

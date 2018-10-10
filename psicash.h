@@ -4,6 +4,7 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <memory>
 #include "vendor/nonstd/optional.hpp"
 #include "datetime.h"
 #include "error.h"
@@ -90,7 +91,7 @@ private:
 #ifdef TESTING
 protected:
 #endif
-  UserData *user_data_;
+  std::unique_ptr<UserData> user_data_;
   MakeHTTPRequestFn make_http_request_fn_;
 };
 
