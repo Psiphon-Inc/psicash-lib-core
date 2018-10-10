@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include "datastore.h"
+#include "utils.h"
 
 #include "vendor/nlohmann/json.hpp"
 
@@ -52,11 +53,9 @@ Error Datastore::FileLoad() {
   try {
     f >> json_;
   }
-  catch (...) {
-    return MakeError("json load failed");
+  catch (json::exception& e) {
+    return MakeError(utils::Stringer("json load failed: ", e.what(), "; id:", e.id).c_str());
   }
-
-  f.close();
 
   return nullerr;
 }
@@ -68,16 +67,12 @@ Error Datastore::FileStore() {
     return MakeError(utils::Stringer("not f.is_open; errno=", errno).c_str());
   }
 
-  auto s = json_.dump();
-
   try {
     f << json_;
   }
-  catch (...) {
-    return MakeError("json dump failed");
+  catch (json::exception& e) {
+    return MakeError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
   }
-
-  f.close();
 
   return nullerr;
 }
