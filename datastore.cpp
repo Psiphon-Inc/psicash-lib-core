@@ -28,7 +28,7 @@ void Datastore::Clear() {
 }
 
 Error Datastore::Set(const json& in) {
-  json_.merge_patch(in);
+  json_.update(in);
   return PassError(FileStore());
 }
 
@@ -67,6 +67,8 @@ Error Datastore::FileStore() {
   if (!f.is_open()) {
     return MakeError(utils::Stringer("not f.is_open; errno=", errno).c_str());
   }
+
+  auto s = json_.dump();
 
   try {
     f << json_;

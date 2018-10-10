@@ -95,7 +95,7 @@ TEST_F(TestDatastore, SetSimple)
     ASSERT_EQ(*got, want);
 }
 
-TEST_F(TestDatastore, setMulti)
+TEST_F(TestDatastore, SetMulti)
 {
     Datastore ds;
     auto err = ds.Init(GetTempDir().c_str());
@@ -115,7 +115,7 @@ TEST_F(TestDatastore, setMulti)
     ASSERT_EQ(*got, want2);
 }
 
-TEST_F(TestDatastore, setDeep)
+TEST_F(TestDatastore, SetDeep)
 {
     Datastore ds;
     auto err = ds.Init(GetTempDir().c_str());
@@ -133,7 +133,31 @@ TEST_F(TestDatastore, setDeep)
     ASSERT_EQ(gotDeep, want);
 }
 
-TEST_F(TestDatastore, setTypes)
+TEST_F(TestDatastore, SetAndClear)
+{
+    Datastore ds;
+    auto err = ds.Init(GetTempDir().c_str());
+    ASSERT_FALSE(err);
+
+    map<string, string> want = {{"a", "a"}, {"b", "b"}};
+    err = ds.Set({{"k", want}});
+    ASSERT_FALSE(err);
+
+    auto got = ds.Get<map<string, string>>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(got->size(), want.size());
+
+    want.clear();
+    err = ds.Set({{"k", want}});
+    ASSERT_FALSE(err);
+
+    // This used to fail when Datastore was using json.merge_patch instead of json.update.
+    got = ds.Get<map<string, string>>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(got->size(), 0);
+}
+
+TEST_F(TestDatastore, SetTypes)
 {
     // Test some types other than just string
 
