@@ -5,6 +5,8 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
+set(CMAKE_CXX_STANDARD 14)
+
 file (GLOB SOURCES "src/main/cpp/psicashlib/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
 #message("SOURCES: ${SOURCES}")
