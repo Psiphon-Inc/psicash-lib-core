@@ -5,6 +5,8 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set(CMAKE_CXX_STANDARD 14)
 
+add_definitions(-DTESTING)
+
 file (GLOB SOURCES "*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
 file (GLOB TEST_SOURCES "*_test.cpp")
