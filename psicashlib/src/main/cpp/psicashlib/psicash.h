@@ -87,6 +87,9 @@ public:
   std::string NewTracker(); // TEMP
 
 private:
+#ifdef TESTING
+protected:
+#endif
   UserData *user_data_;
   MakeHTTPRequestFn make_http_request_fn_;
 };
