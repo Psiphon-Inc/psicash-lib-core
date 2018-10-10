@@ -112,7 +112,7 @@ Purchases PsiCash::GetPurchases() const {
 
 static bool IsExpired(const Purchase& p) {
   auto local_now = datetime::DateTime::Now();
-  return (p.local_time_expiry && *p.local_time_expiry > local_now);
+  return (p.local_time_expiry && *p.local_time_expiry < local_now);
 }
 
 Purchases PsiCash::ValidPurchases() const {
@@ -163,7 +163,7 @@ Purchases PsiCash::ExpirePurchases() {
   return expired_purchases;
 }
 
-void PsiCash::RemovePurchases(const vector<string>& ids) {
+void PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
   auto all_purchases = GetPurchases();
   Purchases remaining_purchases;
   for (const auto& p : all_purchases) {
@@ -173,10 +173,10 @@ void PsiCash::RemovePurchases(const vector<string>& ids) {
         match = true;
         break;
       }
+    }
 
-      if (!match) {
-        remaining_purchases.push_back(p);
-      }
+    if (!match) {
+      remaining_purchases.push_back(p);
     }
   }
 
