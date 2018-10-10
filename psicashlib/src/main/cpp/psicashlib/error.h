@@ -43,8 +43,8 @@ const Error nullerr;
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
 #endif
-#define MakeError(message)         (error::Error(message, __FILE__, __PRETTY_FUNCTION__, __LINE__))
-#define WrapError(err, message)    (err.Wrap(message, __FILE__, __PRETTY_FUNCTION__, __LINE__))
+#define MakeError(message)         (error::Error((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
+#define WrapError(err, message)    (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
 #define PassError(err)             (err.Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
 
 template<typename T>
