@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# sudo apt install clang
-
 set -e -u
 
 rm -rf build
