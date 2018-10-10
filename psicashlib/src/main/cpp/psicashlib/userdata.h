@@ -25,6 +25,9 @@ public:
   // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
   error::Error Init(const char *file_store_root);
 
+  // Clears data and datastore file.
+  void Clear();
+
 public:
   datetime::Duration GetServerTimeDiff() const;
   error::Error SetServerTimeDiff(const datetime::DateTime& serverTimeNow);
