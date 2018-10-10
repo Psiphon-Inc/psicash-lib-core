@@ -83,7 +83,7 @@ public:
 
   Purchases ExpirePurchases();
 
-  void RemovePurchases(const std::vector<std::string> &ids);
+  void RemovePurchases(const std::vector<TransactionID>& ids);
 
   std::string NewTracker(); // TEMP
 
