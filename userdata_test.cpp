@@ -143,6 +143,21 @@ TEST_F(TestUserData, Purchases)
   ASSERT_FALSE(err);
   auto got = ud.GetPurchases();
   ASSERT_EQ(got, want);
+
+  // Test populating the local_time_expiry.
+  // Note that this is fairly brittle -- it assumes that the code runs in less than a millisecond.
+  auto serverTimeDiff = datetime::Duration(54321);
+  auto local_now = datetime::DateTime::Now();
+  auto server_now = local_now.Add(serverTimeDiff);
+  err = ud.SetServerTimeDiff(server_now);
+  ASSERT_FALSE(err);
+  // Supply server time but not local time
+  want.push_back({"id3", "tc3", "d3", server_now, nullopt, "a3"});
+  err = ud.SetPurchases(want);
+  got = ud.GetPurchases();
+  ASSERT_EQ(got.size(), 3);
+  ASSERT_TRUE(got[2].local_time_expiry);
+  ASSERT_EQ(*got[2].local_time_expiry, local_now);
 }
 
 TEST_F(TestUserData, LastTransactionID)
