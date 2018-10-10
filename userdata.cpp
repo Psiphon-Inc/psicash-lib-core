@@ -43,6 +43,10 @@ Error UserData::Init(const char *file_store_root) {
   return nullerr;
 }
 
+void UserData::Clear() {
+  datastore_.Clear();
+}
+
 datetime::Duration UserData::GetServerTimeDiff() const {
   auto v = datastore_.Get<int64_t>(SERVER_TIME_DIFF);
   if (!v) {
@@ -128,8 +132,8 @@ void UserData::UpdatePurchasesLocalTimeExpiry(Purchases& purchases) const {
 
     // server_time_diff is server-minus-local. So it's positive if server is ahead, negative if behind.
     // So we have to subtract the diff from the server time to get the local time.
-    // d = s - l
-    // l = s - d
+    // Δ = s - l
+    // l = s - Δ
     p.local_time_expiry = p.server_time_expiry->Sub(server_time_diff);
   }
 }
