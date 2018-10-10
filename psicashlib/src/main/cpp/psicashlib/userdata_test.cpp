@@ -145,7 +145,6 @@ TEST_F(TestUserData, Purchases)
   ASSERT_EQ(got, want);
 
   // Test populating the local_time_expiry.
-  // Note that this is fairly brittle -- it assumes that the code runs in less than a millisecond.
   auto serverTimeDiff = datetime::Duration(54321);
   auto local_now = datetime::DateTime::Now();
   auto server_now = local_now.Add(serverTimeDiff);
@@ -157,7 +156,9 @@ TEST_F(TestUserData, Purchases)
   got = ud.GetPurchases();
   ASSERT_EQ(got.size(), 3);
   ASSERT_TRUE(got[2].local_time_expiry);
-  ASSERT_EQ(*got[2].local_time_expiry, local_now);
+  // Comparing the DateTimes will be brittle, as it depends internally on "now".
+  // We'll go from millisecond- to second-resolutions by comparing ISO8601 strings.
+  ASSERT_EQ(got[2].local_time_expiry->ToISO8601(), local_now.ToISO8601());
 }
 
 TEST_F(TestUserData, LastTransactionID)
