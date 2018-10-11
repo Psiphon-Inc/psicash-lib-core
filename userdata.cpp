@@ -1,9 +1,7 @@
 #include "userdata.h"
 #include "datastore.h"
 #include "psicash.h"
-
 #include "vendor/nlohmann/json.hpp"
-
 using json = nlohmann::json;
 
 using namespace std;
@@ -163,11 +161,11 @@ Error UserData::SetLastTransactionID(const TransactionID& v) {
   return PassError(datastore_.Set({{LAST_TRANSACTION_ID, v}}));
 }
 
-std::string UserData::GetRequestMetadataJSON() const {
+json UserData::GetRequestMetadata() const {
   auto j = datastore_.Get<json>(REQUEST_METADATA);
   if (!j) {
-    return json::object().dump();
+    return json::object();
   }
 
-  return j->dump();
+  return *j;
 }
