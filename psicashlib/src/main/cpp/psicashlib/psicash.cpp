@@ -147,7 +147,7 @@ optional<Purchase> PsiCash::NextExpiringPurchase() const {
   return next;
 }
 
-Purchases PsiCash::ExpirePurchases() {
+Result<Purchases> PsiCash::ExpirePurchases() {
   auto all_purchases = GetPurchases();
   Purchases expired_purchases, valid_purchases;
   for (const auto& p : all_purchases) {
@@ -158,12 +158,15 @@ Purchases PsiCash::ExpirePurchases() {
     }
   }
 
-  user_data_->SetPurchases(valid_purchases);
+  auto err = user_data_->SetPurchases(valid_purchases);
+  if (err) {
+    return WrapError(err, "SetPurchases failed");
+  }
 
   return expired_purchases;
 }
 
-void PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
+Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
   auto all_purchases = GetPurchases();
   Purchases remaining_purchases;
   for (const auto& p : all_purchases) {
@@ -180,7 +183,8 @@ void PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
     }
   }
 
-  user_data_->SetPurchases(remaining_purchases);
+  auto err = user_data_->SetPurchases(remaining_purchases);
+  return WrapError(err, "SetPurchases failed");
 }
 
 //
