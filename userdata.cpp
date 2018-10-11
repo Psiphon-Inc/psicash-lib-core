@@ -69,8 +69,8 @@ AuthTokens UserData::GetAuthTokens() const {
   return *v;
 }
 
-Error UserData::SetAuthTokens(const AuthTokens& v) {
-  return PassError(datastore_.Set({{AUTH_TOKENS, v}}));
+Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account) {
+  return PassError(datastore_.Set({{AUTH_TOKENS, v}, {IS_ACCOUNT, is_account}}));
 }
 
 bool UserData::GetIsAccount() const {
@@ -121,6 +121,19 @@ Purchases UserData::GetPurchases() const {
 
 Error UserData::SetPurchases(const Purchases& v) {
   return PassError(datastore_.Set({{PURCHASES, v}}));
+}
+
+Error UserData::AddPurchase(const Purchase& v) {
+  auto purchases = GetPurchases();
+  // Prevent duplicate insertion
+  for (const auto& p : purchases) {
+    if (p.id == v.id) {
+      return nullerr;
+    }
+  }
+
+  purchases.push_back(v);
+  return PassError(SetPurchases(purchases));
 }
 
 void UserData::UpdatePurchasesLocalTimeExpiry(Purchases& purchases) const {
