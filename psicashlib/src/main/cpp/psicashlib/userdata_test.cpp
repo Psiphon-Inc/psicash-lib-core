@@ -54,15 +54,27 @@ TEST_F(TestUserData, AuthTokens)
   ASSERT_FALSE(err);
 
   // Check default value
-  auto v = ud.GetAuthTokens();
-  ASSERT_EQ(v.size(), 0);
+  auto tokens = ud.GetAuthTokens();
+  ASSERT_EQ(tokens.size(), 0);
+
+  auto is_account = ud.GetIsAccount();
+  ASSERT_EQ(is_account, false);
 
   // Set then get
   AuthTokens want = {{"k1", "v1"}, {"k2", "v2"}};
-  err = ud.SetAuthTokens(want);
+  err = ud.SetAuthTokens(want, false);
   ASSERT_FALSE(err);
-  auto got = ud.GetAuthTokens();
-  ASSERT_EQ(want, got);
+  auto got_tokens = ud.GetAuthTokens();
+  ASSERT_EQ(want, got_tokens);
+  is_account = ud.GetIsAccount();
+  ASSERT_EQ(is_account, false);
+
+  err = ud.SetAuthTokens(want, true);
+  ASSERT_FALSE(err);
+  got_tokens = ud.GetAuthTokens();
+  ASSERT_EQ(want, got_tokens);
+  is_account = ud.GetIsAccount();
+  ASSERT_EQ(is_account, true);
 }
 
 TEST_F(TestUserData, IsAccount)
@@ -137,8 +149,6 @@ TEST_F(TestUserData, Purchases)
     {"id1", "tc1", "d1", dt1, dt2, "a1"},
     {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
 
-  ASSERT_EQ(want, want);
-
   err = ud.SetPurchases(want);
   ASSERT_FALSE(err);
   auto got = ud.GetPurchases();
@@ -159,6 +169,40 @@ TEST_F(TestUserData, Purchases)
   // Comparing the DateTimes will be brittle, as it depends internally on "now".
   // We'll go from millisecond- to second-resolutions by comparing ISO8601 strings.
   ASSERT_EQ(got[2].local_time_expiry->ToISO8601(), local_now.ToISO8601());
+}
+
+TEST_F(TestUserData, AddPurchase)
+{
+  UserData ud;
+  auto err = ud.Init(GetTempDir().c_str());
+  ASSERT_FALSE(err);
+
+  // Check default value
+  auto v = ud.GetPurchases();
+  ASSERT_EQ(v.size(), 0);
+
+  // Set then get
+  Purchases want = {
+    {"id1", "tc1", "d1", nullopt, nullopt, "a1"},
+    {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
+
+  err = ud.SetPurchases(want);
+  ASSERT_FALSE(err);
+  auto got = ud.GetPurchases();
+  ASSERT_EQ(got, want);
+
+  Purchase add = {"id3", "tc3", "d3", nullopt, nullopt, nullopt};
+  err = ud.AddPurchase(add);
+  ASSERT_FALSE(err);
+  got = ud.GetPurchases();
+  want.push_back(add);
+  ASSERT_EQ(got, want);
+
+  // Try to add the same purchase again
+  err = ud.AddPurchase(add);
+  ASSERT_FALSE(err);
+  got = ud.GetPurchases();
+  ASSERT_EQ(got, want);
 }
 
 TEST_F(TestUserData, LastTransactionID)

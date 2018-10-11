@@ -33,7 +33,7 @@ public:
   error::Error SetServerTimeDiff(const datetime::DateTime& serverTimeNow);
 
   AuthTokens GetAuthTokens() const;
-  error::Error SetAuthTokens(const AuthTokens& v);
+  error::Error SetAuthTokens(const AuthTokens& v, bool is_account);
 
   bool GetIsAccount() const;
   error::Error SetIsAccount(bool v);
@@ -46,6 +46,7 @@ public:
 
   Purchases GetPurchases() const;
   error::Error SetPurchases(const Purchases& v);
+  error::Error AddPurchase(const Purchase& v);
 
   TransactionID GetLastTransactionID() const;
   error::Error SetLastTransactionID(const TransactionID& v);

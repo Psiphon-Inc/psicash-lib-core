@@ -103,7 +103,7 @@ TEST_F(TestPsiCash, ValidTokenTypes) {
   ASSERT_EQ(vtt.size(), 0);
 
   AuthTokens at = {{"a", "a"}, {"b", "b"}, {"c", "c"}};
-  err = pc.user_data().SetAuthTokens(at);
+  err = pc.user_data().SetAuthTokens(at, false);
   vtt = pc.ValidTokenTypes();
   ASSERT_EQ(vtt.size(), 3);
   for (const auto& k : vtt) {
@@ -113,7 +113,7 @@ TEST_F(TestPsiCash, ValidTokenTypes) {
   ASSERT_EQ(at.size(), 0); // we should have erase all items
 
   AuthTokens empty;
-  err = pc.user_data().SetAuthTokens(empty);
+  err = pc.user_data().SetAuthTokens(empty, false);
   vtt = pc.ValidTokenTypes();
   ASSERT_EQ(vtt.size(), 0);
 }

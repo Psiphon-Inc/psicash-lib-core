@@ -194,7 +194,7 @@ Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
 string PsiCash::NewTracker() {
   AuthTokens at;
   at["xxx"] = "yyy";
-  user_data_->SetAuthTokens(at);
+  user_data_->SetAuthTokens(at, false);
   auto bt = user_data_->GetAuthTokens();
 
   auto tt = ValidTokenTypes();
