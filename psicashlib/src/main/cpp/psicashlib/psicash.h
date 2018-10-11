@@ -92,6 +92,8 @@ public:
 
   error::Error RemovePurchases(const std::vector<TransactionID>& ids);
 
+  error::Result<std::string> ModifyLandingPage(const std::string& url);
+
   std::string NewTracker(); // TEMP
 
 private:

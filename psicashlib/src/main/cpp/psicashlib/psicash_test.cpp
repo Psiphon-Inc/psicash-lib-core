@@ -2,6 +2,7 @@
 #include "test_helpers.h"
 #include "psicash.h"
 #include "userdata.h"
+#include "url.h"
 
 using namespace std;
 using namespace psicash;
@@ -404,4 +405,99 @@ TEST_F(TestPsiCash, RemovePurchases) {
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), remaining.size());
   ASSERT_EQ(v, remaining);
+}
+
+TEST_F(TestPsiCash, ModifyLandingPage) {
+  PsiCashTester pc;
+  auto err = pc.Init(GetTempDir().c_str(), nullptr);
+  ASSERT_FALSE(err);
+
+  const string key_part = "psicash=";
+  URL url_in, url_out;
+
+  //
+  // No metadata set
+  //
+
+  url_in = {"https://asdf.sadf.gf", "", ""};
+  auto res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+
+  url_in = {"https://asdf.sadf.gf", "gfaf=asdf", ""};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+
+  url_in = {"https://asdf.sadf.gf/asdfilj/adf", "gfaf=asdf", ""};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+
+  url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "gfaf=asdf", ""};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+
+  url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "", "regffd"};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+  ASSERT_EQ(url_out.fragment_, url_in.fragment_);
+
+  url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "adfg=asdf&vfjnk=fadjn", "regffd"};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_ + "&" + key_part + URL::Encode("{\"metadata\":{},\"tokens\":null,\"v\":1}", true));
+  ASSERT_EQ(url_out.fragment_, url_in.fragment_);
+
+  //
+  // With metadata
+  //
+
+  err = pc.SetRequestMetadataItem("k", "v");
+  ASSERT_FALSE(err);
+  url_in = {"https://asdf.sadf.gf", "", ""};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":null,\"v\":1}", true));
+
+  // With tokens
+
+  AuthTokens auth_tokens = {{kSpenderTokenType, "kSpenderTokenType"}, {kEarnerTokenType, "kEarnerTokenType"}, {kIndicatorTokenType, "kIndicatorTokenType"}};
+  err = pc.user_data().SetAuthTokens(auth_tokens, false);
+  ASSERT_FALSE(err);
+  url_in = {"https://asdf.sadf.gf", "", ""};
+  res = pc.ModifyLandingPage(url_in.ToString());
+  ASSERT_TRUE(res);
+  url_out.Parse(*res);
+  ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+  ASSERT_EQ(url_out.query_, url_in.query_);
+  ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":\"kEarnerTokenType\",\"v\":1}", true));
+
+  //
+  // Errors
+  //
+
+  res = pc.ModifyLandingPage("#$%^&");
+  ASSERT_FALSE(res);
 }

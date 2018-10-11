@@ -6,14 +6,18 @@
 #include "userdata.h"
 #include "datetime.h"
 #include "error.h"
+#include "url.h"
 
 #include "nlohmann/json.hpp"
+
 using json = nlohmann::json;
 
 using namespace std;
 using namespace nonstd;
 using namespace psicash;
 using namespace error;
+
+static const string kLandingPageParamKey = "psicash";
 
 
 string psicash::ErrorMsg(const char *msg, const char *func, int line) {
@@ -23,7 +27,8 @@ string psicash::ErrorMsg(const char *msg, const char *func, int line) {
   return string("{\"error\":\"") + sbuf.str() + "\"}";
 }
 
-bool MakeHTTPRequestWithRetry(MakeHTTPRequestFn make_http_request_fn, string req_params, HTTPResult &result) {
+bool MakeHTTPRequestWithRetry(MakeHTTPRequestFn make_http_request_fn, string req_params,
+                              HTTPResult& result) {
   auto result_string = make_http_request_fn(req_params);
   if (result_string.length() == 0) {
     // An error so catastrophic that we don't get any error info.
@@ -94,7 +99,7 @@ TokenTypes PsiCash::ValidTokenTypes() const {
   TokenTypes tt;
 
   auto auth_tokens = user_data_->GetAuthTokens();
-  for (const auto &it : auth_tokens) {
+  for (const auto& it : auth_tokens) {
     tt.push_back(it.first);
   }
 
@@ -190,6 +195,51 @@ Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
   return WrapError(err, "SetPurchases failed");
 }
 
+Result<string> PsiCash::ModifyLandingPage(const string& url_string) {
+  URL url;
+  auto err = url.Parse(url_string);
+  if (err) {
+    return WrapError(err, "url.Parse failed");
+  }
+
+  json psicash_data;
+  psicash_data["v"] = 1;
+
+  auto auth_tokens = user_data_->GetAuthTokens();
+  if (auth_tokens.size() == 0) {
+    psicash_data["tokens"] = nullptr;
+  } else {
+    psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
+  }
+
+  psicash_data["metadata"] = user_data_->GetRequestMetadata();
+
+  string json_data;
+  try {
+    json_data = psicash_data.dump(-1, ' ', true);
+  }
+  catch (json::exception& e) {
+    return MakeError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+  }
+
+  // Our preference is to put the our data into the URL's fragment/hash/anchor,
+  // because we'd prefer the data not be sent to the server.
+  // But if there already is a fragment value then we'll put our data into the query parameters.
+  // (Because altering the fragment is more likely to have negative consequences
+  // for the page than adding a query parameter that will be ignored.)
+
+  if (url.fragment_.empty()) {
+    url.fragment_ = kLandingPageParamKey + "=" + URL::Encode(json_data, true);
+  } else {
+    if (!url.query_.empty()) {
+      url.query_ += "&";
+    }
+    url.query_ += kLandingPageParamKey + "=" + URL::Encode(json_data, true);
+  }
+
+  return url.ToString();
+}
+
 //
 //
 //
@@ -236,7 +286,7 @@ bool NewExpiringPurchaseTransactionForClass(
 // Enable JSON de/serializing of PurchasePrice.
 // See https://github.com/nlohmann/json#basic-usage
 namespace psicash {
-bool operator==(const PurchasePrice &lhs, const PurchasePrice &rhs) {
+bool operator==(const PurchasePrice& lhs, const PurchasePrice& rhs) {
   return lhs.transaction_class == rhs.transaction_class &&
          lhs.distinguisher == rhs.distinguisher &&
          lhs.price == rhs.price;
@@ -259,7 +309,7 @@ void from_json(const json& j, PurchasePrice& pp) {
 // Enable JSON de/serializing of Purchase.
 // See https://github.com/nlohmann/json#basic-usage
 namespace psicash {
-bool operator==(const Purchase &lhs, const Purchase &rhs) {
+bool operator==(const Purchase& lhs, const Purchase& rhs) {
   return lhs.transaction_class == rhs.transaction_class &&
          lhs.distinguisher == rhs.distinguisher &&
          lhs.server_time_expiry == rhs.server_time_expiry &&
