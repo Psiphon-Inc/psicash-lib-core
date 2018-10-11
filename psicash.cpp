@@ -7,8 +7,7 @@
 #include "datetime.h"
 #include "error.h"
 
-#include "vendor/nlohmann/json.hpp"
-
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;
@@ -195,6 +194,7 @@ Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
 //
 //
 
+// TEMP
 string PsiCash::NewTracker() {
   AuthTokens at;
   at["xxx"] = "yyy";

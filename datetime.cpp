@@ -5,7 +5,7 @@
 #include "datetime.h"
 #include <chrono>
 
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;

@@ -13,6 +13,9 @@ file (GLOB TEST_SOURCES "*_test.cpp")
 #message("SOURCES: ${SOURCES}")
 #message("TEST_SOURCES: ${TEST_SOURCES}")
 
+set(VENDOR_DIR "vendor")
+include_directories(${VENDOR_DIR})
+
 add_library( # Sets the name of the library.
              psicash
 
@@ -30,7 +33,7 @@ SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 #SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} ${GCC_COVERAGE_LINK_FLAGS}")
 
 
-
+###################################
 ### GTEST
 # https://github.com/google/googletest/tree/master/googletest
 

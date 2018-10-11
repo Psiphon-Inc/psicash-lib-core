@@ -1,6 +1,6 @@
 #include <string>
 
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;
@@ -33,5 +33,5 @@ string buildRequestParams(string path, string method, map<string, string> queryP
         {"headers", headers},
     };
 
-    return j.dump();
+    return j.dump(); // TODO: catch exception
 }

@@ -6,7 +6,7 @@
 #include "psicash.h"
 #include "datetime.h"
 #include "error.h"
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 
 namespace psicash
 {
