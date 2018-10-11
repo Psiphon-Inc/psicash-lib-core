@@ -60,6 +60,8 @@ public:
   // Can be used for updating the HTTP requester function pointer.
   void SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn);
 
+  error::Error SetRequestMetadataItem(const std::string& key, const std::string& value);
+
   //
   // Stored info accessors
   //

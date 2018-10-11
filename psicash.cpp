@@ -79,6 +79,10 @@ void PsiCash::SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn) {
   make_http_request_fn_ = make_http_request_fn;
 }
 
+Error PsiCash::SetRequestMetadataItem(const string& key, const string& value) {
+  return PassError(user_data_->SetRequestMetadataItem(key, value));
+}
+
 //
 // Stored info accessors
 //
