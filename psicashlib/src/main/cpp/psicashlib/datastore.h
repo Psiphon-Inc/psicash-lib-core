@@ -3,8 +3,8 @@
 
 #include <string>
 #include "error.h"
-#include "vendor/nonstd/expected.hpp"
-#include "vendor/nlohmann/json.hpp"
+#include "nonstd/expected.hpp"
+#include "nlohmann/json.hpp"
 
 namespace psicash
 {

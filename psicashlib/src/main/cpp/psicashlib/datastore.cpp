@@ -4,7 +4,7 @@
 #include "datastore.h"
 #include "utils.h"
 
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 

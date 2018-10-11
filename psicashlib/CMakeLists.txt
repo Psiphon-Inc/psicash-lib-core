@@ -7,9 +7,13 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set(CMAKE_CXX_STANDARD 14)
 
-file (GLOB SOURCES "src/main/cpp/psicashlib/*.cpp")
+set(SRC_DIR "src/main/cpp/psicashlib")
+
+file (GLOB SOURCES "${SRC_DIR}/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
 #message("SOURCES: ${SOURCES}")
+
+include_directories("${SRC_DIR}/vendor")
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.

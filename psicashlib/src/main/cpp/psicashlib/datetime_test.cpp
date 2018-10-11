@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 #include "datetime.h"
 
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;

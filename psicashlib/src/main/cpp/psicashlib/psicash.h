@@ -5,13 +5,16 @@
 #include <functional>
 #include <vector>
 #include <memory>
-#include "vendor/nonstd/optional.hpp"
+#include "nonstd/optional.hpp"
 #include "datetime.h"
 #include "error.h"
 
 
 namespace psicash {
-class UserData;
+constexpr const char* kEarnerTokenType = "earner";
+constexpr const char* kSpenderTokenType = "spender";
+constexpr const char* kIndicatorTokenType = "indicator";
+constexpr const char* kAccountTokenType = "account";
 
 using MakeHTTPRequestFn = std::function<std::string(const std::string &)>;
 
@@ -46,6 +49,8 @@ struct Purchase {
 };
 
 using Purchases = std::vector<Purchase>;
+
+class UserData; // forward declaration
 
 class PsiCash {
 public:

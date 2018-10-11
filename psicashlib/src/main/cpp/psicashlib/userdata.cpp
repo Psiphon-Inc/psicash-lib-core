@@ -1,7 +1,7 @@
 #include "userdata.h"
 #include "datastore.h"
 #include "psicash.h"
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;

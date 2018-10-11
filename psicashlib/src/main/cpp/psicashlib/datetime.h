@@ -2,7 +2,7 @@
 #define PSICASHLIB_DATETIME_H
 
 #include <chrono>
-#include "vendor/nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 
 namespace datetime
 {
