@@ -81,9 +81,9 @@ public:
   // The returned optional will false if there's no next expiring purchase.
   nonstd::optional<Purchase> NextExpiringPurchase() const;
 
-  Purchases ExpirePurchases();
+  error::Result<Purchases> ExpirePurchases();
 
-  void RemovePurchases(const std::vector<TransactionID>& ids);
+  error::Error RemovePurchases(const std::vector<TransactionID>& ids);
 
   std::string NewTracker(); // TEMP
 

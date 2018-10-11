@@ -302,8 +302,9 @@ TEST_F(TestPsiCash, ExpirePurchases) {
   auto v = pc.GetPurchases();
   ASSERT_EQ(v.size(), 0);
 
-  v = pc.ExpirePurchases();
-  ASSERT_EQ(v.size(), 0);
+  auto res = pc.ExpirePurchases();
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->size(), 0);
 
   auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
   auto after_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
@@ -323,17 +324,19 @@ TEST_F(TestPsiCash, ExpirePurchases) {
   ASSERT_EQ(v.size(), ps.size());
   ASSERT_EQ(v, ps);
 
-  v = pc.ExpirePurchases();
-  ASSERT_EQ(v.size(), expired.size());
-  ASSERT_EQ(v, expired);
+  res = pc.ExpirePurchases();
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->size(), expired.size());
+  ASSERT_EQ(*res, expired);
 
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), nonexpired.size());
   ASSERT_EQ(v, nonexpired);
 
   // No expired purchases left
-  v = pc.ExpirePurchases();
-  ASSERT_EQ(v.size(), 0);
+  res = pc.ExpirePurchases();
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->size(), 0);
 
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), nonexpired.size());
@@ -363,21 +366,24 @@ TEST_F(TestPsiCash, RemovePurchases) {
   ASSERT_EQ(v.size(), ps.size());
   ASSERT_EQ(v, ps);
 
-  pc.RemovePurchases(removeIDs);
+  err = pc.RemovePurchases(removeIDs);
+  ASSERT_FALSE(err);
 
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), remaining.size());
   ASSERT_EQ(v, remaining);
 
   // removeIDs are not present now
-  pc.RemovePurchases(removeIDs);
+  err = pc.RemovePurchases(removeIDs);
+  ASSERT_FALSE(err);
 
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), remaining.size());
   ASSERT_EQ(v, remaining);
 
   // empty array
-  pc.RemovePurchases({});
+  err = pc.RemovePurchases({});
+  ASSERT_FALSE(err);
 
   v = pc.GetPurchases();
   ASSERT_EQ(v.size(), remaining.size());
