@@ -29,6 +29,74 @@ TEST_F(TestUserData, InitFail)
   ASSERT_TRUE(err);
 }
 
+TEST_F(TestUserData, Persistence)
+{
+  auto want_server_time_diff = datetime::Duration(54321);
+  AuthTokens want_auth_tokens = {{"k1", "v1"}, {"k2", "v2"}};
+  bool want_is_account = true;
+  int64_t want_balance = 54321;
+  PurchasePrices want_purchase_prices = {{"tc1", "d1", 123}, {"tc2", "d2", 321}};
+  Purchases want_purchases = {
+    {"id1", "tc1", "d1", nullopt, nullopt, "a1"},
+    {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
+  string req_metadata_key = "req_metadata_key";
+  string want_req_metadata_value = "want_req_metadata_value";
+
+  auto temp_dir = GetTempDir();
+
+  {
+    UserData ud;
+    auto err = ud.Init(temp_dir.c_str());
+    ASSERT_FALSE(err);
+
+    auto shifted_now = datetime::DateTime::Now().Add(want_server_time_diff);
+    err = ud.SetServerTimeDiff(shifted_now);
+    ASSERT_FALSE(err);
+
+    err = ud.SetAuthTokens(want_auth_tokens, want_is_account);
+    ASSERT_FALSE(err);
+
+    err = ud.SetBalance(want_balance);
+    ASSERT_FALSE(err);
+
+    err = ud.SetPurchasePrices(want_purchase_prices);
+    ASSERT_FALSE(err);
+
+    err = ud.SetPurchases(want_purchases);
+    ASSERT_FALSE(err);
+
+    err = ud.SetRequestMetadataItem(req_metadata_key, want_req_metadata_value);
+    ASSERT_FALSE(err);
+  }
+
+  {
+    UserData ud;
+    auto err = ud.Init(temp_dir.c_str());
+    ASSERT_FALSE(err);
+
+    auto got_server_time_diff = ud.GetServerTimeDiff();
+    ASSERT_EQ(want_server_time_diff, got_server_time_diff);
+
+    auto got_auth_tokens = ud.GetAuthTokens();
+    ASSERT_EQ(got_auth_tokens, want_auth_tokens);
+
+    auto got_is_account = ud.GetIsAccount();
+    ASSERT_EQ(got_is_account, want_is_account);
+
+    auto got_balance = ud.GetBalance();
+    ASSERT_EQ(got_balance, want_balance);
+
+    auto got_purchase_prices = ud.GetPurchasePrices();
+    ASSERT_EQ(got_purchase_prices, want_purchase_prices);
+
+    auto got_purchases = ud.GetPurchases();
+    ASSERT_EQ(got_purchases, want_purchases);
+
+    auto got_request_metadata = ud.GetRequestMetadata();
+    ASSERT_EQ(want_req_metadata_value, got_request_metadata[req_metadata_key]);
+  }
+}
+
 TEST_F(TestUserData, ServerTimeDiff)
 {
   UserData ud;
@@ -40,7 +108,6 @@ TEST_F(TestUserData, ServerTimeDiff)
   ASSERT_EQ(v.count(), 0);
 
   // Set then get
-
   auto want = datetime::Duration(54321);
   auto shifted_now = datetime::DateTime::Now().Add(want);
   err = ud.SetServerTimeDiff(shifted_now);
