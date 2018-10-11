@@ -72,6 +72,22 @@ TEST_F(TestPsiCash, SetHTTPRequestFn)
   }
 }
 
+TEST_F(TestPsiCash, SetRequestMetadataItem)
+{
+  PsiCashTester pc;
+  auto err = pc.Init(GetTempDir().c_str(), nullptr);
+  ASSERT_FALSE(err);
+
+  auto j = pc.user_data().GetRequestMetadata();
+  ASSERT_EQ(j.size(), 0);
+
+  err = pc.SetRequestMetadataItem("k", "v");
+  ASSERT_FALSE(err);
+
+  j = pc.user_data().GetRequestMetadata();
+  ASSERT_EQ(j["k"], "v");
+}
+
 TEST_F(TestPsiCash, IsAccount) {
   PsiCashTester pc;
   auto err = pc.Init(GetTempDir().c_str(), nullptr);
