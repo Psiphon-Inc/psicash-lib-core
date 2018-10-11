@@ -59,8 +59,6 @@ public:
 
   // To set a single key-value: `set({{"k1", "v1"}})`.
   // To set multiple key-values: `set({{"k1", "v1"}, {"k2", "v2"}})`.
-  // To set a value on a key deeper in the datastore: `set({{"a", {{"b", "v"}}}})`.
-  //      --> { "a": { "b": "v" } }
   // NOTE: If you use too few curly braces, you'll accidentally create arrays instead of objects.
   // NOTE: Set is not atomic. If the file operation fails, the intermediate object will still be
   // updated. We may want this to be otherwise in the future, but for now I think that it's preferable.

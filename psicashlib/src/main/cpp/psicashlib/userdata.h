@@ -51,11 +51,13 @@ public:
   TransactionID GetLastTransactionID() const;
   error::Error SetLastTransactionID(const TransactionID& v);
 
-  std::string GetRequestMetadataJSON() const;
+  nlohmann::json GetRequestMetadata() const;
   template <typename T>
-  error::Error SetRequestMetadataItem(const char *key, const T& val)
+  error::Error SetRequestMetadataItem(const std::string& key, const T& val)
   {
-    return datastore_.Set({{REQUEST_METADATA, {{key, val}}}});
+    auto j = GetRequestMetadata();
+    j[key] = val;
+    return datastore_.Set({{REQUEST_METADATA, j}});
   }
 
 protected:

@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
 #include "test_helpers.h"
 #include "userdata.h"
+#include "vendor/nlohmann/json.hpp"
+using json = nlohmann::json;
 
 using namespace std;
 using namespace nonstd;
@@ -221,4 +223,34 @@ TEST_F(TestUserData, LastTransactionID)
   ASSERT_FALSE(err);
   auto got = ud.GetLastTransactionID();
   ASSERT_EQ(got, want);
+}
+
+TEST_F(TestUserData, Metadata)
+{
+  UserData ud;
+  auto err = ud.Init(GetTempDir().c_str());
+  ASSERT_FALSE(err);
+
+  auto v = ud.GetRequestMetadata();
+  ASSERT_EQ(v, json({}));
+
+  err = ud.SetRequestMetadataItem("k", "v");
+  ASSERT_FALSE(err);
+  v = ud.GetRequestMetadata();
+  ASSERT_EQ(v.dump(), json({{"k", "v"}}).dump());
+
+  err = ud.SetRequestMetadataItem("kk", 123);
+  ASSERT_FALSE(err);
+  v = ud.GetRequestMetadata();
+  ASSERT_EQ(v.dump(), json({{"k", "v"}, {"kk", 123}}).dump());
+
+  err = ud.SetRequestMetadataItem("k", "v2");
+  ASSERT_FALSE(err);
+  v = ud.GetRequestMetadata();
+  ASSERT_EQ(v.dump(), json({{"k", "v2"}, {"kk", 123}}).dump());
+
+  // Make sure modifying the result doesn't modify the internal structure
+  v["temp"] = "temp";
+  v = ud.GetRequestMetadata();
+  ASSERT_EQ(v.dump(), json({{"k", "v2"}, {"kk", 123}}).dump());
 }
