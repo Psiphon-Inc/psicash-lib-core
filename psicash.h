@@ -96,6 +96,8 @@ public:
 
   error::Result<std::string> GetRewardedActivityData() const;
 
+  nlohmann::json GetDiagnosticInfo() const;
+
   std::string NewTracker(); // TEMP
 
 private:

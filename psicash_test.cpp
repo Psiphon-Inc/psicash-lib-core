@@ -526,3 +526,36 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
   ASSERT_TRUE(res);
   ASSERT_EQ(*res, base64::B64Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":\"kEarnerTokenType\",\"v\":1}"));
 }
+
+TEST_F(TestPsiCash, GetDiagnosticInfo) {
+  PsiCashTester pc;
+  auto err = pc.Init(GetTempDir().c_str(), nullptr);
+  ASSERT_FALSE(err);
+
+  auto want = R"|({
+    "balance":0,
+    "isAccount":false,
+    "purchasePrices":[],
+    "purchases":[],
+    "serverTimeDiff":0,
+    "validTokenTypes":[]
+    })|"_json;
+  auto j = pc.GetDiagnosticInfo();
+  ASSERT_EQ(j, want);
+
+  pc.user_data().SetBalance(12345);
+  pc.user_data().SetPurchasePrices({{"tc1", "d1", 123}, {"tc2", "d2", 321}});
+  pc.user_data().SetPurchases({{"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}});
+  pc.user_data().SetAuthTokens({{"a", "a"}, {"b", "b"}, {"c", "c"}}, true);
+  // pc.user_data().SetServerTimeDiff() // too hard to do reliably
+  want = R"|({
+    "balance":12345,
+    "isAccount":true,
+    "purchasePrices":[{"distinguisher":"d1","price":123,"transactionClass":"tc1"},{"distinguisher":"d2","price":321,"transactionClass":"tc2"}],
+    "purchases":[{"class":"tc2","distinguisher":"d2"}],
+    "serverTimeDiff":0,
+    "validTokenTypes":["a","b","c"]
+    })|"_json;
+  j = pc.GetDiagnosticInfo();
+  ASSERT_EQ(j, want);
+}

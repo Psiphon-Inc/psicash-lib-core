@@ -285,6 +285,24 @@ Result<string> PsiCash::GetRewardedActivityData() const {
   return json_data;
 }
 
+json PsiCash::GetDiagnosticInfo() const {
+  json j = json::object();
+
+  j["validTokenTypes"] = ValidTokenTypes();
+  j["isAccount"] = IsAccount();
+  j["balance"] = Balance();
+  j["serverTimeDiff"] = user_data_->GetServerTimeDiff().count();
+  j["purchasePrices"] = GetPurchasePrices();
+
+  // Include a sanitized version of the purchases
+  j["purchases"] = json::array();
+  for (const auto& p : GetPurchases()) {
+    j["purchases"].push_back({{"class", p.transaction_class}, {"distinguisher", p.distinguisher}});
+  }
+
+  return j;
+}
+
 //
 //
 //
