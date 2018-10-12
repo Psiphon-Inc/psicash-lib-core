@@ -92,7 +92,9 @@ public:
 
   error::Error RemovePurchases(const std::vector<TransactionID>& ids);
 
-  error::Result<std::string> ModifyLandingPage(const std::string& url);
+  error::Result<std::string> ModifyLandingPage(const std::string& url) const;
+
+  error::Result<std::string> GetRewardedActivityData() const;
 
   std::string NewTracker(); // TEMP
 

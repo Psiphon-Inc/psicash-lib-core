@@ -7,6 +7,7 @@
 #include "datetime.h"
 #include "error.h"
 #include "url.h"
+#include "base64.h"
 
 #include "nlohmann/json.hpp"
 
@@ -195,7 +196,7 @@ Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
   return WrapError(err, "SetPurchases failed");
 }
 
-Result<string> PsiCash::ModifyLandingPage(const string& url_string) {
+Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
   URL url;
   auto err = url.Parse(url_string);
   if (err) {
@@ -212,6 +213,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) {
     psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
   }
 
+  // Get the metadata (sponsor ID, etc.)
   psicash_data["metadata"] = user_data_->GetRequestMetadata();
 
   string json_data;
@@ -238,6 +240,49 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) {
   }
 
   return url.ToString();
+}
+
+Result<string> PsiCash::GetRewardedActivityData() const {
+  /*
+   The data is base64-encoded JSON-serialized with this structure:
+   {
+       "v": 1,
+       "tokens": "earner token",
+       "metadata": {
+           "client_region": "CA",
+           "client_version": "123",
+           "sponsor_id": "ABCDEFGH12345678",
+           "propagation_channel_id": "ABCDEFGH12345678"
+       },
+       "user_agent": "PsiCash-iOS-Client"
+   }
+  */
+
+  json psicash_data;
+  psicash_data["v"] = 1;
+
+  // Get the earner token. If we don't have one, the webhook can't succeed.
+  auto auth_tokens = user_data_->GetAuthTokens();
+  if (auth_tokens.size() == 0) {
+    return MakeError("earner token missing; can't create webhoook data");
+  } else {
+    psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
+  }
+
+  // Get the metadata (sponsor ID, etc.)
+  psicash_data["metadata"] = user_data_->GetRequestMetadata();
+
+  string json_data;
+  try {
+    json_data = psicash_data.dump(-1, ' ', true);
+  }
+  catch (json::exception& e) {
+    return MakeError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+  }
+
+  json_data = base64::B64Encode(json_data);
+
+  return json_data;
 }
 
 //
