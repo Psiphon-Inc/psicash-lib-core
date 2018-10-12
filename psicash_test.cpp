@@ -3,6 +3,7 @@
 #include "psicash.h"
 #include "userdata.h"
 #include "url.h"
+#include "base64.h"
 
 using namespace std;
 using namespace psicash;
@@ -500,4 +501,28 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
 
   res = pc.ModifyLandingPage("#$%^&");
   ASSERT_FALSE(res);
+}
+
+TEST_F(TestPsiCash, GetRewardedActivityData) {
+  PsiCashTester pc;
+  auto err = pc.Init(GetTempDir().c_str(), nullptr);
+  ASSERT_FALSE(err);
+
+  // Error with no tokens
+  auto res = pc.GetRewardedActivityData();
+  ASSERT_FALSE(res);
+
+  AuthTokens auth_tokens = {{kSpenderTokenType, "kSpenderTokenType"}, {kEarnerTokenType, "kEarnerTokenType"}, {kIndicatorTokenType, "kIndicatorTokenType"}};
+  err = pc.user_data().SetAuthTokens(auth_tokens, false);
+  ASSERT_FALSE(err);
+
+  res = pc.GetRewardedActivityData();
+  ASSERT_TRUE(res);
+  ASSERT_EQ(*res, base64::B64Encode("{\"metadata\":{},\"tokens\":\"kEarnerTokenType\",\"v\":1}"));
+
+  err = pc.SetRequestMetadataItem("k", "v");
+  ASSERT_FALSE(err);
+  res = pc.GetRewardedActivityData();
+  ASSERT_TRUE(res);
+  ASSERT_EQ(*res, base64::B64Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":\"kEarnerTokenType\",\"v\":1}"));
 }
