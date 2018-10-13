@@ -11,12 +11,45 @@
 
 
 namespace psicash {
+
+//
+// HTTP Request-related types
+//
+// The string param that MakeHTTPRequestFn takes is a JSON-encoding of this structure:
+// {
+//    "scheme": "https",
+//    "hostname": "api.psi.cash",
+//    "port": 443,
+//    "method": "POST", // or "GET", etc.
+//    "path": "/v1/tracker",
+//    "headers": { "User-Agent": "value", ...etc. },
+//    "query": { "class": "speed-boost", "expectedAmount": -10000, ...etc. }
+// }
+// The string param that it returns is an encoding of this structure:
+struct HTTPResult
+{
+  // 200, 404, etc.
+  int status;
+
+  // The contents of the response body, if any.
+  std::string body;
+
+  // The value of the response Date header.
+  std::string date;
+
+  // Any error message relating to an unsuccessful network attempt;
+  // must be empty if the request succeeded (regardless of status code).
+  std::string error;
+
+  HTTPResult() : status(-1) {}
+};
+using MakeHTTPRequestFn = std::function<std::string(const std::string &)>;
+
+
 constexpr const char* kEarnerTokenType = "earner";
 constexpr const char* kSpenderTokenType = "spender";
 constexpr const char* kIndicatorTokenType = "indicator";
 constexpr const char* kAccountTokenType = "account";
-
-using MakeHTTPRequestFn = std::function<std::string(const std::string &)>;
 
 using TokenTypes = std::vector<std::string>;
 
@@ -49,6 +82,17 @@ struct Purchase {
 };
 
 using Purchases = std::vector<Purchase>;
+
+enum PsiCashStatus {
+  PsiCashStatus_Invalid = -1,
+  PsiCashStatus_Success = 0,
+  PsiCashStatus_ExistingTransaction,
+  PsiCashStatus_InsufficientBalance,
+  PsiCashStatus_TransactionAmountMismatch,
+  PsiCashStatus_TransactionTypeNotFound,
+  PsiCashStatus_InvalidTokens,
+  PsiCashStatus_ServerError
+};
 
 class UserData; // forward declaration
 
@@ -98,7 +142,29 @@ public:
 
   nlohmann::json GetDiagnosticInfo() const;
 
-  std::string NewTracker(); // TEMP
+  //
+  // API Server Requests
+  //
+
+  struct NewExpiringPurchaseResponse {
+    PsiCashStatus status;
+    nonstd::optional<Purchase> purchase;
+  };
+  error::Result<NewExpiringPurchaseResponse> NewExpiringPurchase(
+      const std::string& transaction_class,
+      const std::string& distinguisher,
+      const int64_t expected_price);
+
+protected:
+  struct RequestInfo {
+    std::string method;
+    std::string path;
+    bool include_auth_tokens;
+    nlohmann::json query_params;
+  };
+  error::Result<std::string> BuildRequestParams(const PsiCash::RequestInfo& req_info, int attempt) const;
+  // HTTPResult.error will always be empty on a non-error return.
+  error::Result<HTTPResult> MakeHTTPRequestWithRetry(const PsiCash::RequestInfo& req_info);
 
 private:
 #ifdef TESTING
