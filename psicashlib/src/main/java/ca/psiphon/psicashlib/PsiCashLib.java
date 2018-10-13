@@ -31,6 +31,7 @@ public class PsiCashLib {
         class Result {
             public int status = -1; // Negative indicates error trying to make the request
             public String body;
+            public String date;
             public String error;
         }
 
@@ -64,8 +65,22 @@ public class PsiCashLib {
         return null;
     }
 
-    public String newTrackerWrapper() {
-        String res = this.NewTracker("my params");
+    public String newExpiringPurchaseWrapper() {
+        String paramsJSON;
+        try {
+            JSONObject json = new JSONObject();
+            json.put("class", "c");
+            json.put("distinguisher", "d");
+            json.put("expectedPrice", 123);
+
+            paramsJSON = json.toString();
+        } catch (JSONException e) {
+            // Should never happen
+            e.printStackTrace();
+            return "Failed to create params JSON";
+        }
+
+        String res = this.NewExpiringPurchase(paramsJSON);
         Log.i("temptag", res);
         return res;
     }
@@ -84,9 +99,9 @@ public class PsiCashLib {
             int port = jsonReader.getInt("port");
             uriBuilder.encodedAuthority(hostname + ":" + port);
 
-            uriBuilder.encodedPath(jsonReader.getString("path"));
-
             reqParams.method = jsonReader.getString("method");
+
+            uriBuilder.encodedPath(jsonReader.getString("path"));
 
             JSONObject jsonHeaders = jsonReader.getJSONObject("headers");
             Iterator<?> headerKeys = jsonHeaders.keys();
@@ -112,7 +127,28 @@ public class PsiCashLib {
         reqParams.uri = uriBuilder.build();
 
         HTTPRequester.Result res = httpRequester.httpRequest(reqParams);
-        return "" + res.status + ":" + res.body;
+
+        // Check for consistency in the result.
+        // Ensure sanity if there's an error: status must be -1 iff there's an error message
+        if ((res.status == -1) != (res.error != null && !res.error.isEmpty())) {
+            return "bad"; // TODO: what?
+        }
+
+        String jsonResult;
+        try {
+            JSONObject json = new JSONObject();
+            json.put("status", res.status);
+            json.put("body", res.body != null ? res.body : "");
+            json.put("date", res.date != null ? res.date : "");
+            json.put("error", res.error != null ? res.error : "");
+            jsonResult = json.toString();
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+            return "bad"; // TODO: what?
+        }
+
+        return jsonResult;
     }
 
     /*
@@ -120,5 +156,5 @@ public class PsiCashLib {
      */
     private static native boolean NativeStaticInit();
     private native String NativeObjectInit(String fileStoreRoot);
-    private native String NewTracker(String params);
+    private native String NewExpiringPurchase(String params);
 }

@@ -34,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected String doInBackground(Void... params) {
-            return psiCashLib.newTrackerWrapper();
+            return psiCashLib.newExpiringPurchaseWrapper();
         }
 
         @Override

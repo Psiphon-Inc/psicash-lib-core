@@ -16,7 +16,6 @@ import ca.psiphon.psicashlib.PsiCashLib;
 public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
     public PsiCashLib.HTTPRequester.Result httpRequest(PsiCashLib.HTTPRequester.ReqParams reqParams) {
         PsiCashLib.HTTPRequester.Result res = new PsiCashLib.HTTPRequester.Result();
-        res.status = -1;
 
         HttpURLConnection urlConn = null;
         BufferedReader reader = null;
@@ -37,6 +36,7 @@ public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
             urlConn.connect();
 
             res.status = urlConn.getResponseCode();
+            res.date = urlConn.getHeaderField("Date");
 
             // Read the input stream into a String
             InputStream inputStream;
@@ -68,11 +68,13 @@ public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
         }
         catch (IOException e) {
             Log.e("PsiCashLibHelper", "httpRequest: failed with IOException ", e);
+            res.error = "httpRequest: failed with IOException: " + e.toString();
             res.status = -1;
             res.body = null;
         }
         catch (RuntimeException e) {
             Log.e("PsiCashLibHelper", "httpRequest: failed with RuntimeException ", e);
+            res.error = "httpRequest: failed with RuntimeException: " + e.toString();
             res.status = -1;
             res.body = null;
         }
@@ -84,6 +86,7 @@ public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
                 try {
                     reader.close();
                 } catch (final IOException e) {
+                    // Log this, but don't tell the library that the request failed
                     Log.e("PsiCashLibHelper", "httpRequest: Error closing request stream", e);
                 }
             }
