@@ -3,6 +3,7 @@
 
 #include "gtest/gtest.h"
 #include "datetime.h"
+#include "date/date.h"
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
@@ -50,7 +51,7 @@ TEST(TestDatetime, Now)
 
 TEST(TestDatetime, ToISO8601)
 {
-  auto s = "2001-01-01T01:01:01Z";
+  auto s = "2001-01-01T01:01:01.000Z";
 
   DateTime dt;
   auto ok = dt.FromISO8601(s);
@@ -62,14 +63,40 @@ TEST(TestDatetime, ToISO8601)
 
 TEST(TestDatetime, FromISO8601)
 {
-  auto s = "2001-01-01T01:01:01Z";
+  // It's difficult to test this without relying on the parsing and formatting...
 
-  DateTime dt;
-  auto ok = dt.FromISO8601(s);
+  // Low-precision time strings
+  auto twothousandone = "2001-01-01T01:01:01Z";
+  auto twothousandtwo = "2002-01-01T01:01:01Z";
+
+  DateTime dt1;
+  auto ok = dt1.FromISO8601(twothousandone);
   ASSERT_TRUE(ok);
 
-  auto formatted = dt.ToISO8601();
-  ASSERT_EQ(s, formatted);
+  DateTime dt2;
+  ok = dt2.FromISO8601(twothousandtwo);
+  ASSERT_TRUE(ok);
+
+  auto diff = dt2.Diff(dt1);
+  auto year_of_millis = 1000LL*60*60*24*365;
+  ASSERT_EQ(diff.count(), year_of_millis);
+
+  // High precision times, with tenth-second difference
+  auto oct14 = "2018-10-14T01:24:13.62396488Z";
+  auto oct15 = "2018-10-15T01:24:13.72396488Z";
+
+  DateTime dt3;
+  ok = dt3.FromISO8601(oct14);
+  ASSERT_TRUE(ok);
+
+  DateTime dt4;
+  ok = dt4.FromISO8601(oct15);
+  ASSERT_TRUE(ok);
+
+  diff = dt4.Diff(dt3);
+  auto want_millis_diff = 1000LL*60*60*24 + 100;  // 100 for the tenth-second
+
+  ASSERT_EQ(diff.count(), want_millis_diff);
 }
 
 TEST(TestDatetime, FromISO8601BadInput)

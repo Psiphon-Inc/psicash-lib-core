@@ -2,8 +2,10 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
-#include "datetime.h"
 #include <chrono>
+#include <locale>
+#include "datetime.h"
+#include "date/date.h"
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
@@ -15,11 +17,10 @@ const TimePoint kTimePointZero = TimePoint();
 
 static constexpr const char *ISO8601_FORMAT_STRING = "%FT%TZ";
 
-// NOTE: Limited to GMT as "Z"
-static constexpr const char *ISO8601_PARSE_STRING = "%Y-%m-%dT%H:%M:%SZ";
+static constexpr const char *ISO8601_PARSE_STRING = "%FT%T%Z";
 
 // NOTE: Limited to GMT
-static constexpr const char *RFC7231_PARSE_STRING = "%a, %d %b %Y %H:%M:%S GMT"; // Wed, 03 Oct 2018 18:41:43 GMT
+static constexpr const char *RFC7231_PARSE_STRING = "%a, %d %b %Y %T %Z"; // Wed, 03 Oct 2018 18:41:43 GMT
 
 #ifdef _MSC_VER
 #define timegm _mkgmtime
@@ -42,41 +43,21 @@ datetime::TimePoint TmToTimePoint(tm t) {
   return NormalizeTimePoint(datetime::Clock::from_time_t(tt));
 }
 
-/* Not needed at this time
-tm TmNow() {
-    time_t t = time(nullptr);
-    tm tm = *gmtime(&t);
-    return tm;
-}
-*/
-
-string ToISO8601(const tm& t) {
-  ostringstream ss;
-  ss << put_time(&t, ISO8601_FORMAT_STRING);
-  return ss.str();
-}
-
-bool FromString(const char *parseSpecifier, const string& s, tm& t) {
-  tm temp = {};
+bool FromString(const char *parseSpecifier, const string& s, TimePoint& tp) {
+  TimePoint temp;
   istringstream ss(s);
-  ss >> get_time(&temp, parseSpecifier);
+  ss.imbue(std::locale::classic());
+
+  ss >> date::parse(parseSpecifier, temp);
   if (ss.fail())
   {
     // Parse failed.
     return false;
   }
 
-  t = temp;
+  tp = temp;
 
   return true;
-}
-
-bool FromISO8601(const string& s, tm& t) {
-  return FromString(ISO8601_PARSE_STRING, s, t);
-}
-
-bool FromRFC7231(const string& s, tm& t) {
-  return FromString(RFC7231_PARSE_STRING, s, t);
 }
 
 DateTime::DateTime()
@@ -106,28 +87,29 @@ bool DateTime::IsZero() const {
 }
 
 string DateTime::ToISO8601() const {
-  return ::ToISO8601(TimePointToTm(time_point_));
+  ostringstream ss;
+  ss.imbue(std::locale::classic());
+  ss << date::format(ISO8601_FORMAT_STRING, time_point_);
+  return ss.str();
 }
 
 bool DateTime::FromISO8601(const string& s) {
-  tm temp = {};
-  if (!::FromISO8601(s, temp))
-  {
+  TimePoint temp;
+  if (!FromString(ISO8601_PARSE_STRING, s, temp)) {
     return false;
   }
 
-  time_point_ = TmToTimePoint(temp);
+  time_point_ = NormalizeTimePoint(temp);
   return true;
 }
 
 bool DateTime::FromRFC7231(const string& s) {
-  tm temp = {};
-  if (!::FromRFC7231(s, temp))
-  {
+  TimePoint temp;
+  if (!FromString(RFC7231_PARSE_STRING, s, temp)) {
     return false;
   }
 
-  time_point_ = TmToTimePoint(temp);
+  time_point_ = NormalizeTimePoint(temp);
   return true;
 }
 
