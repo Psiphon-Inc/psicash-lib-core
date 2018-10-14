@@ -66,12 +66,13 @@ public class PsiCashLib {
     }
 
     public String newExpiringPurchaseWrapper() {
+        // TEMP
         String paramsJSON;
         try {
             JSONObject json = new JSONObject();
-            json.put("class", "c");
-            json.put("distinguisher", "d");
-            json.put("expectedPrice", 123);
+            json.put("class", "speed-boost");
+            json.put("distinguisher", "1hr");
+            json.put("expectedPrice", 100000000000L);
 
             paramsJSON = json.toString();
         } catch (JSONException e) {
