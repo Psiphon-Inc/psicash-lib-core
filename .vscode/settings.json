@@ -21,6 +21,8 @@
     "typeinfo": "cpp",
     "algorithm": "cpp",
     "chrono": "cpp",
-    "iosfwd": "cpp"
-  }
+    "iosfwd": "cpp",
+    "optional": "cpp"
+  },
+  "C_Cpp.configurationWarnings": "Disabled"
 }

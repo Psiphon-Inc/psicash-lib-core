@@ -156,15 +156,13 @@ public:
       const int64_t expected_price);
 
 protected:
-  struct RequestInfo {
-    std::string method;
-    std::string path;
-    bool include_auth_tokens;
-    nlohmann::json query_params;
-  };
-  error::Result<std::string> BuildRequestParams(const PsiCash::RequestInfo& req_info, int attempt) const;
   // HTTPResult.error will always be empty on a non-error return.
-  error::Result<HTTPResult> MakeHTTPRequestWithRetry(const PsiCash::RequestInfo& req_info);
+  error::Result<HTTPResult> MakeHTTPRequestWithRetry(
+      const std::string& method, const std::string& path,
+      bool include_auth_tokens, const nlohmann::json& query_params);
+  error::Result<std::string> BuildRequestParams(
+      const std::string& method, const std::string& path,
+      bool include_auth_tokens, const nlohmann::json& query_params, int attempt) const;
 
 private:
 #ifdef TESTING
