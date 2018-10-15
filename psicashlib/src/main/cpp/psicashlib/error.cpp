@@ -14,30 +14,30 @@ Error::Error(const Error& src)
     : is_error_(src.is_error_), stack_(src.stack_) {
 }
 
-Error::Error(const char* message, const char* filename, const char* function, int line)
+Error::Error(const std::string& message, const std::string& filename, const std::string& function, int line)
   : is_error_(true) {
   Wrap(message, filename, function, line);
 }
 
-Error& Error::Wrap(const char* message, const char* filename, const char* function, int line) {
+Error& Error::Wrap(const std::string& message, const std::string& filename, const std::string& function, int line) {
   if (!is_error_) {
     // This is a non-error, so there's nothing to wrap.
     return *this;
   }
 
   // We don't want the full absolute file path.
-  string f = filename ? filename : "";
-  auto last_slash = f.rfind("/");
+  string f = filename;
+  auto last_slash = f.find_last_of("/\\");
   if (last_slash != string::npos) {
     f = f.substr(last_slash+1);
   }
 
-  stack_.push_back({message ? message : "", f, function ? function : "", line});
+  stack_.push_back({message, f, function, line});
   return *this;
 }
 
-Error& Error::Wrap(const char* filename, const char* function, int line) {
-  return Wrap(nullptr, filename, function, line);
+Error& Error::Wrap(const std::string& filename, const std::string& function, int line) {
+  return Wrap("", filename, function, line);
 }
 
 Error::operator bool() const {
