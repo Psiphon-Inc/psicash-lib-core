@@ -13,16 +13,19 @@ namespace error {
     public:
         Error();
 
-        Error(const Error &src);
+        Error(const Error& src);
 
-        Error(const std::string& message, const std::string& filename, const std::string& function, int line);
+        Error(const std::string& message, const std::string& filename, const std::string& function,
+              int line);
 
         // Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
         // unconditionally without introducing an error where there isn't one.
         // Returns *this.
-        Error &Wrap(const std::string& message, const std::string& filename, const std::string& function, int line);
+        Error&
+        Wrap(const std::string& message, const std::string& filename, const std::string& function,
+             int line);
 
-        Error &Wrap(const std::string& filename, const std::string& function, int line);
+        Error& Wrap(const std::string& filename, const std::string& function, int line);
 
         operator bool() const;
 
@@ -55,9 +58,9 @@ namespace error {
     public:
         Result() = delete;
 
-        Result(const T &val) : nonstd::expected<T, Error>(val) {}
+        Result(const T& val) : nonstd::expected<T, Error>(val) {}
 
-        Result(const Error &err) : nonstd::expected<T, Error>(
+        Result(const Error& err) : nonstd::expected<T, Error>(
                 (nonstd::unexpected_type<Error>) err) {}
     };
 
