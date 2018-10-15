@@ -9,36 +9,39 @@
 
 namespace error {
 
-class Error {
-public:
-  Error();
-  Error(const Error& src);
-  Error(const char* message, const char* filename, const char* function, int line);
+    class Error {
+    public:
+        Error();
 
-  // Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
-  // unconditionally without introducing an error where there isn't one.
-  // Returns *this.
-  Error& Wrap(const char* message, const char* filename, const char* function, int line);
-  Error& Wrap(const char* filename, const char* function, int line);
+        Error(const Error &src);
 
-  operator bool() const;
+        Error(const std::string& message, const std::string& filename, const std::string& function, int line);
 
-  std::string ToString() const;
+        // Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
+        // unconditionally without introducing an error where there isn't one.
+        // Returns *this.
+        Error &Wrap(const std::string& message, const std::string& filename, const std::string& function, int line);
 
-private:
-  // Indicates that this error is actually set. (There must be a more elegant way to do this...)
-  bool is_error_;
+        Error &Wrap(const std::string& filename, const std::string& function, int line);
 
-  struct StackFrame {
-    std::string message;
-    std::string filename;
-    std::string function;
-    int line;
-  };
-  std::vector<StackFrame> stack_;
-};
+        operator bool() const;
 
-const Error nullerr;
+        std::string ToString() const;
+
+    private:
+        // Indicates that this error is actually set. (There must be a more elegant way to do this...)
+        bool is_error_;
+
+        struct StackFrame {
+            std::string message;
+            std::string filename;
+            std::string function;
+            int line;
+        };
+        std::vector<StackFrame> stack_;
+    };
+
+    const Error nullerr;
 
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
@@ -47,13 +50,16 @@ const Error nullerr;
 #define WrapError(err, message)    (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
 #define PassError(err)             (err.Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
 
-template<typename T>
-class Result : public nonstd::expected<T, Error> {
-public:
-  Result() = delete;
-  Result(const T& val) : nonstd::expected<T, Error>(val) {}
-  Result(const Error& err) : nonstd::expected<T, Error>((nonstd::unexpected_type<Error>)err) {}
-};
+    template<typename T>
+    class Result : public nonstd::expected<T, Error> {
+    public:
+        Result() = delete;
+
+        Result(const T &val) : nonstd::expected<T, Error>(val) {}
+
+        Result(const Error &err) : nonstd::expected<T, Error>(
+                (nonstd::unexpected_type<Error>) err) {}
+    };
 
 }
 
