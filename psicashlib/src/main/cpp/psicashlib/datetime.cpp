@@ -8,6 +8,7 @@
 #include "date/date.h"
 
 #include "nlohmann/json.hpp"
+
 using json = nlohmann::json;
 
 using namespace std;
@@ -15,12 +16,12 @@ using namespace datetime;
 
 const TimePoint kTimePointZero = TimePoint();
 
-static constexpr const char *ISO8601_FORMAT_STRING = "%FT%TZ";
+static constexpr const char* ISO8601_FORMAT_STRING = "%FT%TZ";
 
-static constexpr const char *ISO8601_PARSE_STRING = "%FT%T%Z";
+static constexpr const char* ISO8601_PARSE_STRING = "%FT%T%Z";
 
 // NOTE: Limited to GMT
-static constexpr const char *RFC7231_PARSE_STRING = "%a, %d %b %Y %T %Z"; // Wed, 03 Oct 2018 18:41:43 GMT
+static constexpr const char* RFC7231_PARSE_STRING = "%a, %d %b %Y %T %Z"; // Wed, 03 Oct 2018 18:41:43 GMT
 
 #ifdef _MSC_VER
 #define timegm _mkgmtime
@@ -30,133 +31,131 @@ static constexpr const char *RFC7231_PARSE_STRING = "%a, %d %b %Y %T %Z"; // Wed
 // testing and reasoning difficult. We'll make sure that all TimePoints that we produce use the
 // same Duration.
 datetime::TimePoint NormalizeTimePoint(const datetime::Clock::time_point& tp) {
-  return chrono::time_point_cast<datetime::Duration>(tp);
+    return chrono::time_point_cast<datetime::Duration>(tp);
 }
 
 tm TimePointToTm(const datetime::TimePoint& tp) {
-  time_t tt = datetime::Clock::to_time_t(tp);
-  return *gmtime(&tt);
+    time_t tt = datetime::Clock::to_time_t(tp);
+    return *gmtime(&tt);
 }
 
 datetime::TimePoint TmToTimePoint(tm t) {
-  time_t tt = timegm(&t);
-  return NormalizeTimePoint(datetime::Clock::from_time_t(tt));
+    time_t tt = timegm(&t);
+    return NormalizeTimePoint(datetime::Clock::from_time_t(tt));
 }
 
-bool FromString(const char *parseSpecifier, const string& s, TimePoint& tp) {
-  TimePoint temp;
-  istringstream ss(s);
-  ss.imbue(std::locale::classic());
+bool FromString(const char* parseSpecifier, const string& s, TimePoint& tp) {
+    TimePoint temp;
+    istringstream ss(s);
+    ss.imbue(std::locale::classic());
 
-  ss >> date::parse(parseSpecifier, temp);
-  if (ss.fail())
-  {
-    // Parse failed.
-    return false;
-  }
+    ss >> date::parse(parseSpecifier, temp);
+    if (ss.fail()) {
+        // Parse failed.
+        return false;
+    }
 
-  tp = temp;
+    tp = temp;
 
-  return true;
+    return true;
 }
 
 DateTime::DateTime()
-  : DateTime(kTimePointZero) {
+        : DateTime(kTimePointZero) {
 }
 
 DateTime::DateTime(const DateTime& src)
-  : DateTime(src.time_point_) {
+        : DateTime(src.time_point_) {
 }
 
 DateTime::DateTime(const TimePoint& src)
-    : time_point_(src) {
+        : time_point_(src) {
 }
 
 DateTime DateTime::Zero() {
-  return kTimePointZero;
+    return kTimePointZero;
 }
 
 DateTime DateTime::Now() {
-  return NormalizeTimePoint(Clock::now());
+    return NormalizeTimePoint(Clock::now());
 }
 
 bool DateTime::IsZero() const {
-  // This makes the assumption that we won't be dealing with 1970-01-01 as a legit date.
-  //return time_point_.time_since_epoch().count() == 0;
-  return time_point_ == kTimePointZero;
+    // This makes the assumption that we won't be dealing with 1970-01-01 as a legit date.
+    //return time_point_.time_since_epoch().count() == 0;
+    return time_point_ == kTimePointZero;
 }
 
 string DateTime::ToISO8601() const {
-  ostringstream ss;
-  ss.imbue(std::locale::classic());
-  ss << date::format(ISO8601_FORMAT_STRING, time_point_);
-  return ss.str();
+    ostringstream ss;
+    ss.imbue(std::locale::classic());
+    ss << date::format(ISO8601_FORMAT_STRING, time_point_);
+    return ss.str();
 }
 
 bool DateTime::FromISO8601(const string& s) {
-  TimePoint temp;
-  if (!FromString(ISO8601_PARSE_STRING, s, temp)) {
-    return false;
-  }
+    TimePoint temp;
+    if (!FromString(ISO8601_PARSE_STRING, s, temp)) {
+        return false;
+    }
 
-  time_point_ = NormalizeTimePoint(temp);
-  return true;
+    time_point_ = NormalizeTimePoint(temp);
+    return true;
 }
 
 bool DateTime::FromRFC7231(const string& s) {
-  TimePoint temp;
-  if (!FromString(RFC7231_PARSE_STRING, s, temp)) {
-    return false;
-  }
+    TimePoint temp;
+    if (!FromString(RFC7231_PARSE_STRING, s, temp)) {
+        return false;
+    }
 
-  time_point_ = NormalizeTimePoint(temp);
-  return true;
+    time_point_ = NormalizeTimePoint(temp);
+    return true;
 }
 
 Duration DateTime::Diff(const DateTime& other) const {
-  auto d = time_point_ - other.time_point_;
-  return chrono::duration_cast<Duration>(d);
+    auto d = time_point_ - other.time_point_;
+    return chrono::duration_cast<Duration>(d);
 }
 
 DateTime DateTime::Add(const Duration& d) const {
-  return NormalizeTimePoint(time_point_ + d);
+    return NormalizeTimePoint(time_point_ + d);
 }
 
 DateTime DateTime::Sub(const Duration& d) const {
-  return NormalizeTimePoint(time_point_ - d);
+    return NormalizeTimePoint(time_point_ - d);
 }
 
 int64_t DateTime::MillisSinceEpoch() const {
-  return time_point_.time_since_epoch().count();
+    return time_point_.time_since_epoch().count();
 }
 
 bool DateTime::operator<(const DateTime& rhs) const {
-  return time_point_ < rhs.time_point_;
+    return time_point_ < rhs.time_point_;
 }
 
 bool DateTime::operator>(const DateTime& rhs) const {
-  return time_point_ > rhs.time_point_;
+    return time_point_ > rhs.time_point_;
 }
 
 namespace datetime {
-bool operator==(const DateTime& lhs, const DateTime& rhs) {
-  return lhs.time_point_ == rhs.time_point_;
-}
-void to_json(json& j, const DateTime& dt) {
-  int64_t ticks = dt.time_point_.time_since_epoch().count();
-  j = ticks;
-}
+    bool operator==(const DateTime& lhs, const DateTime& rhs) {
+        return lhs.time_point_ == rhs.time_point_;
+    }
 
-void from_json(const json& j, DateTime& dt) {
-  auto ticks = j.get<int64_t>();
-  dt.time_point_ = TimePoint(Duration(ticks));
-}
+    void to_json(json& j, const DateTime& dt) {
+        j = dt.ToISO8601();
+    }
 
-int64_t DurationToInt64(const Duration& d) {
-  return d.count();
-}
+    void from_json(const json& j, DateTime& dt) {
+        dt.FromISO8601(j.get<string>());
+    }
 
-Duration DurationFromInt64(const int64_t d) {
-  return Duration(d);
-}
+    int64_t DurationToInt64(const Duration& d) {
+        return d.count();
+    }
+
+    Duration DurationFromInt64(const int64_t d) {
+        return Duration(d);
+    }
 } // namespace datetime
