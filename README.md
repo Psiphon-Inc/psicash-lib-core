@@ -2,7 +2,7 @@
 
 ### C++
 
-Mostly following [Google's Style Guide](https://google.github.io/styleguide/cppguide.html).
+Mostly following [Google's Style Guide](https://google.github.io/styleguide/cppguide.html). Major alteration: 4-space indent instead of 2.
 
 ## Review notes
 

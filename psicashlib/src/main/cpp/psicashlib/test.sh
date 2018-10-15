@@ -17,11 +17,11 @@ set -u
 if [ ${CLEAN} ]; then
   rm -rf build
 fi
-find . -name "*.gcda" -print0 | xargs -0 rm
+find . -name "*.gcda" -print0 | xargs -r -0 rm
 
 mkdir -p build
 cd build
-#export CC=$(which clang) CXX=$(which clang++)
+export CC=$(which clang) CXX=$(which clang++)
 cmake ..
 make
 cd -
@@ -30,7 +30,8 @@ cd -
 
 if [ ${COVER} ]; then
 
-  gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
+  #gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
+  llvm-cov gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
 
   lcov --capture --directory . --output-file build/coverage.info > /dev/null
   genhtml build/coverage.info --output-directory build/cov > /dev/null

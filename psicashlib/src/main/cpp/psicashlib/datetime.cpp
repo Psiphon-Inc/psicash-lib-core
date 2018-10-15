@@ -126,6 +126,10 @@ DateTime DateTime::Sub(const Duration& d) const {
   return NormalizeTimePoint(time_point_ - d);
 }
 
+int64_t DateTime::MillisSinceEpoch() const {
+  return time_point_.time_since_epoch().count();
+}
+
 bool DateTime::operator<(const DateTime& rhs) const {
   return time_point_ < rhs.time_point_;
 }

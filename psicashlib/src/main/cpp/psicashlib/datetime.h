@@ -35,6 +35,9 @@ public:
   DateTime Add(const Duration &d) const;
   DateTime Sub(const Duration &d) const;
 
+  // Mostly for testing
+  int64_t MillisSinceEpoch() const;
+
   bool operator<(const DateTime& rhs) const;
   bool operator>(const DateTime& rhs) const;
 

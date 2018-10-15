@@ -198,6 +198,15 @@ TEST(TestDatetime, Sub)
   ASSERT_EQ(now2, res);
 }
 
+TEST(TestDatetime, MillisSinceEpoch)
+{
+  auto now = DateTime::Now();
+  ASSERT_GT(now.MillisSinceEpoch(), 1261440000000LL);
+
+  auto later = now.Add(datetime::Duration(12345));
+  ASSERT_EQ(later.MillisSinceEpoch(), now.MillisSinceEpoch()+12345);
+}
+
 TEST(TestDatetime, DurationToInt64)
 {
   int64_t ms = 123456;

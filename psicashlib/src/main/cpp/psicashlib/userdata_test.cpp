@@ -75,7 +75,7 @@ TEST_F(TestUserData, Persistence)
     ASSERT_FALSE(err);
 
     auto got_server_time_diff = ud.GetServerTimeDiff();
-    ASSERT_EQ(want_server_time_diff, got_server_time_diff);
+    ASSERT_TRUE(IsNear(got_server_time_diff.count(), want_server_time_diff.count(), 5));
 
     auto got_auth_tokens = ud.GetAuthTokens();
     ASSERT_EQ(got_auth_tokens, want_auth_tokens);
@@ -113,7 +113,7 @@ TEST_F(TestUserData, ServerTimeDiff)
   err = ud.SetServerTimeDiff(shifted_now);
   ASSERT_FALSE(err);
   auto got = ud.GetServerTimeDiff();
-  ASSERT_EQ(want, got);
+  ASSERT_TRUE(IsNear(want.count(), got.count(), 5));
 }
 
 TEST_F(TestUserData, AuthTokens)
@@ -236,8 +236,7 @@ TEST_F(TestUserData, Purchases)
   ASSERT_EQ(got.size(), 3);
   ASSERT_TRUE(got[2].local_time_expiry);
   // Comparing the DateTimes will be brittle, as it depends internally on "now".
-  // We'll go from millisecond- to second-resolutions by comparing ISO8601 strings.
-  ASSERT_EQ(got[2].local_time_expiry->ToISO8601(), local_now.ToISO8601());
+  ASSERT_TRUE(IsNear(got[2].local_time_expiry->MillisSinceEpoch(), local_now.MillisSinceEpoch(), 5));
 }
 
 TEST_F(TestUserData, AddPurchase)

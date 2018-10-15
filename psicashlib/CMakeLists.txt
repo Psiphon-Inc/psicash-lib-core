@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(SRC_DIR "src/main/cpp/psicashlib")
 
 file (GLOB SOURCES "${SRC_DIR}/*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
+list(FILTER SOURCES EXCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
 #message("SOURCES: ${SOURCES}")
 
 include_directories("${SRC_DIR}/vendor")
