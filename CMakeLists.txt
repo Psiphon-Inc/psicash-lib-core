@@ -8,8 +8,9 @@ set(CMAKE_CXX_STANDARD 14)
 add_definitions(-DTESTING)
 
 file (GLOB SOURCES "*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX ".*_test.cpp$")
-file (GLOB TEST_SOURCES "*_test.cpp")
+list(FILTER SOURCES EXCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
+file (GLOB TEST_SOURCES "*.cpp")
+list(FILTER TEST_SOURCES INCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
 #message("SOURCES: ${SOURCES}")
 #message("TEST_SOURCES: ${TEST_SOURCES}")
 

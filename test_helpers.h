@@ -1,3 +1,6 @@
+#ifndef PSICASHLIB_TEST_HELPERS_H
+#define PSICASHLIB_TEST_HELPERS_H
+
 #include <string>
 #include <vector>
 #include <cstdlib>
@@ -62,3 +65,8 @@ class TempDir
         system(make_bad_file.c_str());
     }
 };
+
+bool InRange(int64_t target, int64_t low, int64_t high);
+bool IsNear(int64_t target, int64_t comparator, int64_t wiggle);
+
+#endif // PSICASHLIB_TEST_HELPERS_H
