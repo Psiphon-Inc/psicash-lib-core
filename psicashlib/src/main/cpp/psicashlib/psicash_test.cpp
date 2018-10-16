@@ -1,9 +1,12 @@
+#include <regex>
 #include "gtest/gtest.h"
 #include "test_helpers.h"
 #include "psicash.h"
 #include "userdata.h"
 #include "url.h"
 #include "base64.h"
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
 
 using namespace std;
 using namespace psicash;
@@ -14,8 +17,82 @@ class TestPsiCash : public ::testing::Test, public TempDir
 public:
   TestPsiCash() {}
 
-  static string HTTPReq_Stub(const string& params) {
-    return "ok";
+  static string HTTPRequester(const string& params) {
+    auto p = json::parse(params);
+
+    stringstream curl;
+    curl << "curl -s -i";
+    curl << " -X " << p["method"].get<string>();
+
+    auto headers = p["headers"];
+    for (json::iterator it = headers.begin(); it != headers.end(); ++it) {
+      curl << " -H \"" << it.key() << ":" << it.value().get<string>() << "\"";
+    }
+
+    curl << ' ';
+    curl << '"' << p["scheme"].get<string>() << "://";
+    curl << p["hostname"].get<string>() << ":" << p["port"].get<int>();
+    curl << p["path"].get<string>();
+
+    auto query = p["query"];
+    bool first = true;
+    for (json::iterator it = query.begin(); it != query.end(); ++it) {
+      if (first) {
+        curl << "?";
+      }
+      else {
+        curl << "&";
+      }
+      first = false;
+
+      curl << it.key() << "=";
+      if (it.value().is_string()) curl << it.value().get<string>();
+      else if (it.value().is_number_integer()) curl << it.value().get<int64_t>();
+      else if (it.value().is_boolean()) curl << it.value().get<bool>();
+
+    }
+    curl << '"';
+
+    auto command = curl.str();
+    auto res = exec(command.c_str());
+
+    std::stringstream ss(res);
+    std::string line;
+
+    json result = {{"staus", -1}};
+    string body;
+    bool done_headers = false;
+    while(std::getline(ss, line, '\n')) {
+      line = trim(line);
+      if (line.empty()) {
+        done_headers = true;
+      }
+
+      if (!done_headers) {
+        smatch match_pieces;
+
+        // Look for HTTP status code value (200, etc.)
+        regex status_regex("^HTTP\\/\\d\\S* (\\d\\d\\d).*$", regex_constants::ECMAScript | regex_constants::icase);
+        if (regex_match(line, match_pieces, status_regex)) {
+          result["status"] = stoi(match_pieces[1].str());
+        }
+
+        // Look for the Date header
+        regex date_regex("^Date: (.+)$", regex_constants::ECMAScript | regex_constants::icase);
+        if (regex_match(line, match_pieces, date_regex)) {
+          result["date"] = match_pieces[1].str();
+        }
+      }
+
+      if (done_headers) {
+        body += line;
+      }
+    }
+
+    result["body"] = body;
+
+    auto result_string = result.dump();
+    return result_string;
   }
 };
 
@@ -31,7 +108,7 @@ public:
 TEST_F(TestPsiCash, InitSimple) {
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), HTTPReq_Stub);
+    auto err = pc.Init(GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
   }
 
@@ -61,16 +138,16 @@ TEST_F(TestPsiCash, SetHTTPRequestFn)
 {
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), HTTPReq_Stub);
+    auto err = pc.Init(GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
-    pc.SetHTTPRequestFn(HTTPReq_Stub);
+    pc.SetHTTPRequestFn(HTTPRequester);
   }
 
   {
     PsiCash pc;
     auto err = pc.Init(GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
-    pc.SetHTTPRequestFn(HTTPReq_Stub);
+    pc.SetHTTPRequestFn(HTTPRequester);
   }
 }
 
@@ -558,4 +635,14 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
     })|"_json;
   j = pc.GetDiagnosticInfo();
   ASSERT_EQ(j, want);
+}
+
+TEST_F(TestPsiCash, NewExpiringPurchase) {
+  PsiCashTester pc;
+  auto err = pc.Init(GetTempDir().c_str(), HTTPRequester);
+  ASSERT_FALSE(err);
+
+  auto res = pc.NewExpiringPurchase("asdf", "adf", 100);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(res->status, PsiCashStatus_TransactionTypeNotFound);
 }
