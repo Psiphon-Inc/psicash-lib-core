@@ -17,10 +17,9 @@ static jclass g_jClass;
 static jmethodID g_makeHTTPRequestMID;
 static PsiCash g_psiCash;
 
-jstring jErrorMsg(JNIEnv* env, const char* msg, const char* func, int line) {
-    auto em = ErrorMsg(msg, func, line);
-    return env->NewStringUTF(em.c_str());
-}
+#define ERROR_MSG(msg)  (ErrorMsg(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+#define WRAP_ERROR_MSG(err, msg)  (ErrorMsg(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+
 
 // CheckJNIException returns false if there was no outstanding JNI exception, or returns true if
 // there was, in addition to clearing it (allowing for further JNI operations).
@@ -37,22 +36,27 @@ bool CheckJNIException(JNIEnv* env) {
 // So, generally, it should only be used for the duration of a single JNI call.
 MakeHTTPRequestFn GetHTTPReqFn(JNIEnv* env, jobject& this_obj) {
     MakeHTTPRequestFn http_req_fn = [env, &this_obj = this_obj](const string& params) -> string {
+        json stub_result = {{"status", -1}, {"error", nullptr}, {"body", nullptr}, {"date", nullptr}};
+
         auto jParams = env->NewStringUTF(params.c_str());
         if (!jParams) {
             CheckJNIException(env);
-            return ErrorMsg("NewStringUTF failed", __PRETTY_FUNCTION__, __LINE__);
+            stub_result["error"] = MakeError("NewStringUTF failed").ToString();
+            return stub_result.dump();
         }
 
         auto jResult = (jstring) env->CallObjectMethod(this_obj, g_makeHTTPRequestMID, jParams);
         if (!jResult) {
             CheckJNIException(env);
-            return ErrorMsg("CallObjectMethod failed", __PRETTY_FUNCTION__, __LINE__);
+            stub_result["error"] = MakeError("CallObjectMethod failed").ToString();
+            return stub_result.dump();
         }
 
         auto resultCString = env->GetStringUTFChars(jResult, NULL);
         if (!resultCString) {
             CheckJNIException(env);
-            return ErrorMsg("GetStringUTFChars failed", __PRETTY_FUNCTION__, __LINE__);
+            stub_result["error"] = MakeError("GetStringUTFChars failed").ToString();
+            return stub_result.dump();
         }
 
         auto result = string(resultCString);
@@ -86,13 +90,13 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         jobject /*this_obj*/,
         jstring file_store_root) {
     if (file_store_root == nullptr) {
-        return env->NewStringUTF("file_store_root is null");
+        return env->NewStringUTF(ERROR_MSG("file_store_root is null"));
     }
 
     auto file_store_root_str = env->GetStringUTFChars(file_store_root, NULL);
 
     if (file_store_root_str == nullptr) {
-        return env->NewStringUTF("file_store_root_str is null");
+        return env->NewStringUTF(ERROR_MSG("file_store_root_str is null"));
     }
 
     // We can't set the HTTP requester function yet, as we can't cache `this_obj`.
@@ -101,8 +105,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
     env->ReleaseStringUTFChars(file_store_root, file_store_root_str);
 
     if (err) {
-        err = WrapError(err, "g_psiCash.Init failed");
-        return env->NewStringUTF(err.ToString().c_str());
+        return env->NewStringUTF(WRAP_ERROR_MSG(err, "g_psiCash.Init failed"));
     }
 
     return nullptr;
