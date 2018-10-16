@@ -402,7 +402,14 @@ PsiCash::BuildRequestParams(
 
     auto metadata = user_data_->GetRequestMetadata();
     metadata["attempt"] = attempt;
-    headers["X-PsiCash-Metadata"] = metadata;
+
+    try {
+        headers["X-PsiCash-Metadata"] = metadata.dump();
+    }
+    catch (json::exception& e) {
+        return MakeError(
+                utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id).c_str());
+    }
 
     json j = {
             {"scheme",   kAPIServerScheme},
@@ -419,7 +426,7 @@ PsiCash::BuildRequestParams(
     }
     catch (json::exception& e) {
         return MakeError(
-                utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+                utils::Stringer("params json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 }
 
