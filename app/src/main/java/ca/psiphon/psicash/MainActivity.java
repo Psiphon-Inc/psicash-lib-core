@@ -39,12 +39,15 @@ public class MainActivity extends AppCompatActivity {
                     "1hr",
                     100000000000L);
 
-            return result.error;
+            return result.status.toString();
         }
 
         @Override
         protected void onPostExecute(String s) {
             super.onPostExecute(s);
+
+            s = (s == null ? "<null>" : s);
+
             TextView tv = findViewById(R.id.sample_text);
             tv.setText(s);
             Log.i("json", s);

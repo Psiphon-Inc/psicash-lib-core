@@ -1,19 +1,16 @@
 package ca.psiphon.psicashlib;
 
-import android.content.Context;
 import android.net.Uri;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.time.Instant;
-import java.util.Arrays;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Optional;
 
 public class PsiCashLib {
     /**
@@ -34,10 +31,27 @@ public class PsiCashLib {
             public String body;
             public String date;
             public String error;
+
+            public String toJSON() {
+                JSONObject json = new JSONObject();
+                try {
+                    json.put("status", this.status);
+                    json.put("body", this.body);
+                    json.put("date", this.date);
+                    json.put("error", this.error);
+                    return json.toString();
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+                // Should never happen, and no sane recovery.
+                return null;
+            }
         }
 
         Result httpRequest(ReqParams reqParams);
     }
+
     private HTTPRequester httpRequester;
 
     public enum Status {
@@ -91,11 +105,61 @@ public class PsiCashLib {
         return null;
     }
 
+    //
+    // JSON helpers
+    //
+
+    private static String jsonNullableString(JSONObject json, String key) throws JSONException {
+        if (!json.has(key) || json.isNull(key)) {
+            return null;
+        }
+        return json.getString(key);
+    }
+
+    private static Number jsonNullableInt(JSONObject json, String key) throws JSONException {
+        if (!json.has(key) || json.isNull(key)) {
+            return null;
+        }
+        return json.getInt(key);
+    }
+
+    private static JSONObject jsonNullableObject(JSONObject json, String key) throws JSONException {
+        if (!json.has(key) || json.isNull(key)) {
+            return null;
+        }
+        return json.getJSONObject(key);
+    }
+
+    private static Date jsonNullableDate(JSONObject json, String key) throws JSONException {
+        String dateString = jsonNullableString(json, key);
+        if (dateString == null) {
+            return null;
+        }
+
+        Date date;
+
+        // We need to try different formats depending on the presence of milliseconds.
+        SimpleDateFormat isoFormatWithMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss.SSS'Z'");
+        try {
+            date = isoFormatWithMS.parse(dateString);
+        } catch (ParseException e1) {
+            SimpleDateFormat isoFormatWithoutMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+            try {
+                date = isoFormatWithoutMS.parse(dateString);
+            } catch (ParseException e2) {
+                // Should not happen. No way to recover.
+                throw new JSONException("Failed to parse date with key " + key + "; error: " + e2.toString());
+            }
+        }
+
+        return date;
+    }
+
     public static class Purchase {
         public String id;
         public String transactionClass;
         public String distinguisher;
-        public Instant expiry;
+        public Date expiry;
         public String authorization;
 
         public static Purchase fromJSON(JSONObject json) throws JSONException {
@@ -107,12 +171,8 @@ public class PsiCashLib {
             p.id = json.getString("id");
             p.transactionClass = json.getString("class");
             p.distinguisher = json.getString("distinguisher");
-            p.authorization = json.optString("authorization");
-
-            String expiryString = json.optString("expiry");
-            if (expiryString != null) {
-                p.expiry = Instant.parse(expiryString);
-            }
+            p.expiry = jsonNullableDate(json, "serverTimeExpiry");
+            p.authorization = jsonNullableString(json, "authorization");
 
             return p;
         }
@@ -130,8 +190,8 @@ public class PsiCashLib {
 
             NewExpiringPurchaseResult n = new NewExpiringPurchaseResult();
             n.status = Status.fromCode(json.getInt("status"));
-            n.error = json.optString("error");
-            n.purchase = Purchase.fromJSON(json.optJSONObject("purchase"));
+            n.error = jsonNullableString(json, "error");
+            n.purchase = Purchase.fromJSON(jsonNullableObject(json, "purchase"));
             return n;
         }
     }
@@ -178,67 +238,66 @@ public class PsiCashLib {
     }
 
     public String makeHTTPRequest(String jsonReqParams) {
+        HTTPRequester.Result result = new HTTPRequester.Result();
+
         HTTPRequester.ReqParams reqParams = new HTTPRequester.ReqParams();
         Uri.Builder uriBuilder = new Uri.Builder();
         reqParams.headers = new HashMap<>();
 
         try {
-            JSONObject jsonReader = new JSONObject(jsonReqParams);
+            JSONObject json = new JSONObject(jsonReqParams);
 
-            uriBuilder.scheme(jsonReader.getString("scheme"));
+            uriBuilder.scheme(json.getString("scheme"));
 
-            String hostname = jsonReader.getString("hostname");
-            int port = jsonReader.getInt("port");
-            uriBuilder.encodedAuthority(hostname + ":" + port);
+            String hostname = json.getString("hostname");
 
-            reqParams.method = jsonReader.getString("method");
-
-            uriBuilder.encodedPath(jsonReader.getString("path"));
-
-            JSONObject jsonHeaders = jsonReader.getJSONObject("headers");
-            Iterator<?> headerKeys = jsonHeaders.keys();
-            while (headerKeys.hasNext()) {
-                String key = (String) headerKeys.next();
-                String value = jsonHeaders.getString(key);
-                reqParams.headers.put(key, value);
+            Number port = jsonNullableInt(json, "port");
+            if (port != null) {
+                hostname += ":" + port.intValue();
             }
 
-            JSONObject jsonQueryParams = jsonReader.getJSONObject("query");
-            Iterator<?> queryParamKeys = jsonQueryParams.keys();
-            while (queryParamKeys.hasNext()) {
-                String key = (String) queryParamKeys.next();
-                String value = jsonQueryParams.getString(key);
-                uriBuilder.appendQueryParameter(key, value);
+            uriBuilder.encodedAuthority(hostname);
+
+            reqParams.method = json.getString("method");
+
+            uriBuilder.encodedPath(json.getString("path"));
+
+            JSONObject jsonHeaders = jsonNullableObject(json, "headers");
+            if (jsonHeaders != null) {
+                Iterator<?> headerKeys = jsonHeaders.keys();
+                while (headerKeys.hasNext()) {
+                    String key = (String) headerKeys.next();
+                    String value = jsonHeaders.getString(key);
+                    reqParams.headers.put(key, value);
+                }
+            }
+
+            JSONObject jsonQueryParams = jsonNullableObject(json, "query");
+            if (jsonQueryParams != null) {
+                Iterator<?> queryParamKeys = jsonQueryParams.keys();
+                while (queryParamKeys.hasNext()) {
+                    String key = (String) queryParamKeys.next();
+                    String value = jsonQueryParams.getString(key);
+                    uriBuilder.appendQueryParameter(key, value);
+                }
             }
         } catch (JSONException e) {
-            e.printStackTrace();
-            return "bad"; // TODO: what?
+            result.error = "Parsing request object failed: " + e.toString();
+            return result.toJSON();
         }
 
         reqParams.uri = uriBuilder.build();
 
-        HTTPRequester.Result res = httpRequester.httpRequest(reqParams);
+        result = httpRequester.httpRequest(reqParams);
 
         // Check for consistency in the result.
         // Ensure sanity if there's an error: status must be -1 iff there's an error message
-        if ((res.status == -1) != (res.error != null && !res.error.isEmpty())) {
-            return "bad"; // TODO: what?
+        if ((result.status == -1) != (result.error != null && !result.error.isEmpty())) {
+            result.error = "Request result is not in sane error state: " + result.toString();
+            return result.toJSON();
         }
 
-        String jsonResult;
-        try {
-            JSONObject json = new JSONObject();
-            json.put("status", res.status);
-            json.put("body", res.body != null ? res.body : "");
-            json.put("date", res.date != null ? res.date : "");
-            json.put("error", res.error != null ? res.error : "");
-            jsonResult = json.toString();
-        } catch (JSONException e) {
-            e.printStackTrace();
-            return "bad"; // TODO: what?
-        }
-
-        return jsonResult;
+        return result.toJSON();
     }
 
     /*

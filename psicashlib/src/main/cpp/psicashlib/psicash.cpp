@@ -575,13 +575,13 @@ namespace psicash {
 
     void to_json(json& j, const PurchasePrice& pp) {
         j = json{
-                {"transactionClass", pp.transaction_class},
+                {"class", pp.transaction_class},
                 {"distinguisher",    pp.distinguisher},
                 {"price",            pp.price}};
     }
 
     void from_json(const json& j, PurchasePrice& pp) {
-        pp.transaction_class = j.at("transactionClass").get<string>();
+        pp.transaction_class = j.at("class").get<string>();
         pp.distinguisher = j.at("distinguisher").get<string>();
         pp.price = j.at("price").get<int64_t>();
     }
@@ -599,7 +599,7 @@ namespace psicash {
     void to_json(json& j, const Purchase& p) {
         j = json{
                 {"id",               p.id},
-                {"transactionClass", p.transaction_class},
+                {"class", p.transaction_class},
                 {"distinguisher",    p.distinguisher}};
 
         if (p.authorization) {
@@ -623,7 +623,7 @@ namespace psicash {
 
     void from_json(const json& j, Purchase& p) {
         p.id = j.at("id").get<string>();
-        p.transaction_class = j.at("transactionClass").get<string>();
+        p.transaction_class = j.at("class").get<string>();
         p.distinguisher = j.at("distinguisher").get<string>();
 
         if (j.at("authorization").is_null()) {
