@@ -8,13 +8,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 
 public class PsiCashLib {
-    private HTTPRequester httpRequester;
-
     /**
      * The library user must implement this interface. It provides HTTP request functionality to the
      * library.
@@ -36,6 +37,31 @@ public class PsiCashLib {
         }
 
         Result httpRequest(ReqParams reqParams);
+    }
+    private HTTPRequester httpRequester;
+
+    public enum Status {
+        INVALID(-1),
+        SUCCESS(0),
+        EXISTING_TRANSACTION(1),
+        INSUFFICIENT_BALANCE(2),
+        TRANSACTION_AMOUNT_MISMATCH(3),
+        TRANSACTION_TYPE_NOT_FOUND(4),
+        INVALID_TOKENS(5),
+        SERVER_ERROR(6);
+
+        private final int code;
+
+        Status(int code) {
+            this.code = code;
+        }
+
+        public static Status fromCode(int code) {
+            for (Status s : Status.values()) {
+                if (s.code == code) return s;
+            }
+            throw new IllegalArgumentException("Status not found");
+        }
     }
 
     static {
@@ -65,25 +91,90 @@ public class PsiCashLib {
         return null;
     }
 
-    public String newExpiringPurchaseWrapper() {
-        // TEMP
+    public static class Purchase {
+        public String id;
+        public String transactionClass;
+        public String distinguisher;
+        public Instant expiry;
+        public String authorization;
+
+        public static Purchase fromJSON(JSONObject json) throws JSONException {
+            if (json == null) {
+                return null;
+            }
+
+            Purchase p = new Purchase();
+            p.id = json.getString("id");
+            p.transactionClass = json.getString("class");
+            p.distinguisher = json.getString("distinguisher");
+            p.authorization = json.optString("authorization");
+
+            String expiryString = json.optString("expiry");
+            if (expiryString != null) {
+                p.expiry = Instant.parse(expiryString);
+            }
+
+            return p;
+        }
+    }
+
+    public static class NewExpiringPurchaseResult {
+        public Status status;
+        public String error;
+        public Purchase purchase;
+
+        public static NewExpiringPurchaseResult fromJSON(JSONObject json) throws JSONException {
+            if (json == null) {
+                return null;
+            }
+
+            NewExpiringPurchaseResult n = new NewExpiringPurchaseResult();
+            n.status = Status.fromCode(json.getInt("status"));
+            n.error = json.optString("error");
+            n.purchase = Purchase.fromJSON(json.optJSONObject("purchase"));
+            return n;
+        }
+    }
+
+    public NewExpiringPurchaseResult newExpiringPurchase(
+            String transactionClass, String distinguisher, long expectedPrice) {
+        NewExpiringPurchaseResult result = new NewExpiringPurchaseResult();
+        result.status = Status.INVALID;
+
         String paramsJSON;
         try {
             JSONObject json = new JSONObject();
-            json.put("class", "speed-boost");
-            json.put("distinguisher", "1hr");
-            json.put("expectedPrice", 100000000000L);
-
+            json.put("class", transactionClass);
+            json.put("distinguisher", distinguisher);
+            json.put("expectedPrice", expectedPrice);
             paramsJSON = json.toString();
         } catch (JSONException e) {
             // Should never happen
             e.printStackTrace();
-            return "Failed to create params JSON";
+            // TODO
+            result.error = "Failed to create params JSON";
+            return result;
         }
 
-        String res = this.NewExpiringPurchase(paramsJSON);
-        Log.i("temptag", res);
-        return res;
+        String resultJSON = this.NewExpiringPurchase(paramsJSON);
+        if (resultJSON == null) {
+            // TODO: what?
+            result.error = "catastrophic";
+            return result;
+        }
+
+        try {
+            JSONObject j = new JSONObject(resultJSON);
+
+            result = NewExpiringPurchaseResult.fromJSON(j);
+        } catch (JSONException e) {
+            // TODO
+            e.printStackTrace();
+            result.error = "catastrophic";
+            return result;
+        }
+
+        return result;
     }
 
     public String makeHTTPRequest(String jsonReqParams) {
@@ -107,7 +198,7 @@ public class PsiCashLib {
             JSONObject jsonHeaders = jsonReader.getJSONObject("headers");
             Iterator<?> headerKeys = jsonHeaders.keys();
             while (headerKeys.hasNext()) {
-                String key = (String)headerKeys.next();
+                String key = (String) headerKeys.next();
                 String value = jsonHeaders.getString(key);
                 reqParams.headers.put(key, value);
             }
@@ -115,12 +206,11 @@ public class PsiCashLib {
             JSONObject jsonQueryParams = jsonReader.getJSONObject("query");
             Iterator<?> queryParamKeys = jsonQueryParams.keys();
             while (queryParamKeys.hasNext()) {
-                String key = (String)queryParamKeys.next();
+                String key = (String) queryParamKeys.next();
                 String value = jsonQueryParams.getString(key);
                 uriBuilder.appendQueryParameter(key, value);
             }
-        }
-        catch (JSONException e) {
+        } catch (JSONException e) {
             e.printStackTrace();
             return "bad"; // TODO: what?
         }
@@ -143,8 +233,7 @@ public class PsiCashLib {
             json.put("date", res.date != null ? res.date : "");
             json.put("error", res.error != null ? res.error : "");
             jsonResult = json.toString();
-        }
-        catch (JSONException e) {
+        } catch (JSONException e) {
             e.printStackTrace();
             return "bad"; // TODO: what?
         }
@@ -156,6 +245,8 @@ public class PsiCashLib {
      * Expose native (C++) functions.
      */
     private static native boolean NativeStaticInit();
+
     private native String NativeObjectInit(String fileStoreRoot);
+
     private native String NewExpiringPurchase(String params);
 }

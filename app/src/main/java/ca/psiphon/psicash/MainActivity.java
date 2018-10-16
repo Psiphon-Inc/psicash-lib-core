@@ -34,7 +34,12 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected String doInBackground(Void... params) {
-            return psiCashLib.newExpiringPurchaseWrapper();
+            PsiCashLib.NewExpiringPurchaseResult result = psiCashLib.newExpiringPurchase(
+                    "speed-boost",
+                    "1hr",
+                    100000000000L);
+
+            return result.error;
         }
 
         @Override
