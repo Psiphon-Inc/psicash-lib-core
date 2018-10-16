@@ -31,9 +31,11 @@ cd -
 if [ ${COVER} ]; then
 
   #gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
-  llvm-cov gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
+  #lcov --capture --directory . --output-file build/coverage.info > /dev/null
 
-  lcov --capture --directory . --output-file build/coverage.info > /dev/null
+  llvm-cov gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
+  lcov --gcov-tool "$(pwd)/llvm-gcov.sh" --capture --directory . --output-file build/coverage.info > /dev/null
+
   genhtml build/coverage.info --output-directory build/cov > /dev/null
   echo "Coverage output in $(pwd)/build/cov/index.html"
 
