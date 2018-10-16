@@ -551,7 +551,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
   want = R"|({
     "balance":12345,
     "isAccount":true,
-    "purchasePrices":[{"distinguisher":"d1","price":123,"transactionClass":"tc1"},{"distinguisher":"d2","price":321,"transactionClass":"tc2"}],
+    "purchasePrices":[{"distinguisher":"d1","price":123,"class":"tc1"},{"distinguisher":"d2","price":321,"transactionClass":"tc2"}],
     "purchases":[{"class":"tc2","distinguisher":"d2"}],
     "serverTimeDiff":0,
     "validTokenTypes":["a","b","c"]
