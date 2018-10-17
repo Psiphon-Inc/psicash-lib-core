@@ -22,22 +22,30 @@ using namespace error;
 
 namespace psicash {
 
+namespace prod {
+static constexpr const char* kAPIServerScheme = "https";
+static constexpr const char* kAPIServerHostname = "api.psi.cash";
+static constexpr int kAPIServerPort = 443;
+}
+namespace dev {
 static constexpr const char* kAPIServerScheme = "https";
 static constexpr const char* kAPIServerHostname = "dev-api.psi.cash";
 static constexpr int kAPIServerPort = 443;
+}
+
 static constexpr const char* kAPIServerVersion = "v1";
 static constexpr const char* kPsiCashUserAgent = "Psiphon-PsiCash-iOS"; // TODO: CAN'T HARDCODE -- PLATFORM DEPENDENT
 static const string kLandingPageParamKey = "psicash";
 static constexpr const char* kMethodGET = "GET";
 static constexpr const char* kMethodPOST = "POST";
 
-
 string ErrorMsg(const string& message, const string& filename, const string& function, int line) {
     Error err(message, filename, function, line);
     return string("{\"status\":-1,\"error\":\"") + err.ToString() + "\"}";
 }
 
-string ErrorMsg(const Error& error, const string& message, const string& filename, const string& function, int line) {
+string ErrorMsg(const Error& error, const string& message,
+                const string& filename, const string& function, int line) {
     Error wrapping_err(error);
     wrapping_err.Wrap(message, filename, function, line);
     return string("{\"status\":-1,\"error\":\"") + wrapping_err.ToString() + "\"}";
@@ -48,13 +56,24 @@ string ErrorMsg(const Error& error, const string& message, const string& filenam
 //
 
 PsiCash::PsiCash()
-        : make_http_request_fn_(nullptr) {
+    : make_http_request_fn_(nullptr), server_port_(0) {
 }
 
 PsiCash::~PsiCash() {
 }
 
-Error PsiCash::Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_fn) {
+Error
+PsiCash::Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_fn, bool test) {
+    if (test) {
+        server_scheme_ = dev::kAPIServerScheme;
+        server_hostname_ = dev::kAPIServerHostname;
+        server_port_ = dev::kAPIServerPort;
+    } else {
+        server_scheme_ = prod::kAPIServerScheme;
+        server_hostname_ = prod::kAPIServerHostname;
+        server_port_ = prod::kAPIServerPort;
+    }
+
     if (!file_store_root) {
         return MakeError("file_store_root null");
     }
@@ -217,7 +236,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     }
     catch (json::exception& e) {
         return MakeError(
-                utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+            utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
     // Our preference is to put the our data into the URL's fragment/hash/anchor,
@@ -274,7 +293,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
     }
     catch (json::exception& e) {
         return MakeError(
-                utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+            utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
     json_data = base64::B64Encode(json_data);
@@ -306,8 +325,8 @@ json PsiCash::GetDiagnosticInfo() const {
 //
 
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
-        const std::string& method, const std::string& path,
-        bool include_auth_tokens, const nlohmann::json& query_params) {
+    const std::string& method, const std::string& path,
+    bool include_auth_tokens, const nlohmann::json& query_params) {
     const int max_attempts = 3;
     HTTPResult http_result;
 
@@ -347,7 +366,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         }
         catch (json::exception& e) {
             return MakeError(
-                    utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
+                utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
 
         if (http_result.status == -1 && http_result.error.empty()) {
@@ -384,8 +403,8 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
 
 Result<string>
 PsiCash::BuildRequestParams(
-        const std::string& method, const std::string& path,
-        bool include_auth_tokens, const nlohmann::json& query_params, int attempt) const {
+    const std::string& method, const std::string& path,
+    bool include_auth_tokens, const nlohmann::json& query_params, int attempt) const {
     json headers;
     headers["User-Agent"] = kPsiCashUserAgent;
 
@@ -408,17 +427,17 @@ PsiCash::BuildRequestParams(
     }
     catch (json::exception& e) {
         return MakeError(
-                utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id).c_str());
+            utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
     json j = {
-            {"scheme",   kAPIServerScheme},
-            {"hostname", kAPIServerHostname},
-            {"port",     kAPIServerPort},
-            {"method",   method},
-            {"path",     "/"s + kAPIServerVersion + path},
-            {"query",    query_params},
-            {"headers",  headers},
+        {"scheme",   server_scheme_},
+        {"hostname", server_hostname_},
+        {"port",     server_port_},
+        {"method",   method},
+        {"path",     "/"s + kAPIServerVersion + path},
+        {"query",    query_params},
+        {"headers",  headers},
     };
 
     try {
@@ -426,14 +445,14 @@ PsiCash::BuildRequestParams(
     }
     catch (json::exception& e) {
         return MakeError(
-                utils::Stringer("params json dump failed: ", e.what(), "; id:", e.id).c_str());
+            utils::Stringer("params json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 }
 
 Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
-        const string& transaction_class,
-        const string& distinguisher,
-        const int64_t expected_price) {
+    const string& transaction_class,
+    const string& distinguisher,
+    const int64_t expected_price) {
 
     // TEMP
     auto earner = "569ee3e4784c39a3301285914f96c26746883f358c92fea16a8b2e41ad5be396";
@@ -446,15 +465,15 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
 
 
     auto result = MakeHTTPRequestWithRetry(
-            kMethodPOST,
-            "/transaction",
-            true,
-            {
-                    {"class",          transaction_class},
-                    {"distinguisher",  distinguisher},
-                    // Note the conversion from positive to negative: price to amount.
-                    {"expectedAmount", -expected_price}
-            }
+        kMethodPOST,
+        "/transaction",
+        true,
+        {
+            {"class",          transaction_class},
+            {"distinguisher",  distinguisher},
+            // Note the conversion from positive to negative: price to amount.
+            {"expectedAmount", -expected_price}
+        }
     );
     if (!result) {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
@@ -470,7 +489,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         result->status == kHTTPStatusConflict) {
         if (result->body.empty()) {
             return MakeError(
-                    utils::Stringer("result has no body; status: ", result->status).c_str());
+                utils::Stringer("result has no body; status: ", result->status).c_str());
         }
 
         try {
@@ -499,8 +518,8 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                 string expiry_string = j["TransactionResponse"]["Values"]["Expires"].get<string>();
                 if (!server_expiry.FromISO8601(expiry_string)) {
                     return MakeError(
-                            ("failed to parse TransactionResponse.Values.Expires; got "s +
-                             expiry_string).c_str());
+                        ("failed to parse TransactionResponse.Values.Expires; got "s +
+                         expiry_string).c_str());
                 }
             }
 
@@ -509,31 +528,31 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
         catch (json::exception& e) {
             return MakeError(
-                    utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
+                utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
     }
 
     if (result->status == kHTTPStatusOK) {
         if (transaction_type != "expiring-purchase") {
             return MakeError(
-                    ("response contained incorrect TransactionResponse.Type; want 'expiring-purchase', got "s +
-                     transaction_type).c_str());
+                ("response contained incorrect TransactionResponse.Type; want 'expiring-purchase', got "s +
+                 transaction_type).c_str());
         }
         if (transaction_id.empty()) {
             return MakeError("response did not provide valid TransactionID");
         }
         if (server_expiry.IsZero()) {
             return MakeError(
-                    "response did not provide valid TransactionResponse.Values.Expires");
+                "response did not provide valid TransactionResponse.Values.Expires");
         }
         // Not checking authorization, as it doesn't apply to all expiring purchases
 
         Purchase purchase = {
-                .id = transaction_id,
-                .transaction_class = transaction_class,
-                .distinguisher = distinguisher,
-                .server_time_expiry = server_expiry,
-                .authorization = authorization
+            .id = transaction_id,
+            .transaction_class = transaction_class,
+            .distinguisher = distinguisher,
+            .server_time_expiry = server_expiry,
+            .authorization = authorization
         };
 
         if (auto err = user_data_->AddPurchase(purchase)) {
@@ -541,38 +560,38 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
 
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_Success,
-                .purchase = purchase
+            .status = PsiCashStatus_Success,
+            .purchase = purchase
         };
     } else if (result->status == kHTTPStatusTooManyRequests) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_ExistingTransaction
+            .status = PsiCashStatus_ExistingTransaction
         };
     } else if (result->status == kHTTPStatusPaymentRequired) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_InsufficientBalance
+            .status = PsiCashStatus_InsufficientBalance
         };
     } else if (result->status == kHTTPStatusConflict) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_TransactionAmountMismatch
+            .status = PsiCashStatus_TransactionAmountMismatch
         };
     } else if (result->status == kHTTPStatusNotFound) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_TransactionTypeNotFound
+            .status = PsiCashStatus_TransactionTypeNotFound
         };
     } else if (result->status == kHTTPStatusUnauthorized) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_InvalidTokens
+            .status = PsiCashStatus_InvalidTokens
         };
     } else if (result->status == kHTTPStatusInternalServerError) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_ServerError
+            .status = PsiCashStatus_ServerError
         };
     }
 
     return MakeError(
-            utils::Stringer("request returned unexpected status code: ",
-                            result->status).c_str());
+        utils::Stringer("request returned unexpected status code: ",
+                        result->status).c_str());
 }
 
 
@@ -586,9 +605,9 @@ bool operator==(const PurchasePrice& lhs, const PurchasePrice& rhs) {
 
 void to_json(json& j, const PurchasePrice& pp) {
     j = json{
-            {"class",         pp.transaction_class},
-            {"distinguisher", pp.distinguisher},
-            {"price",         pp.price}};
+        {"class",         pp.transaction_class},
+        {"distinguisher", pp.distinguisher},
+        {"price",         pp.price}};
 }
 
 void from_json(const json& j, PurchasePrice& pp) {
@@ -609,9 +628,9 @@ bool operator==(const Purchase& lhs, const Purchase& rhs) {
 
 void to_json(json& j, const Purchase& p) {
     j = json{
-            {"id",            p.id},
-            {"class",         p.transaction_class},
-            {"distinguisher", p.distinguisher}};
+        {"id",            p.id},
+        {"class",         p.transaction_class},
+        {"distinguisher", p.distinguisher}};
 
     if (p.authorization) {
         j["authorization"] = *p.authorization;

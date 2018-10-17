@@ -104,7 +104,7 @@ public:
 
     // Must be called once. make_http_request_fn may be null and set later with SetHTTPRequestFn.
     // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
-    error::Error Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_fn);
+    error::Error Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_fn, bool test=false);
 
     // Can be used for updating the HTTP requester function pointer.
     void SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn);
@@ -165,6 +165,9 @@ protected:
             bool include_auth_tokens, const nlohmann::json& query_params, int attempt) const;
 
 protected:
+    std::string server_scheme_;
+    std::string server_hostname_;
+    int server_port_;
     std::unique_ptr<UserData> user_data_;
     MakeHTTPRequestFn make_http_request_fn_;
 };
