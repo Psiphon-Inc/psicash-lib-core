@@ -17,7 +17,12 @@ set -u
 if [ ${CLEAN} ]; then
   rm -rf build
 fi
-find . -name "*.gcda" -print0 | xargs -r -0 rm
+
+if [[ $OSTYPE == darwin* ]]; then
+  find . -name "*.gcda" -print0 | xargs -0 rm
+else
+  find . -name "*.gcda" -print0 | xargs -r -0 rm
+fi
 
 mkdir -p build
 cd build
