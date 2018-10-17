@@ -56,14 +56,15 @@ string ErrorMsg(const Error& error, const string& message,
 //
 
 PsiCash::PsiCash()
-    : make_http_request_fn_(nullptr), server_port_(0) {
+    : server_port_(0), make_http_request_fn_(nullptr) {
 }
 
 PsiCash::~PsiCash() {
 }
 
 Error
-PsiCash::Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_fn, bool test) {
+PsiCash::Init(const char* user_agent, const char* file_store_root,
+              MakeHTTPRequestFn make_http_request_fn, bool test) {
     if (test) {
         server_scheme_ = dev::kAPIServerScheme;
         server_hostname_ = dev::kAPIServerHostname;
@@ -74,8 +75,12 @@ PsiCash::Init(const char* file_store_root, MakeHTTPRequestFn make_http_request_f
         server_port_ = prod::kAPIServerPort;
     }
 
+    if (!user_agent || (user_agent_=user_agent).empty()) {
+        return MakeError("file_store_root is required");
+    }
+
     if (!file_store_root) {
-        return MakeError("file_store_root null");
+        return MakeError("file_store_root is required");
     }
 
     make_http_request_fn_ = make_http_request_fn;
