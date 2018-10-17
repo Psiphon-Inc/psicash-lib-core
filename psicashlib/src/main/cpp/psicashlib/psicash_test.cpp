@@ -15,7 +15,7 @@ using namespace psicash;
 class TestPsiCash : public ::testing::Test, public TempDir
 {
 public:
-  TestPsiCash() {}
+  TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {}
 
   static string HTTPRequester(const string& params) {
     auto p = json::parse(params);
@@ -94,6 +94,8 @@ public:
     auto result_string = result.dump();
     return result_string;
   }
+
+  const char* user_agent_;
 };
 
 // Subclass psicash::PsiCash to get access to private members for testing.
@@ -108,13 +110,13 @@ public:
 TEST_F(TestPsiCash, InitSimple) {
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), HTTPRequester, false);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, false);
     ASSERT_FALSE(err);
   }
 
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
     ASSERT_FALSE(err);
   }
 }
@@ -124,12 +126,12 @@ TEST_F(TestPsiCash, InitFail)
   {
     auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
     PsiCash pc;
-    auto err = pc.Init(bad_dir.c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
     ASSERT_TRUE(err);
   }
   {
     PsiCash pc;
-    auto err = pc.Init(nullptr, nullptr, true);
+    auto err = pc.Init(user_agent_, nullptr, nullptr, true);
     ASSERT_TRUE(err);
   }
 }
@@ -138,14 +140,14 @@ TEST_F(TestPsiCash, SetHTTPRequestFn)
 {
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), HTTPRequester, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
     ASSERT_FALSE(err);
     pc.SetHTTPRequestFn(HTTPRequester);
   }
 
   {
     PsiCash pc;
-    auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
     ASSERT_FALSE(err);
     pc.SetHTTPRequestFn(HTTPRequester);
   }
@@ -154,7 +156,7 @@ TEST_F(TestPsiCash, SetHTTPRequestFn)
 TEST_F(TestPsiCash, SetRequestMetadataItem)
 {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto j = pc.user_data().GetRequestMetadata();
@@ -169,7 +171,7 @@ TEST_F(TestPsiCash, SetRequestMetadataItem)
 
 TEST_F(TestPsiCash, IsAccount) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   // Check the default
@@ -191,7 +193,7 @@ TEST_F(TestPsiCash, IsAccount) {
 
 TEST_F(TestPsiCash, ValidTokenTypes) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto vtt = pc.ValidTokenTypes();
@@ -215,7 +217,7 @@ TEST_F(TestPsiCash, ValidTokenTypes) {
 
 TEST_F(TestPsiCash, Balance) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   // Check the default
@@ -237,7 +239,7 @@ TEST_F(TestPsiCash, Balance) {
 
 TEST_F(TestPsiCash, GetPurchasePrices) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchasePrices();
@@ -260,7 +262,7 @@ TEST_F(TestPsiCash, GetPurchasePrices) {
 
 TEST_F(TestPsiCash, GetPurchases) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchases();
@@ -286,7 +288,7 @@ TEST_F(TestPsiCash, GetPurchases) {
 
 TEST_F(TestPsiCash, ValidPurchases) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchases();
@@ -326,7 +328,7 @@ TEST_F(TestPsiCash, ValidPurchases) {
 
 TEST_F(TestPsiCash, NextExpiringPurchase) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchases();
@@ -391,7 +393,7 @@ TEST_F(TestPsiCash, NextExpiringPurchase) {
 
 TEST_F(TestPsiCash, ExpirePurchases) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchases();
@@ -440,7 +442,7 @@ TEST_F(TestPsiCash, ExpirePurchases) {
 
 TEST_F(TestPsiCash, RemovePurchases) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto v = pc.GetPurchases();
@@ -487,7 +489,7 @@ TEST_F(TestPsiCash, RemovePurchases) {
 
 TEST_F(TestPsiCash, ModifyLandingPage) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   const string key_part = "psicash=";
@@ -582,7 +584,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
 
 TEST_F(TestPsiCash, GetRewardedActivityData) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   // Error with no tokens
@@ -606,7 +608,7 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
 
 TEST_F(TestPsiCash, GetDiagnosticInfo) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), nullptr, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
   ASSERT_FALSE(err);
 
   auto want = R"|({
@@ -639,7 +641,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
   PsiCashTester pc;
-  auto err = pc.Init(GetTempDir().c_str(), HTTPRequester, true);
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
   ASSERT_FALSE(err);
 
   auto res = pc.NewExpiringPurchase("asdf", "adf", 100);

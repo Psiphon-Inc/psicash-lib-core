@@ -10,6 +10,8 @@ using json = nlohmann::json;
 #define HTTP_REQUEST_FN_NAME    "makeHTTPRequest"
 #define HTTP_REQUEST_FN_SIG     "(Ljava/lang/String;)Ljava/lang/String;"
 
+static constexpr const char* kPsiCashUserAgent = "Psiphon-PsiCash-iOS"; // TODO: UPDATE FOR ANDROID
+
 using namespace std;
 using namespace psicash;
 
@@ -88,7 +90,8 @@ JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         JNIEnv* env,
         jobject /*this_obj*/,
-        jstring file_store_root) {
+        jstring file_store_root,
+        jboolean test) {
     if (file_store_root == nullptr) {
         return env->NewStringUTF(ERROR_MSG("file_store_root is null"));
     }
@@ -100,7 +103,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
     }
 
     // We can't set the HTTP requester function yet, as we can't cache `this_obj`.
-    auto err = g_psiCash.Init(file_store_root_str, nullptr);
+    auto err = g_psiCash.Init(kPsiCashUserAgent, file_store_root_str, nullptr, test);
 
     env->ReleaseStringUTFChars(file_store_root, file_store_root_str);
 

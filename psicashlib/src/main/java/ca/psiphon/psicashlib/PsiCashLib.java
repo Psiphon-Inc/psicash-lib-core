@@ -96,7 +96,7 @@ public class PsiCashLib {
     public String init(String fileStoreRoot, HTTPRequester httpRequester) {
         this.httpRequester = httpRequester;
 
-        String err = this.NativeObjectInit(fileStoreRoot);
+        String err = this.NativeObjectInit(fileStoreRoot, true);
 
         if (err != null) {
             return "PsiCashLib NativeObjectInit failed: " + err;
@@ -305,7 +305,7 @@ public class PsiCashLib {
      */
     private static native boolean NativeStaticInit();
 
-    private native String NativeObjectInit(String fileStoreRoot);
+    private native String NativeObjectInit(String fileStoreRoot, boolean test);
 
     private native String NewExpiringPurchase(String params);
 }

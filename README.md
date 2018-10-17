@@ -1,3 +1,8 @@
+## TODO
+
+* UserAgent string:
+  - Add "Psiphon-PsiCash-Android" to server config
+
 ## Code Style
 
 ### C++
@@ -7,7 +12,6 @@ Mostly following [Google's Style Guide](https://google.github.io/styleguide/cppg
 ## Review notes
 
 * I made no effort to be memory efficient (such as using move semantics, references, etc.). I tried to be clear and safe above efficiency. If there's a leak, that's a bug. If there's gross memory inefficiency, it can probably be improved. But I don't think we should bother with small efficiencies.
-
 
 ## Troubleshooting
 
