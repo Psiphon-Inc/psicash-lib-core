@@ -84,7 +84,7 @@ struct Purchase {
 using Purchases = std::vector<Purchase>;
 
 enum class Status {
-    Invalid = -1,
+    Invalid = -1, // TODO: Is this made obsolete by Result<>?
     Success = 0,
     ExistingTransaction,
     InsufficientBalance,

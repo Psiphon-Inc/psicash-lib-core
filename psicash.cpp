@@ -76,7 +76,7 @@ PsiCash::Init(const char* user_agent, const char* file_store_root,
     }
 
     if (!user_agent || (user_agent_ = user_agent).empty()) {
-        return MakeError("file_store_root is required");
+        return MakeError("user_agent is required");
     }
 
     if (!file_store_root) {
@@ -237,6 +237,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
 
     string json_data;
     try {
+        // The third argument is "ensure ASCII"
         json_data = psicash_data.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
