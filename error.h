@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <iosfwd>
 #include "nonstd/expected.hpp"
 #include "utils.h"
 
@@ -29,6 +30,7 @@ public:
     operator bool() const;
 
     std::string ToString() const;
+    friend std::ostream& operator<<(std::ostream& os, const Error& err);
 
 private:
     // Indicates that this error is actually set. (There must be a more elegant way to do this...)
