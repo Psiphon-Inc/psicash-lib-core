@@ -1,10 +1,9 @@
 package ca.psiphon.psicashlib;
 
 import android.net.Uri;
-
 import org.json.JSONException;
 import org.json.JSONObject;
-
+import org.json.JSONArray;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -128,6 +127,13 @@ public class PsiCashLib {
             return null;
         }
         return json.getJSONObject(key);
+    }
+
+    private static JSONArray jsonNullableArray(JSONObject json, String key) throws JSONException {
+        if (!json.has(key) || json.isNull(key)) {
+            return null;
+        }
+        return json.getJSONArray(key);
     }
 
     private static Date jsonNullableDate(JSONObject json, String key) throws JSONException {
@@ -272,12 +278,13 @@ public class PsiCashLib {
                 }
             }
 
-            JSONObject jsonQueryParams = jsonNullableObject(json, "query");
+            // Query params are an array of arrays of 2 strings.
+            JSONArray jsonQueryParams = jsonNullableArray(json, "query");
             if (jsonQueryParams != null) {
-                Iterator<?> queryParamKeys = jsonQueryParams.keys();
-                while (queryParamKeys.hasNext()) {
-                    String key = (String) queryParamKeys.next();
-                    String value = jsonQueryParams.getString(key);
+                for (int i = 0; i < jsonQueryParams.length(); i++) {
+                    JSONArray param = jsonQueryParams.getJSONArray(i);
+                    String key = param.getString(0);
+                    String value = param.getString(1);
                     uriBuilder.appendQueryParameter(key, value);
                 }
             }

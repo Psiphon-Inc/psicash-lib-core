@@ -23,7 +23,7 @@ namespace psicash {
 //    "method": "POST", // or "GET", etc.
 //    "path": "/v1/tracker",
 //    "headers": { "User-Agent": "value", ...etc. },
-//    "query": { "class": "speed-boost", "expectedAmount": -10000, ...etc. }
+//    "query": [ ["class", "speed-boost"], ["expectedAmount", "-10000"], ... ] // name-value pairs
 // }
 // The string param that it returns is an encoding of this structure:
 struct HTTPResult {
@@ -100,7 +100,7 @@ class PsiCash {
 public:
     PsiCash();
 
-    ~PsiCash();
+    virtual ~PsiCash();
 
     // Must be called once. make_http_request_fn may be null and set later with SetHTTPRequestFn.
     // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
@@ -147,10 +147,13 @@ public:
     // API Server Requests
     //
 
+    error::Result<PsiCashStatus> RefreshState(const std::vector<std::string>& purchase_classes);
+
     struct NewExpiringPurchaseResponse {
         PsiCashStatus status;
         nonstd::optional<Purchase> purchase;
     };
+
     error::Result<NewExpiringPurchaseResponse> NewExpiringPurchase(
             const std::string& transaction_class,
             const std::string& distinguisher,
@@ -159,11 +162,19 @@ public:
 protected:
     // HTTPResult.error will always be empty on a non-error return.
     error::Result<HTTPResult> MakeHTTPRequestWithRetry(
-            const std::string& method, const std::string& path,
-            bool include_auth_tokens, const nlohmann::json& query_params);
+            const std::string& method, const std::string& path, bool include_auth_tokens,
+            const std::vector<std::pair<std::string, std::string>>& query_params);
+
+    // query_params can be a map, or it can be an array of pairs of name-value. (The latter form
+    // is necessary for providing multiple query params with the same name, which is valid.)
     error::Result<std::string> BuildRequestParams(
-            const std::string& method, const std::string& path,
-            bool include_auth_tokens, const nlohmann::json& query_params, int attempt) const;
+            const std::string& method, const std::string& path, bool include_auth_tokens,
+            const std::vector<std::pair<std::string, std::string>>& query_params, int attempt) const;
+
+    error::Result<PsiCashStatus> NewTracker();
+
+    error::Result<PsiCashStatus>
+    RefreshState(const std::vector<std::string>& purchase_classes, bool allow_recursion);
 
 protected:
     std::string user_agent_;

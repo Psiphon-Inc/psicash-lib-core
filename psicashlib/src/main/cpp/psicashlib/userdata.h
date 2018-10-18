@@ -18,7 +18,7 @@ class UserData {
 public:
     UserData();
 
-    ~UserData();
+    virtual ~UserData();
 
     // Must be called once.
     // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
