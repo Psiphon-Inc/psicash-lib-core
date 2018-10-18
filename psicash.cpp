@@ -607,7 +607,21 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
             }
 
             if (j["PurchasePrices"].is_array()) {
-                user_data_->SetPurchasePrices(j["PurchasePrices"].get<PurchasePrices>());
+                PurchasePrices purchase_prices;
+
+                // The from_json for the PurchasePrice struct is for our internal (datastore and library API)
+                // representation of PurchasePrice. We won't assume that the representation used by the
+                // server is the same (nor that it won't change independent of our representation).
+                for (int i = 0; i < j["PurchasePrices"].size(); i++) {
+                    const auto& pp = j["PurchasePrices"][i];
+                    purchase_prices.push_back(PurchasePrice{
+                            .transaction_class = pp["Class"].get<string>(),
+                            .distinguisher = pp["Distinguisher"].get<string>(),
+                            .price = pp["Price"].get<int64_t>()
+                    });
+                }
+
+                user_data_->SetPurchasePrices(purchase_prices);
             }
 
             if (auto err = pauser.Unpause()) {
