@@ -67,9 +67,6 @@ class TempDir
     }
 };
 
-bool InRange(int64_t target, int64_t low, int64_t high);
-bool IsNear(int64_t target, int64_t comparator, int64_t wiggle);
-
 std::string exec(const char* cmd);
 
 // From https://stackoverflow.com/a/17976541
