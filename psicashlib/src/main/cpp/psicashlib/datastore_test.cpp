@@ -80,6 +80,55 @@ TEST_F(TestDatastore, CheckPersistence)
     delete ds;
 }
 
+TEST_F(TestDatastore, WritePause)
+{
+    auto temp_dir = GetTempDir();
+
+    auto ds = new Datastore();
+    auto err = ds->Init(temp_dir.c_str());
+    ASSERT_FALSE(err);
+
+    // This should persist
+    string pause_want1 = "pause_want1";
+    err = ds->Set({{pause_want1, pause_want1}});
+    ASSERT_FALSE(err);
+
+    // This should persist
+    ds->PauseWrites();
+    string pause_want2 = "pause_want2";
+    err = ds->Set({{pause_want2, pause_want2}});
+    ASSERT_FALSE(err);
+    err = ds->UnpauseWrites();
+    ASSERT_FALSE(err);
+
+    // This should NOT persist, since we'll close before unpausing
+    ds->PauseWrites();
+    string pause_want3 = "pause_want3";
+    err = ds->Set({{pause_want3, pause_want3}});
+    ASSERT_FALSE(err);
+
+    // Close
+    delete ds;
+
+    // Reopen
+    ds = new Datastore();
+    err = ds->Init(temp_dir.c_str());
+    ASSERT_FALSE(err);
+
+    auto got = ds->Get<string>(pause_want1.c_str());
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, pause_want1);
+
+    got = ds->Get<string>(pause_want2.c_str());
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, pause_want2);
+
+    got = ds->Get<string>(pause_want3.c_str());
+    ASSERT_FALSE(got);
+
+    delete ds;
+}
+
 TEST_F(TestDatastore, SetSimple)
 {
     Datastore ds;
