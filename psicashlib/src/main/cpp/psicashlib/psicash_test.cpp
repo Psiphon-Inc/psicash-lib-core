@@ -5,6 +5,7 @@
 #include "userdata.h"
 #include "url.h"
 #include "base64.h"
+#include "SecretTestValues.h" // This file is in CipherShare
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
@@ -125,7 +126,7 @@ TEST_F(TestPsiCash, InitFail)
     auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
     PsiCash pc;
     auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
-    ASSERT_TRUE(err);
+    ASSERT_TRUE(err) << bad_dir; // This occasionally fails to fail, and I don't know why
   }
   {
     PsiCash pc;
@@ -652,6 +653,45 @@ TEST_F(TestPsiCash, RefreshState) {
   ASSERT_GE(pc.ValidTokenTypes().size(), 3);
   ASSERT_EQ(pc.Balance(), 0);
   ASSERT_GE(pc.GetPurchasePrices().size(), 2);
+
+  // Test with existing tracker
+  auto want_tokens = pc.user_data().GetAuthTokens();
+  res = pc.RefreshState({"speed-boost"});
+  ASSERT_TRUE(res) << res.error().ToString();
+  ASSERT_FALSE(pc.IsAccount());
+  ASSERT_GE(pc.ValidTokenTypes().size(), 3);
+  ASSERT_EQ(pc.Balance(), 0);
+  auto speed_boost_purchase_prices = pc.GetPurchasePrices();
+  ASSERT_GE(pc.GetPurchasePrices().size(), 2);
+  ASSERT_EQ(want_tokens, pc.user_data().GetAuthTokens());
+
+  // Multiple purchase classes
+  pc.user_data().Clear();
+  res = pc.RefreshState({"speed-boost", TEST_DEBIT_TRANSACTION_CLASS});
+  ASSERT_TRUE(res) << res.error().ToString();
+  ASSERT_FALSE(pc.IsAccount());
+  ASSERT_GE(pc.ValidTokenTypes().size(), 3);
+  ASSERT_EQ(pc.Balance(), 0);
+  ASSERT_GT(pc.GetPurchasePrices().size(), speed_boost_purchase_prices.size());
+
+  // No purchase classes
+  pc.user_data().Clear();
+  res = pc.RefreshState({});
+  ASSERT_TRUE(res) << res.error().ToString();
+  ASSERT_FALSE(pc.IsAccount());
+  ASSERT_GE(pc.ValidTokenTypes().size(), 3);
+  ASSERT_EQ(pc.Balance(), 0);
+  ASSERT_EQ(pc.GetPurchasePrices().size(), 0); // we didn't ask for any
+
+  // Purchase classes, then none; verify that previous aren't lost
+  pc.user_data().Clear();
+  res = pc.RefreshState({"speed-boost"}); // with class
+  ASSERT_TRUE(res) << res.error().ToString();
+  speed_boost_purchase_prices = pc.GetPurchasePrices();
+  ASSERT_GT(speed_boost_purchase_prices.size(), 3);
+  res = pc.RefreshState({}); // without class
+  ASSERT_TRUE(res) << res.error().ToString();
+  ASSERT_EQ(pc.GetPurchasePrices().size(), speed_boost_purchase_prices.size());
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {

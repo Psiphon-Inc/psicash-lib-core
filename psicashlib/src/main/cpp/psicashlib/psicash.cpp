@@ -606,7 +606,8 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
                 user_data_->SetBalance(j["Balance"].get<int64_t>());
             }
 
-            if (j["PurchasePrices"].is_array()) {
+            // We only try to use the PurchasePrices if we supplied purchase classes to the request
+            if (!purchase_classes.empty() && j["PurchasePrices"].is_array()) {
                 PurchasePrices purchase_prices;
 
                 // The from_json for the PurchasePrice struct is for our internal (datastore and library API)
