@@ -83,15 +83,15 @@ struct Purchase {
 
 using Purchases = std::vector<Purchase>;
 
-enum PsiCashStatus {
-    PsiCashStatus_Invalid = -1,
-    PsiCashStatus_Success = 0,
-    PsiCashStatus_ExistingTransaction,
-    PsiCashStatus_InsufficientBalance,
-    PsiCashStatus_TransactionAmountMismatch,
-    PsiCashStatus_TransactionTypeNotFound,
-    PsiCashStatus_InvalidTokens,
-    PsiCashStatus_ServerError
+enum class Status {
+    Invalid = -1,
+    Success = 0,
+    ExistingTransaction,
+    InsufficientBalance,
+    TransactionAmountMismatch,
+    TransactionTypeNotFound,
+    InvalidTokens,
+    ServerError
 };
 
 class UserData; // forward declaration
@@ -147,10 +147,10 @@ public:
     // API Server Requests
     //
 
-    error::Result<PsiCashStatus> RefreshState(const std::vector<std::string>& purchase_classes);
+    error::Result<Status> RefreshState(const std::vector<std::string>& purchase_classes);
 
     struct NewExpiringPurchaseResponse {
-        PsiCashStatus status;
+        Status status;
         nonstd::optional<Purchase> purchase;
     };
 
@@ -171,9 +171,9 @@ protected:
             const std::string& method, const std::string& path, bool include_auth_tokens,
             const std::vector<std::pair<std::string, std::string>>& query_params, int attempt) const;
 
-    error::Result<PsiCashStatus> NewTracker();
+    error::Result<Status> NewTracker();
 
-    error::Result<PsiCashStatus>
+    error::Result<Status>
     RefreshState(const std::vector<std::string>& purchase_classes, bool allow_recursion);
 
 protected:

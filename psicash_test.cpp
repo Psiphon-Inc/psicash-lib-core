@@ -657,5 +657,5 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
 
   auto res = pc.NewExpiringPurchase("asdf", "adf", 100);
   ASSERT_TRUE(res);
-  ASSERT_EQ(res->status, PsiCashStatus_TransactionTypeNotFound);
+  ASSERT_EQ(res->status, Status::TransactionTypeNotFound);
 }

@@ -454,7 +454,7 @@ PsiCash::BuildRequestParams(
     }
 }
 
-Result<PsiCashStatus> PsiCash::NewTracker() {
+Result<Status> PsiCash::NewTracker() {
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
             "/tracker",
@@ -495,9 +495,9 @@ Result<PsiCashStatus> PsiCash::NewTracker() {
         // Don't fail if this fails. A RefreshState will still happen, and the tokens are the important thing.
         (void)user_data_->SetBalance(0);
 
-        return PsiCashStatus_Success;
+        return Status::Success;
     } else if (result->status == kHTTPStatusInternalServerError) {
-        return PsiCashStatus_ServerError;
+        return Status::ServerError;
     }
 
     return MakeError(
@@ -505,11 +505,11 @@ Result<PsiCashStatus> PsiCash::NewTracker() {
                             result->status).c_str());
 }
 
-Result<PsiCashStatus> PsiCash::RefreshState(const std::vector<std::string>& purchase_classes) {
+Result<Status> PsiCash::RefreshState(const std::vector<std::string>& purchase_classes) {
     return RefreshState(purchase_classes, true);
 }
 
-Result<PsiCashStatus>
+Result<Status>
 PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool allow_recursion) {
     /*
      Logic flow overview:
@@ -531,7 +531,7 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         if (user_data_->GetIsAccount()) {
             // This is/was a logged-in account. We can't just get a new tracker.
             // The app will have to force a login for the user to do anything.
-            return PsiCashStatus_Success;
+            return Status::Success;
         }
 
         if (!allow_recursion) {
@@ -545,7 +545,7 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
             return WrapError(new_tracker_result.error(), "NewTracker failed");
         }
 
-        if (*new_tracker_result != PsiCashStatus_Success) {
+        if (*new_tracker_result != Status::Success) {
             return *new_tracker_result;
         }
 
@@ -621,12 +621,12 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
 
         if (IsAccount()) {
             // For accounts there's nothing else we can do, regardless of the state of token validity.
-            return PsiCashStatus_Success;
+            return Status::Success;
         }
 
         if (!ValidTokenTypes().empty()) {
             // We have a good tracker state.
-            return PsiCashStatus_Success;
+            return Status::Success;
         }
 
         // We started out with tracker tokens, but they're all invalid.
@@ -640,9 +640,9 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         // This can only happen if the tokens we sent didn't all belong to same user.
         // This really should never happen.
         user_data_->Clear();
-        return PsiCashStatus_InvalidTokens;
+        return Status::InvalidTokens;
     } else if (result->status == kHTTPStatusInternalServerError) {
-        return PsiCashStatus_ServerError;
+        return Status::ServerError;
     }
 
     return MakeError(
@@ -761,32 +761,32 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
 
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_Success,
+                .status = Status::Success,
                 .purchase = purchase
         };
     } else if (result->status == kHTTPStatusTooManyRequests) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_ExistingTransaction
+                .status = Status::ExistingTransaction
         };
     } else if (result->status == kHTTPStatusPaymentRequired) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_InsufficientBalance
+                .status = Status::InsufficientBalance
         };
     } else if (result->status == kHTTPStatusConflict) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_TransactionAmountMismatch
+                .status = Status::TransactionAmountMismatch
         };
     } else if (result->status == kHTTPStatusNotFound) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_TransactionTypeNotFound
+                .status = Status::TransactionTypeNotFound
         };
     } else if (result->status == kHTTPStatusUnauthorized) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_InvalidTokens
+                .status = Status::InvalidTokens
         };
     } else if (result->status == kHTTPStatusInternalServerError) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = PsiCashStatus_ServerError
+                .status = Status::ServerError
         };
     }
 
