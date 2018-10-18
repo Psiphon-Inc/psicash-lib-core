@@ -14,9 +14,15 @@ using json = nlohmann::json;
 using namespace std;
 using namespace psicash;
 
+// Making this a global rather than PsiCashTester member, because it needs to be modified
+// inside a const member. (Tests are not multithreaded, so this is okay.)
+static std::vector<std::string> g_request_mutators;
+
 class TestPsiCash : public ::testing::Test, public TempDir {
   public:
-    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {}
+    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {
+      g_request_mutators.clear();
+    }
 
     static string HTTPRequester(const string& params) {
         auto p = json::parse(params);
@@ -124,12 +130,31 @@ class PsiCashTester : public psicash::PsiCash {
             if (!result) {
                 return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
             } else if (result->status != kHTTPStatusOK) {
-                return MakeError(
-                        utils::Stringer("1T reward request failed: ", result->status,
-                                        "; ", result->error, "; ", result->body));
+                return MakeError(utils::Stringer("1T reward request failed: ", result->status, "; ",
+                                                 result->error, "; ", result->body));
             }
         }
         return error::nullerr;
+    }
+
+    virtual error::Result<string>
+    BuildRequestParams(const std::string& method, const std::string& path, bool include_auth_tokens,
+                       const std::vector<std::pair<std::string, std::string>>& query_params,
+                       int attempt,
+                       const std::map<std::string, std::string>& additional_headers) const {
+        auto bonus_headers = additional_headers;
+        if (!g_request_mutators.empty()) {
+            bonus_headers[TEST_HEADER] = g_request_mutators.back();
+            g_request_mutators.pop_back();
+        }
+
+        return PsiCash::BuildRequestParams(method, path, include_auth_tokens,
+                                           query_params, attempt, bonus_headers);
+    }
+
+    void SetRequestMutators(const std::vector<std::string>& mutators) {
+      // We're going to store it reversed so we can pop off the end.
+      g_request_mutators.assign(mutators.crbegin(), mutators.crend());
     }
 };
 
@@ -301,8 +326,7 @@ TEST_F(TestPsiCash, GetPurchases) {
     ASSERT_EQ(v.size(), 0);
 
     Purchases ps = {
-            {"id1", "tc1", "d1", datetime::DateTime::Now(), datetime::DateTime::Now(),
-             "a1"},
+            {"id1", "tc1", "d1", datetime::DateTime::Now(), datetime::DateTime::Now(), "a1"},
             {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
@@ -476,11 +500,10 @@ TEST_F(TestPsiCash, RemovePurchases) {
     auto v = pc.GetPurchases();
     ASSERT_EQ(v.size(), 0);
 
-    Purchases ps = {
-            {"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
-            {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
-            {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
-            {"id4", "tc4", "d4", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
+    Purchases ps = {{"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+                    {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+                    {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+                    {"id4", "tc4", "d4", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
     vector<TransactionID> removeIDs = {ps[1].id, ps[3].id};
     Purchases remaining = {ps[0], ps[2]};
 
@@ -594,10 +617,9 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.query_, url_in.query_);
-    ASSERT_EQ(url_out.fragment_,
-              key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
-                                     "null,\"v\":1}",
-                                     true));
+    ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
+                                                        "null,\"v\":1}",
+                                                        true));
 
     // With tokens
 
@@ -612,10 +634,9 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.query_, url_in.query_);
-    ASSERT_EQ(url_out.fragment_,
-              key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
-                                     "\"kEarnerTokenType\",\"v\":1}",
-                                     true));
+    ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
+                                                        "\"kEarnerTokenType\",\"v\":1}",
+                                                        true));
 
     //
     // Errors
@@ -773,15 +794,47 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_FALSE(res) << res.error();
 
     // Test is-account with no tokens
-    pc.user_data().Clear(); // blow away existing tokens
-    pc.user_data().SetIsAccount(true); // force is-account
+    pc.user_data().Clear();                 // blow away existing tokens
+    pc.user_data().SetIsAccount(true);      // force is-account
     res = pc.RefreshState({"speed-boost"}); // ask for purchase prices
     ASSERT_TRUE(res) << res.error();
     ASSERT_EQ(*res, Status::Success);
-    ASSERT_TRUE(pc.IsAccount());  // should still be is-account
+    ASSERT_TRUE(pc.IsAccount());               // should still be is-account
     ASSERT_EQ(pc.ValidTokenTypes().size(), 0); // but no tokens
     ASSERT_EQ(pc.Balance(), 0);
     ASSERT_EQ(pc.GetPurchasePrices().size(), 0); // shouldn't get any, because no valid indicator token
+
+    // Tracker with invalid tokens
+    pc.user_data().Clear();
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auto prev_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(prev_tokens.size(), 3);
+    // We have tokens; force the server to consider them invalid
+    pc.SetRequestMutators({"InvalidTokens"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    // We should have brand new tokens now.
+    auto next_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(next_tokens.size(), 3);
+    ASSERT_NE(prev_tokens, next_tokens);
+
+    // Tracker with invalid tokens
+    pc.user_data().Clear();
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+    // We're setting "isAccount" with tracker tokens. This is not okay, but the server is
+    // going to blindly consider them invalid anyway.
+    pc.user_data().SetIsAccount(true);
+    // We have tokens; force the server to consider them invalid
+    pc.SetRequestMutators({"InvalidTokens"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    // Accounts won't get new tokens by refreshing, so now we should have none
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 0);
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {

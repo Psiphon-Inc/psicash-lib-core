@@ -342,8 +342,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             this_thread::sleep_for(chrono::seconds(i));
         }
 
-        auto req_params = BuildRequestParams(method, path, include_auth_tokens, query_params,
-                                             i + 1);
+        auto req_params = BuildRequestParams(method, path, include_auth_tokens, query_params, i + 1, {});
         if (!req_params) {
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
@@ -410,8 +409,9 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
 Result<string>
 PsiCash::BuildRequestParams(
         const std::string& method, const std::string& path, bool include_auth_tokens,
-        const std::vector<std::pair<std::string, std::string>>& query_params, int attempt) const {
-    json headers;
+        const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
+        const std::map<std::string, std::string>& additional_headers) const {
+    json headers(additional_headers);
     headers["User-Agent"] = kPsiCashUserAgent;
 
     if (include_auth_tokens) {
@@ -651,7 +651,7 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
             return MakeError("failed to obtain valid tracker tokens (b)");
         }
 
-        return RefreshState(purchase_classes, false);
+        return RefreshState(purchase_classes, true);
     } else if (result->status == kHTTPStatusUnauthorized) {
         // This can only happen if the tokens we sent didn't all belong to same user.
         // This really should never happen.

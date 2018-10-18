@@ -167,9 +167,10 @@ protected:
 
     // query_params can be a map, or it can be an array of pairs of name-value. (The latter form
     // is necessary for providing multiple query params with the same name, which is valid.)
-    error::Result<std::string> BuildRequestParams(
+    virtual error::Result<std::string> BuildRequestParams(
             const std::string& method, const std::string& path, bool include_auth_tokens,
-            const std::vector<std::pair<std::string, std::string>>& query_params, int attempt) const;
+            const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
+            const std::map<std::string, std::string>& additional_headers) const;
 
     error::Result<Status> NewTracker();
 
