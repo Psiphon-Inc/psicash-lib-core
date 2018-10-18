@@ -34,22 +34,20 @@ public:
     curl << p["hostname"].get<string>() << ":" << p["port"].get<int>();
     curl << p["path"].get<string>();
 
+    // query is an array of 2-tuple name-value arrays
     auto query = p["query"];
-    bool first = true;
-    for (json::iterator it = query.begin(); it != query.end(); ++it) {
-      if (first) {
+    for (int i = 0; i < query.size(); ++i) {
+      if (i == 0) {
         curl << "?";
       }
       else {
         curl << "&";
       }
-      first = false;
 
-      curl << it.key() << "=";
-      if (it.value().is_string()) curl << it.value().get<string>();
-      else if (it.value().is_number_integer()) curl << it.value().get<int64_t>();
-      else if (it.value().is_boolean()) curl << it.value().get<bool>();
-
+      curl << query[i][0].get<string>() << "=";
+      if (query[i][1].is_string()) curl << query[i][1].get<string>();
+      else if (query[i][1].is_number_integer()) curl << query[i][1].get<int64_t>();
+      else if (query[i][1].is_boolean()) curl << query[i][1].get<bool>();
     }
     curl << '"';
 
@@ -637,6 +635,19 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
     })|"_json;
   j = pc.GetDiagnosticInfo();
   ASSERT_EQ(j, want);
+}
+
+TEST_F(TestPsiCash, RefreshState) {
+  PsiCashTester pc;
+  auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+  ASSERT_FALSE(err);
+
+  ASSERT_TRUE(pc.ValidTokenTypes().empty());
+
+  auto res = pc.RefreshState({});
+  ASSERT_TRUE(res);
+
+  ASSERT_FALSE(pc.ValidTokenTypes().empty());
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
