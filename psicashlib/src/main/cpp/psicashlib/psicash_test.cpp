@@ -642,12 +642,16 @@ TEST_F(TestPsiCash, RefreshState) {
   auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
   ASSERT_FALSE(err);
 
+  pc.user_data().Clear();
   ASSERT_TRUE(pc.ValidTokenTypes().empty());
 
-  auto res = pc.RefreshState({});
-  ASSERT_TRUE(res);
-
-  ASSERT_FALSE(pc.ValidTokenTypes().empty());
+  // Basic NewTracker success
+  auto res = pc.RefreshState({"speed-boost"});
+  ASSERT_TRUE(res) << res.error().ToString();
+  ASSERT_FALSE(pc.IsAccount());
+  ASSERT_GE(pc.ValidTokenTypes().size(), 3);
+  ASSERT_EQ(pc.Balance(), 0);
+  ASSERT_GE(pc.GetPurchasePrices().size(), 2);
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
