@@ -117,8 +117,8 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
 /*
  * Response JSON structure is:
  * {
- *      status: PsiCashStatus value,
- *      error: "message if status is PsiCashStatus_Invalid",
+ *      status: Status value,
+ *      error: "message if status is Status::Invalid",
  *      purchase: Purchase
  * }
  */
@@ -128,7 +128,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NewExpiringPurchase(
         JNIEnv* env,
         jobject this_obj,
         jstring j_params_json) {
-    auto output = json::object({{"status",   PsiCashStatus_Invalid},
+    auto output = json::object({{"status",   Status::Invalid},
                                 {"error",    nullptr},
                                 {"purchase", nullptr}});
 
