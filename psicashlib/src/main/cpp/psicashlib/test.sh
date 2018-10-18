@@ -14,6 +14,9 @@ fi
 # Don't set this until after checking $1 and $2
 set -u
 
+export TEST_TEMP_DIR="testtemp"
+rm -rf ${TEST_TEMP_DIR}
+
 if [ ${CLEAN} ]; then
   rm -rf build
 fi
@@ -34,12 +37,8 @@ cd -
 ./build/runUnitTests
 
 if [ ${COVER} ]; then
-
-  #gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
-  #lcov --capture --directory . --output-file build/coverage.info > /dev/null
-
-  llvm-cov gcov -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
-  lcov --gcov-tool "$(pwd)/llvm-gcov.sh" --capture --directory . --output-file build/coverage.info > /dev/null
+  "$(pwd)/gcov.sh" -o build/CMakeFiles/psicash.dir/*.gcno *.cpp > /dev/null
+  lcov --gcov-tool "$(pwd)/gcov.sh" --capture --directory . --output-file build/coverage.info > /dev/null
 
   genhtml build/coverage.info --output-directory build/cov > /dev/null
   echo "Coverage output in $(pwd)/build/cov/index.html"

@@ -27,7 +27,8 @@ class TempDir
 
     std::string GetTempDir()
     {
-        std::vector<std::string> env_vars = {"TMPDIR", "TMP", "TEMP", "TEMPDIR"};
+        // The first envvar is set by test.sh
+        std::vector<std::string> env_vars = {"TEST_TEMP_DIR", "TMPDIR", "TMP", "TEMP", "TEMPDIR"};
         const char *tmp = nullptr;
         for (auto var : env_vars)
         {
