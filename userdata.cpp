@@ -6,7 +6,6 @@ using json = nlohmann::json;
 
 using namespace std;
 using namespace error;
-using namespace psicash;
 
 namespace psicash {
 // Datastore keys
@@ -19,7 +18,6 @@ static constexpr const char *PURCHASE_PRICES = "purchasePrices";
 static constexpr const char *PURCHASES = "purchases";
 static constexpr const char *LAST_TRANSACTION_ID = "lastTransactionID";
 const char *REQUEST_METADATA = "requestMetadata"; // used in header
-} // namespace psicash
 
 UserData::UserData() {
 }
@@ -69,6 +67,23 @@ AuthTokens UserData::GetAuthTokens() const {
 
 Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account) {
   return PassError(datastore_.Set({{AUTH_TOKENS, v}, {IS_ACCOUNT, is_account}}));
+}
+
+error::Error UserData::CullAuthTokens(const std::map<std::string, bool>& valid_tokens) {
+    auto all_auth_tokens = GetAuthTokens();
+    AuthTokens good_auth_tokens;
+
+    // all_auth_tokens is { "earner": "ABCD0123" } and valid_tokens is { "ABCD0123": true }
+    for (const auto& t : all_auth_tokens) {
+        for (const auto& vtt : valid_tokens) {
+            if (vtt.first == t.second && vtt.second) {
+                good_auth_tokens[t.first] = t.second;
+                break;
+            }
+        }
+    }
+
+    return PassError(datastore_.Set({{AUTH_TOKENS, good_auth_tokens}}));
 }
 
 bool UserData::GetIsAccount() const {
@@ -169,3 +184,5 @@ json UserData::GetRequestMetadata() const {
 
   return *j;
 }
+
+} // namespace psicash

@@ -144,6 +144,16 @@ TEST_F(TestUserData, AuthTokens)
     ASSERT_EQ(want, got_tokens);
     is_account = ud.GetIsAccount();
     ASSERT_EQ(is_account, true);
+
+    // CullAuthTokens
+    err = ud.SetAuthTokens({{"k1","v1"},{"k2","v2"},{"k3","v3"},{"k4","v4"},}, false);
+    ASSERT_FALSE(err);
+    std::map<std::string, bool> valid_tokens = {{"v1",true},{"v2",false},{"v3",true}};
+    want = {{"k1","v1"},{"k3","v3"}};
+    err = ud.CullAuthTokens(valid_tokens);
+    ASSERT_FALSE(err);
+    got_tokens = ud.GetAuthTokens();
+    ASSERT_EQ(want, got_tokens);
 }
 
 TEST_F(TestUserData, IsAccount)
