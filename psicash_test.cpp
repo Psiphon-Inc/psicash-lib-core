@@ -20,9 +20,7 @@ static std::vector<std::string> g_request_mutators;
 
 class TestPsiCash : public ::testing::Test, public TempDir {
   public:
-    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {
-      g_request_mutators.clear();
-    }
+    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") { g_request_mutators.clear(); }
 
     static string HTTPRequester(const string& params) {
         auto p = json::parse(params);
@@ -144,17 +142,20 @@ class PsiCashTester : public psicash::PsiCash {
                        const std::map<std::string, std::string>& additional_headers) const {
         auto bonus_headers = additional_headers;
         if (!g_request_mutators.empty()) {
-            bonus_headers[TEST_HEADER] = g_request_mutators.back();
+            auto mutator = g_request_mutators.back();
+            if (!mutator.empty()) {
+                bonus_headers[TEST_HEADER] = mutator;
+            }
             g_request_mutators.pop_back();
         }
 
-        return PsiCash::BuildRequestParams(method, path, include_auth_tokens,
-                                           query_params, attempt, bonus_headers);
+        return PsiCash::BuildRequestParams(method, path, include_auth_tokens, query_params, attempt,
+                                           bonus_headers);
     }
 
     void SetRequestMutators(const std::vector<std::string>& mutators) {
-      // We're going to store it reversed so we can pop off the end.
-      g_request_mutators.assign(mutators.crbegin(), mutators.crend());
+        // We're going to store it reversed so we can pop off the end.
+        g_request_mutators.assign(mutators.crbegin(), mutators.crend());
     }
 };
 
@@ -802,7 +803,8 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_TRUE(pc.IsAccount());               // should still be is-account
     ASSERT_EQ(pc.ValidTokenTypes().size(), 0); // but no tokens
     ASSERT_EQ(pc.Balance(), 0);
-    ASSERT_EQ(pc.GetPurchasePrices().size(), 0); // shouldn't get any, because no valid indicator token
+    ASSERT_EQ(pc.GetPurchasePrices().size(),
+              0); // shouldn't get any, because no valid indicator token
 
     // Tracker with invalid tokens
     pc.user_data().Clear();
@@ -811,6 +813,9 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     auto prev_tokens = pc.user_data().GetAuthTokens();
     ASSERT_GE(prev_tokens.size(), 3);
+    err = pc.user_data().SetBalance(12345); // force a nonzero balance
+    ASSERT_FALSE(err);
+    ASSERT_GT(pc.Balance(), 0);
     // We have tokens; force the server to consider them invalid
     pc.SetRequestMutators({"InvalidTokens"});
     res = pc.RefreshState({});
@@ -819,8 +824,10 @@ TEST_F(TestPsiCash, RefreshState) {
     auto next_tokens = pc.user_data().GetAuthTokens();
     ASSERT_GE(next_tokens.size(), 3);
     ASSERT_NE(prev_tokens, next_tokens);
+    // And a reset balance
+    ASSERT_EQ(pc.Balance(), 0);
 
-    // Tracker with invalid tokens
+    // Account with invalid tokens
     pc.user_data().Clear();
     res = pc.RefreshState({});
     ASSERT_TRUE(res) << res.error();
@@ -835,6 +842,25 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_TRUE(res) << res.error();
     // Accounts won't get new tokens by refreshing, so now we should have none
     ASSERT_GE(pc.user_data().GetAuthTokens().size(), 0);
+
+    // Tracker with always-invalid tokens (impossible to get valid ones)
+    pc.user_data().Clear();
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+    // We have tokens; force the server to consider them invalid
+    pc.SetRequestMutators({
+            "InvalidTokens", // RefreshState
+            "",              // NewTracker
+            "InvalidTokens", // RefreshState
+    });
+    res = pc.RefreshState({});
+    // Should have failed utterly
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // We should have brand new tokens now.
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
