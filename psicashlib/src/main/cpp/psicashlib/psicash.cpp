@@ -393,7 +393,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return MakeError(("Request resulted in error: "s + http_result.error).c_str());
         }
 
-        if (http_result.status >= 500) {
+        if (http_result.status >= 500 && http_result.status <= 599 ) {
             // Server error; retry
             continue;
         }
