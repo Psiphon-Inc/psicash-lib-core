@@ -20,13 +20,15 @@ static std::vector<std::string> g_request_mutators;
 
 class TestPsiCash : public ::testing::Test, public TempDir {
   public:
-    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") { g_request_mutators.clear(); }
+    TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {
+      g_request_mutators.clear();
+    }
 
     static string HTTPRequester(const string& params) {
         auto p = json::parse(params);
 
         stringstream curl;
-        curl << "curl -s -i";
+        curl << "curl -s -i --max-time 5";
         curl << " -X " << p["method"].get<string>();
 
         auto headers = p["headers"];
@@ -103,6 +105,7 @@ class TestPsiCash : public ::testing::Test, public TempDir {
     }
 
     const char* user_agent_;
+
 };
 
 // Subclass psicash::PsiCash to get access to private members for testing.
@@ -153,10 +156,36 @@ class PsiCashTester : public psicash::PsiCash {
                                            bonus_headers);
     }
 
+    bool MutatorsEnabled() {
+      static bool checked = false;
+      if (checked) {
+        return mutators_enabled_;
+      }
+      checked = true;
+
+      SetRequestMutators({"CheckEnabled"});
+      auto result = MakeHTTPRequestWithRetry(
+              "GET", "/refresh-state", false, {});
+      if (!result) {
+          throw std::runtime_error("MUTATOR CHECK FAILED: "s + result.error().ToString());
+      }
+
+      mutators_enabled_ = (result->status == kHTTPStatusAccepted);
+
+      if (!mutators_enabled_) {
+          cout << "SKIPPING MUTATOR TESTS; status: " << result->status << endl;
+      }
+
+      return mutators_enabled_;
+    }
+
     void SetRequestMutators(const std::vector<std::string>& mutators) {
         // We're going to store it reversed so we can pop off the end.
         g_request_mutators.assign(mutators.crbegin(), mutators.crend());
     }
+
+private:
+    bool mutators_enabled_;
 };
 
 TEST_F(TestPsiCash, InitSimple) {
@@ -180,6 +209,11 @@ TEST_F(TestPsiCash, InitFail) {
         PsiCashTester pc;
         auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
         // This occasionally fails to fail, and I don't know why
+        // TEMP
+        if (!err) {
+          err = pc.user_data().SetIsAccount(false);
+          cout << "Did write work? " << err << endl;
+        }
         ASSERT_TRUE(err) << bad_dir;
     }
     {
@@ -805,10 +839,21 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(pc.Balance(), 0);
     ASSERT_EQ(pc.GetPurchasePrices().size(),
               0); // shouldn't get any, because no valid indicator token
+}
+
+TEST_F(TestPsiCash, RefreshStateMutators) {
+    PsiCashTester pc;
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    ASSERT_FALSE(err);
+
+    if (!pc.MutatorsEnabled()) {
+      // Can't proceed with these tests
+      return;
+    }
 
     // Tracker with invalid tokens
     pc.user_data().Clear();
-    res = pc.RefreshState({});
+    auto res = pc.RefreshState({});
     ASSERT_TRUE(res) << res.error();
     ASSERT_EQ(*res, Status::Success);
     auto prev_tokens = pc.user_data().GetAuthTokens();
@@ -858,9 +903,194 @@ TEST_F(TestPsiCash, RefreshState) {
     res = pc.RefreshState({});
     // Should have failed utterly
     ASSERT_FALSE(res) << static_cast<int>(*res);
-    // We should have brand new tokens now.
+    // Should be no tokens
     ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
     ASSERT_EQ(pc.Balance(), 0);
+
+    // No server response for NewTracker
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker, sleep for 11 secs
+    pc.SetRequestMutators({"Timeout:11"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Should be no tokens
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
+
+    // No server response for RefreshState
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auto auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState; sleep for 11 secs
+    pc.SetRequestMutators({"Timeout:11"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Tokens should be unchanged
+    ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
+
+    // NewTracker response with no data
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker; force an empty response
+    pc.SetRequestMutators({"Response:code=200,body=none"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Should be no tokens
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
+
+    // Empty server response for RefreshState
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState; force an empty response
+    pc.SetRequestMutators({"Response:code=200,body=none"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Tokens should be unchanged
+    ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
+
+    // NewTracker response with bad JSON
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker; force a response with bad JSON
+    pc.SetRequestMutators({"BadJSON:200"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Should be no tokens
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
+
+    // RefreshState response with bad JSON
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState; force a response with bad JSON
+    pc.SetRequestMutators({"BadJSON:200"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Tokens should be unchanged
+    ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
+
+    // 1 NewTracker response is 500 (retry succeeds)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker;
+    pc.SetRequestMutators({"Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success) << static_cast<int>(*res);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+
+    // 2 NewTracker responses are 500 (retry succeeds)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success) << static_cast<int>(*res);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+
+    // 3 NewTracker responses are 500 (retry fails)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500", "Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::ServerError) << static_cast<int>(*res);
+    // Should be no tokens
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
+
+    // 1 RefreshState response is 500 (retry succeeds)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState
+    pc.SetRequestMutators({"Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success) << static_cast<int>(*res);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+
+    // 2 RefreshState responses are 500 (retry succeeds)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success) << static_cast<int>(*res);
+    ASSERT_GE(pc.user_data().GetAuthTokens().size(), 3);
+
+    // 3 RefreshState responses are 500 (retry fails)
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500", "Response:code=500"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::ServerError) << static_cast<int>(*res);
+    // Tokens should be unchanged
+    ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
+
+    // NewTracker response with unknown status code
+    // Blow away any existing tokens to force internal NewTracker.
+    pc.user_data().Clear();
+    // First request is NewTracker
+    pc.SetRequestMutators({"Response:code=666"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Should be no tokens
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+    ASSERT_EQ(pc.Balance(), 0);
+
+    // RefreshState response with unknown status code
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState
+    pc.SetRequestMutators({"Response:code=666"});
+    res = pc.RefreshState({});
+    ASSERT_FALSE(res) << static_cast<int>(*res);
+    // Tokens should be unchanged
+    ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
 }
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
