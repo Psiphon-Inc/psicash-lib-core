@@ -670,17 +670,6 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         const string& transaction_class,
         const string& distinguisher,
         const int64_t expected_price) {
-
-    // TEMP
-    auto earner = "569ee3e4784c39a3301285914f96c26746883f358c92fea16a8b2e41ad5be396";
-    auto spender = "eb3f9a195447137c51bc475b7620eb008812cc47edfcb3f34d4347f5211ad0a8";
-    auto indicator = "6058c5f924df70333271fe3899d543be7667edff62ddd5f39793c37809661a28";
-    //auto tracker = "824e1ddb43aa1a957afc85ba236ad183";
-    user_data_->SetAuthTokens({{"earner",    earner},
-                               {"spender",   spender},
-                               {"indicator", indicator}}, false);
-
-
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
             "/transaction",
@@ -768,9 +757,12 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                 .id = transaction_id,
                 .transaction_class = transaction_class,
                 .distinguisher = distinguisher,
-                .server_time_expiry = server_expiry,
-                .authorization = authorization
+                .server_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(server_expiry),
+                .local_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(server_expiry),
+                .authorization = authorization.empty() ? nullopt : make_optional(authorization)
         };
+
+        user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
 
         if (auto err = user_data_->AddPurchase(purchase)) {
             return WrapError(err, "AddPurchase failed");

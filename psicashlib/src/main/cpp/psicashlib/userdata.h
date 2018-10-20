@@ -40,6 +40,8 @@ public:
 public:
     datetime::Duration GetServerTimeDiff() const;
     error::Error SetServerTimeDiff(const datetime::DateTime& serverTimeNow);
+    // Modifies the argument purchase.
+    void UpdatePurchaseLocalTimeExpiry(Purchase& purchase) const;
 
     AuthTokens GetAuthTokens() const;
     error::Error SetAuthTokens(const AuthTokens& v, bool is_account);
