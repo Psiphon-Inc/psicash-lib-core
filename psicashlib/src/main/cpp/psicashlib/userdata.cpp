@@ -148,7 +148,13 @@ Error UserData::AddPurchase(const Purchase& v) {
     }
 
     purchases.push_back(v);
-    return PassError(SetPurchases(purchases));
+
+    // Pause to set Purchases and LastTransactionID in one write
+    WritePauser pauser(*this);
+    // These don't write, so have no meaningful return
+    (void)SetPurchases(purchases);
+    (void)SetLastTransactionID(v.id);
+    return PassError(pauser.Unpause()); // write
 }
 
 void UserData::UpdatePurchaseLocalTimeExpiry(Purchase& purchase) const {

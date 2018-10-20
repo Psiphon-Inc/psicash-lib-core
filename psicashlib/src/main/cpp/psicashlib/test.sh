@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# NOTE: A single test can be run like:
+# GTEST_FILTER=*NewExpiringPurchase ./test.sh
+
 set -e
 
 CLEAN=
