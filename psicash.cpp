@@ -337,7 +337,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
     HTTPResult http_result;
 
     for (int i = 0; i < max_attempts; i++) {
-        if (i < 0) {
+        if (i > 0) {
             // Not the first attempt; wait before retrying
             this_thread::sleep_for(chrono::seconds(i));
         }
