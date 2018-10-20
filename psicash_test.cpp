@@ -1109,17 +1109,134 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
     ASSERT_EQ(pc.Balance(), ONE_TRILLION);
-    auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    // Note: this puchase will be valid for 1 second
+    auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success);
     ASSERT_TRUE(purchase_result->purchase);
     ASSERT_GT(purchase_result->purchase->id.size(), 0);
     ASSERT_EQ(purchase_result->purchase->transaction_class, TEST_DEBIT_TRANSACTION_CLASS);
-    ASSERT_EQ(purchase_result->purchase->distinguisher, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER);
-    ASSERT_FALSE(purchase_result->purchase->authorization);
+    ASSERT_EQ(purchase_result->purchase->distinguisher, TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER);
+    ASSERT_FALSE(purchase_result->purchase->authorization); // our test purchase doesn't produce an authorization
     ASSERT_TRUE(purchase_result->purchase->server_time_expiry);
     ASSERT_TRUE(purchase_result->purchase->local_time_expiry);
     auto local_now = datetime::DateTime::Now();
     ASSERT_NEAR(purchase_result->purchase->server_time_expiry->MillisSinceEpoch(), local_now.MillisSinceEpoch(), 5000);
     ASSERT_NEAR(purchase_result->purchase->local_time_expiry->MillisSinceEpoch(), local_now.MillisSinceEpoch(), 5000);
+    // Check UserData -- purchase should still be valid
+    ASSERT_EQ(pc.user_data().GetLastTransactionID(), purchase_result->purchase->id);
+    auto purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    ASSERT_EQ(purchases[0], purchase_result->purchase);
+    purchases = pc.ValidPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    ASSERT_EQ(purchases[0], purchase_result->purchase);
+    auto purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_TRUE(purchase_opt);
+    ASSERT_EQ(*purchase_opt, purchase_result->purchase);
+    auto expire_result = pc.ExpirePurchases();
+    ASSERT_TRUE(expire_result);
+    ASSERT_EQ(expire_result->size(), 0);
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    // Sleep long enough for purchase to expire, then check again
+    this_thread::sleep_for(chrono::milliseconds(2000));
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    ASSERT_EQ(purchases[0], purchase_result->purchase);
+    purchases = pc.ValidPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+    purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_TRUE(purchase_opt);
+    ASSERT_EQ(*purchase_opt, purchase_result->purchase);
+    expire_result = pc.ExpirePurchases();
+    ASSERT_TRUE(expire_result);
+    ASSERT_EQ(expire_result->size(), 1);
+    ASSERT_EQ(expire_result->at(0), purchase_result->purchase);
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+    purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_FALSE(purchase_opt);
+
+    // Multiple purchases
+    err = pc.MakeRewardRequests(3);
+    ASSERT_FALSE(err) << err;
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success);
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success);
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 3);
+    // Sleep long enough for the short purchases to expire (but not so long that the long one will)
+    this_thread::sleep_for(chrono::milliseconds(5000));
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 3);
+    purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_TRUE(purchase_opt);
+    // This might be brittle due to server-client clock differences (if so, just remove it)
+    ASSERT_EQ(purchase_opt->distinguisher, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER);
+    purchases = pc.ValidPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    ASSERT_EQ(purchases[0].distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
+    expire_result = pc.ExpirePurchases();
+    ASSERT_TRUE(expire_result);
+    ASSERT_EQ(expire_result->size(), 2);
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    ASSERT_EQ(purchases[0].distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
+    purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_TRUE(purchase_opt);
+    ASSERT_EQ(purchase_opt->distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
+    // Sleep long enough for all purchases to expire; might be brittle depending on clock skew
+    this_thread::sleep_for(chrono::milliseconds(10000));
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 1);
+    purchase_opt = pc.NextExpiringPurchase();
+    ASSERT_TRUE(purchase_opt);
+    ASSERT_EQ(purchase_opt->distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
+    purchases = pc.ValidPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+    expire_result = pc.ExpirePurchases();
+    ASSERT_TRUE(expire_result);
+    ASSERT_EQ(expire_result->size(), 1);
+    ASSERT_EQ(expire_result->at(0).distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
+    purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+    expire_result = pc.ExpirePurchases();
+    ASSERT_TRUE(expire_result);
+    ASSERT_EQ(expire_result->size(), 0);
+
+    // Falure: existing transaction
+    err = pc.MakeRewardRequests(2);
+    ASSERT_FALSE(err) << err;
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
+    // Same again
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::ExistingTransaction) << static_cast<int>(purchase_result->status);
+
+    // Failure: insufficient balance
+    pc.user_data().Clear();
+    refresh_result = pc.RefreshState({});
+    ASSERT_TRUE(refresh_result) << refresh_result.error();
+    ASSERT_EQ(*refresh_result, Status::Success);
+    ASSERT_EQ(pc.Balance(), 0);
+    // We have no credit for this
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::InsufficientBalance);
+
+    // Falure: transaction amount mismatch
+    err = pc.MakeRewardRequests(2);
+    ASSERT_FALSE(err) << err;
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, 12345); // not correct price
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::TransactionAmountMismatch) << static_cast<int>(purchase_result->status);
 }
