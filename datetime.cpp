@@ -34,16 +34,6 @@ datetime::TimePoint NormalizeTimePoint(const datetime::Clock::time_point& tp) {
     return chrono::time_point_cast<datetime::Duration>(tp);
 }
 
-tm TimePointToTm(const datetime::TimePoint& tp) {
-    time_t tt = datetime::Clock::to_time_t(tp);
-    return *gmtime(&tt);
-}
-
-datetime::TimePoint TmToTimePoint(tm t) {
-    time_t tt = timegm(&t);
-    return NormalizeTimePoint(datetime::Clock::from_time_t(tt));
-}
-
 bool FromString(const char* parseSpecifier, const string& s, TimePoint& tp) {
     TimePoint temp;
     istringstream ss(s);
