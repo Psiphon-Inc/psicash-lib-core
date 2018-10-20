@@ -1098,7 +1098,28 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
     ASSERT_FALSE(err);
 
-    auto res = pc.NewExpiringPurchase("asdf", "adf", 100);
-    ASSERT_TRUE(res);
-    ASSERT_EQ(res->status, Status::TransactionTypeNotFound);
+    // Simple success
+    pc.user_data().Clear();
+    auto refresh_result = pc.RefreshState({});
+    ASSERT_TRUE(refresh_result) << refresh_result.error();
+    ASSERT_EQ(*refresh_result, Status::Success);
+    err = pc.MakeRewardRequests(1);
+    ASSERT_FALSE(err) << err;
+    refresh_result = pc.RefreshState({});
+    ASSERT_TRUE(refresh_result) << refresh_result.error();
+    ASSERT_EQ(*refresh_result, Status::Success);
+    ASSERT_EQ(pc.Balance(), ONE_TRILLION);
+    auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success);
+    ASSERT_TRUE(purchase_result->purchase);
+    ASSERT_GT(purchase_result->purchase->id.size(), 0);
+    ASSERT_EQ(purchase_result->purchase->transaction_class, TEST_DEBIT_TRANSACTION_CLASS);
+    ASSERT_EQ(purchase_result->purchase->distinguisher, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER);
+    ASSERT_FALSE(purchase_result->purchase->authorization);
+    ASSERT_TRUE(purchase_result->purchase->server_time_expiry);
+    ASSERT_TRUE(purchase_result->purchase->local_time_expiry);
+    auto local_now = datetime::DateTime::Now();
+    ASSERT_NEAR(purchase_result->purchase->server_time_expiry->MillisSinceEpoch(), local_now.MillisSinceEpoch(), 5000);
+    ASSERT_NEAR(purchase_result->purchase->local_time_expiry->MillisSinceEpoch(), local_now.MillisSinceEpoch(), 5000);
 }

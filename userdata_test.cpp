@@ -116,6 +116,44 @@ TEST_F(TestUserData, ServerTimeDiff)
     ASSERT_NEAR(want.count(), got.count(), 10);
 }
 
+TEST_F(TestUserData, UpdatePurchaseLocalTimeExpiry)
+{
+    UserData ud;
+    auto err = ud.Init(GetTempDir().c_str());
+    ASSERT_FALSE(err);
+
+    Purchase purchase_noexpiry{
+        .id = "id",
+        .transaction_class = "tc",
+        .distinguisher = "d"
+    };
+    datetime::DateTime server_expiry;
+    ASSERT_TRUE(server_expiry.FromISO8601("2031-02-03T04:05:06.789Z"));
+    Purchase purchase_expiry{
+        .id = "id",
+        .transaction_class = "tc",
+        .distinguisher = "d",
+        .server_time_expiry = server_expiry
+    };
+
+    // Zero server time diff
+    ASSERT_EQ(ud.GetServerTimeDiff().count(), 0);
+    ud.UpdatePurchaseLocalTimeExpiry(purchase_noexpiry);
+    ASSERT_FALSE(purchase_noexpiry.local_time_expiry);
+    ud.UpdatePurchaseLocalTimeExpiry(purchase_expiry);
+    ASSERT_TRUE(purchase_expiry.local_time_expiry);
+    ASSERT_EQ(*purchase_expiry.local_time_expiry, server_expiry);
+
+    // Nonzero server time diff
+    auto server_time_diff = datetime::Duration(54321);
+    ASSERT_FALSE(ud.SetServerTimeDiff(datetime::DateTime::Now().Add(server_time_diff)));
+    ud.UpdatePurchaseLocalTimeExpiry(purchase_noexpiry);
+    ASSERT_FALSE(purchase_noexpiry.local_time_expiry);
+    ud.UpdatePurchaseLocalTimeExpiry(purchase_expiry);
+    ASSERT_TRUE(purchase_expiry.local_time_expiry);
+    ASSERT_EQ(*purchase_expiry.local_time_expiry, server_expiry.Sub(server_time_diff));
+}
+
 TEST_F(TestUserData, AuthTokens)
 {
     UserData ud;
