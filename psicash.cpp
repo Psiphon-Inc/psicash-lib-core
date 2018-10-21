@@ -330,6 +330,11 @@ json PsiCash::GetDiagnosticInfo() const {
 // API Server Requests
 //
 
+// Simple helper to determine if a given HTTP response code should be considered a "server error".
+inline bool IsServerError(int code) {
+    return code >= 500 && code <= 599;
+}
+
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params) {
@@ -393,7 +398,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return MakeError(("Request resulted in error: "s + http_result.error).c_str());
         }
 
-        if (http_result.status >= 500 && http_result.status <= 599 ) {
+        if (IsServerError(http_result.status)) {
             // Server error; retry
             continue;
         }
@@ -497,7 +502,7 @@ Result<Status> PsiCash::NewTracker() {
         (void)user_data_->SetBalance(0);
 
         return Status::Success;
-    } else if (result->status == kHTTPStatusInternalServerError) {
+    } else if (IsServerError(result->status)) {
         return Status::ServerError;
     }
 
@@ -657,7 +662,7 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         // This really should never happen.
         user_data_->Clear();
         return Status::InvalidTokens;
-    } else if (result->status == kHTTPStatusInternalServerError) {
+    } else if (IsServerError(result->status)) {
         return Status::ServerError;
     }
 
@@ -792,7 +797,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::InvalidTokens
         };
-    } else if (result->status == kHTTPStatusInternalServerError) {
+    } else if (IsServerError(result->status)) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::ServerError
         };
