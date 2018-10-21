@@ -494,12 +494,13 @@ Result<Status> PsiCash::NewTracker() {
                     utils::Stringer("bad number of tokens received: ", auth_tokens.size()).c_str());
         }
 
-        if (auto err = user_data_->SetAuthTokens(auth_tokens, false)) {
+        // Set our new data in a single write.
+        UserData::WritePauser pauser(*user_data_);
+        (void)user_data_->SetAuthTokens(auth_tokens, false);
+        (void)user_data_->SetBalance(0);
+        if (auto err = pauser.Unpause()) {
             return WrapError(err, "SetAuthTokens failed");
         }
-
-        // Don't fail if this fails. A RefreshState will still happen, and the tokens are the important thing.
-        (void)user_data_->SetBalance(0);
 
         return Status::Success;
     } else if (IsServerError(result->status)) {
@@ -542,6 +543,8 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
 
         if (!allow_recursion) {
             // We have already recursed and can't do it again. This is an error condition.
+            // This is impossible-ish. It requires us to start out with no tokens, make a NewTracker
+            // call that appears to succeed, but then _still_ have no tokens.
             return MakeError("failed to obtain valid tracker tokens (a)");
         }
 
