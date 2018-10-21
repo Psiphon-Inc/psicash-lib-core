@@ -2,6 +2,7 @@
 
 # NOTE: A single test can be run like:
 # GTEST_FILTER=*NewExpiringPurchase ./test.sh
+# For more info: https://github.com/google/googletest/blob/master/googletest/docs/advanced.md#running-a-subset-of-the-tests
 
 set -e
 
