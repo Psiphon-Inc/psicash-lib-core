@@ -27,7 +27,7 @@ namespace psicash {
 // }
 // The string param that it returns is an encoding of this structure:
 struct HTTPResult {
-    // 200, 404, etc.
+    // 200, 404, etc. -1 if unable to talk to server (or other catastrophe).
     int status;
 
     // The contents of the response body, if any.
