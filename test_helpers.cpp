@@ -7,15 +7,17 @@
 
 #include "test_helpers.h"
 
-// From https://stackoverflow.com/a/478960
-std::string exec(const char* cmd) {
+// Adapted from https://stackoverflow.com/a/478960
+int exec(const char* cmd, std::string& output) {
+    output.clear();
     std::array<char, 128> buffer;
-    std::string result;
     std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
     if (!pipe) throw std::runtime_error("popen() failed!");
     while (!feof(pipe.get())) {
         if (fgets(buffer.data(), 128, pipe.get()) != nullptr)
-            result += buffer.data();
+            output += buffer.data();
     }
+    int result = pclose(pipe.get());
+    // pclose will be called again as the shared_ptr deleter, but that's okay
     return result;
 }

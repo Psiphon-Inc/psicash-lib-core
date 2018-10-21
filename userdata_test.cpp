@@ -311,6 +311,7 @@ TEST_F(TestUserData, AddPurchase)
     got = ud.GetPurchases();
     want.push_back(add);
     ASSERT_EQ(got, want);
+    ASSERT_EQ(ud.GetLastTransactionID(), "id3");
 
     // Try to add the same purchase again
     err = ud.AddPurchase(add);

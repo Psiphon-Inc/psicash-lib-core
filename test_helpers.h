@@ -68,7 +68,7 @@ class TempDir
     }
 };
 
-std::string exec(const char* cmd);
+int exec(const char* cmd, std::string& output);
 
 // From https://stackoverflow.com/a/17976541
 inline std::string trim(const std::string &s)

@@ -61,9 +61,16 @@ class TestPsiCash : public ::testing::Test, public TempDir {
         curl << '"';
 
         auto command = curl.str();
-        auto res = exec(command.c_str());
+        string output;
+        auto code = exec(command.c_str(), output);
+        if (code != 0) {
+            return json({
+              {"status", -1},
+              {"error", output}
+            }).dump();
+        }
 
-        std::stringstream ss(res);
+        std::stringstream ss(output);
         std::string line;
 
         json result = {{"staus", -1}};
@@ -102,6 +109,13 @@ class TestPsiCash : public ::testing::Test, public TempDir {
 
         auto result_string = result.dump();
         return result_string;
+    }
+
+    // Return a specific result for a HTTP request
+    static psicash::MakeHTTPRequestFn FakeHTTPRequester(const string& result_json) {
+        return [=](const string& params) -> string {
+            return result_json;
+        };
     }
 
     const char* user_agent_;
@@ -1233,10 +1247,105 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::InsufficientBalance);
 
-    // Falure: transaction amount mismatch
-    err = pc.MakeRewardRequests(2);
-    ASSERT_FALSE(err) << err;
+    // Failure: transaction amount mismatch
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, 12345); // not correct price
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::TransactionAmountMismatch) << static_cast<int>(purchase_result->status);
+
+    // Failure: transaction type not found
+    purchase_result = pc.NewExpiringPurchase("invalid-class", TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result) << purchase_result.error();
+    ASSERT_EQ(purchase_result->status, Status::TransactionTypeNotFound) << static_cast<int>(purchase_result->status);
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, "invalid-distinguisher", ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::TransactionTypeNotFound) << static_cast<int>(purchase_result->status);
+}
+
+TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
+    PsiCashTester pc;
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    ASSERT_FALSE(err);
+
+    // Failure: invalid tokens
+    auto refresh_result = pc.RefreshState({});
+    ASSERT_TRUE(refresh_result) << refresh_result.error();
+    ASSERT_EQ(*refresh_result, Status::Success);
+    pc.SetRequestMutators({"InvalidTokens"});
+    auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::InvalidTokens);
+
+    // Failure: no server response
+    pc.SetRequestMutators({"Timeout:11"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_FALSE(purchase_result);
+
+    // Failure: no data in response
+    pc.SetRequestMutators({"Response:code=200,body=none"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_FALSE(purchase_result);
+
+    // Failure: bad JSON
+    pc.SetRequestMutators({"BadJSON:200"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_FALSE(purchase_result);
+
+    // Success: One 500 response (sucessful retry)
+    err = pc.MakeRewardRequests(1);
+    ASSERT_FALSE(err) << err;
+    pc.SetRequestMutators({"Response:code=500"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success);
+
+    // Success: Two 500 response (sucessful retry)
+    err = pc.MakeRewardRequests(1);
+    ASSERT_FALSE(err) << err;
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::Success);
+
+    // Failure: Three 500 responses (exceed retry)
+    err = pc.MakeRewardRequests(1);
+    ASSERT_FALSE(err) << err;
+    pc.SetRequestMutators({"Response:code=500", "Response:code=500", "Response:code=500"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_TRUE(purchase_result);
+    ASSERT_EQ(purchase_result->status, Status::ServerError);
+
+    // Failure: unknown response code
+    pc.SetRequestMutators({"Response:code=666"});
+    purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
+    ASSERT_FALSE(purchase_result);
+}
+
+TEST_F(TestPsiCash, HTTPRequestBadResult) {
+    PsiCashTester pc;
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    ASSERT_FALSE(err);
+
+    // Test the code path where the HTTP request helper returns an empty string (rather
+    // than a proper error structure). Hopefully this never happens, but...
+    pc.SetHTTPRequestFn(FakeHTTPRequester(""));
+    auto refresh_result = pc.RefreshState({});
+    ASSERT_FALSE(refresh_result);
+
+    // The helper should never return bad JSON, but we'll test that code path with a
+    // special helper.
+    pc.SetHTTPRequestFn(FakeHTTPRequester("bad json"));
+    refresh_result = pc.RefreshState({});
+    ASSERT_FALSE(refresh_result);
+
+    // This isn't a "bad" result, exactly, but we'll force an error code and message.
+    auto want_error_message = "my error message"s;
+    pc.SetHTTPRequestFn(FakeHTTPRequester(json({
+        {"status", -1},
+        {"error", want_error_message},
+        {"body", nullptr},
+        {"date", nullptr}
+    }).dump()));
+    refresh_result = pc.RefreshState({});
+    ASSERT_FALSE(refresh_result);
+    ASSERT_NE(refresh_result.error().ToString().find(want_error_message), string::npos);
 }
