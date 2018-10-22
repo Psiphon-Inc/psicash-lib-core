@@ -73,7 +73,7 @@ class TestPsiCash : public ::testing::Test, public TempDir {
         std::stringstream ss(output);
         std::string line;
 
-        json result = {{"staus", -1}};
+        json result = {{"status", -1}};
         string body;
         bool done_headers = false;
         while (std::getline(ss, line, '\n')) {

@@ -58,6 +58,9 @@ endif()
 # settings on Windows
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
+# Prevent Gtest from using pthreads (multithreaded execution)
+set(gtest_disable_pthreads ON CACHE BOOL "" FORCE)
+
 
 # Add googletest directly to our build. This defines
 # the gtest and gtest_main targets.

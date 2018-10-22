@@ -26,9 +26,9 @@ if [ ${CLEAN} ]; then
 fi
 
 if [[ $OSTYPE == darwin* ]]; then
-  find . -name "*.gcda" -print0 | xargs -0 rm
+  find . -name "*.gcda" -o -name "*.profraw" -print0 | xargs -0 rm
 else
-  find . -name "*.gcda" -print0 | xargs -r -0 rm
+  find . -name "*.gcda" -o -name "*.profraw" -print0 | xargs -r -0 rm
 fi
 
 mkdir -p build
