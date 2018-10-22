@@ -22,6 +22,8 @@ using namespace error;
 
 namespace psicash {
 
+const char* const kTransactionIDZero = "";
+
 namespace prod {
 static constexpr const char* kAPIServerScheme = "https";
 static constexpr const char* kAPIServerHostname = "api.psi.cash";
@@ -34,7 +36,6 @@ static constexpr int kAPIServerPort = 443;
 }
 
 static constexpr const char* kAPIServerVersion = "v1";
-static constexpr const char* kPsiCashUserAgent = "Psiphon-PsiCash-iOS"; // TODO: CAN'T HARDCODE -- PLATFORM DEPENDENT
 static const string kLandingPageParamKey = "psicash";
 static constexpr const char* kMethodGET = "GET";
 static constexpr const char* kMethodPOST = "POST";
@@ -424,7 +425,7 @@ PsiCash::BuildRequestParams(
         const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
         const std::map<std::string, std::string>& additional_headers) const {
     json headers(additional_headers);
-    headers["User-Agent"] = kPsiCashUserAgent;
+    headers["User-Agent"] = user_agent_;
 
     if (include_auth_tokens) {
         string s;
