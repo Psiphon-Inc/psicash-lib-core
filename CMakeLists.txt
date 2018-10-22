@@ -14,9 +14,6 @@ list(FILTER TEST_SOURCES INCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
 #message("SOURCES: ${SOURCES}")
 #message("TEST_SOURCES: ${TEST_SOURCES}")
 
-set(VENDOR_DIR "vendor")
-include_directories(${VENDOR_DIR})
-
 add_library( # Sets the name of the library.
              psicash
 

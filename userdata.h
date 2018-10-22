@@ -6,7 +6,7 @@
 #include "psicash.h"
 #include "datetime.h"
 #include "error.h"
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 
 namespace psicash {
 extern const char* REQUEST_METADATA; // only for use in template method below

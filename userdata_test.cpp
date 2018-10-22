@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 #include "test_helpers.h"
 #include "userdata.h"
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;

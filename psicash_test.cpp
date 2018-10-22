@@ -1,7 +1,7 @@
 #include "SecretTestValues.h" // This file is in CipherShare
 #include "base64.h"
 #include "http_status_codes.h"
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 #include "psicash.h"
 #include "test_helpers.h"
 #include "url.h"
@@ -1364,18 +1364,4 @@ TEST_F(TestPsiCash, HTTPRequestBadResult) {
     refresh_result = pc.RefreshState({});
     ASSERT_FALSE(refresh_result);
     ASSERT_NE(refresh_result.error().ToString().find(want_error_message), string::npos);
-}
-
-TEST_F(TestPsiCash, ErrorMsg) {
-    auto err_msg = ErrorMsg("mymessage", "filename", "function", 123);
-    auto err_json = json::parse(err_msg);
-    ASSERT_EQ(err_json["status"].get<Status>(), Status::Invalid);
-    ASSERT_NE(err_json["error"].get<string>().find("mymessage"), string::npos);
-
-    auto err = MakeError("innererror");
-    err_msg = ErrorMsg(err, "mymessage", "filename", "function", 123);
-    err_json = json::parse(err_msg);
-    ASSERT_EQ(err_json["status"].get<Status>(), Status::Invalid);
-    ASSERT_NE(err_json["error"].get<string>().find("mymessage"), string::npos);
-    ASSERT_NE(err_json["error"].get<string>().find("innererror"), string::npos);
 }

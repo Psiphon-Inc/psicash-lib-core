@@ -5,9 +5,8 @@
 #include <chrono>
 #include <locale>
 #include "datetime.h"
-#include "date/date.h"
-
-#include "nlohmann/json.hpp"
+#include "vendor/date/date.h"
+#include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
