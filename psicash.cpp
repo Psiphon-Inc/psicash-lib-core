@@ -41,14 +41,20 @@ static constexpr const char* kMethodPOST = "POST";
 
 string ErrorMsg(const string& message, const string& filename, const string& function, int line) {
     Error err(message, filename, function, line);
-    return string("{\"status\":-1,\"error\":\"") + err.ToString() + "\"}";
+    return json({
+                        {"status", -1},
+                        {"error",  err.ToString()}
+                }).dump();
 }
 
 string ErrorMsg(const Error& error, const string& message,
                 const string& filename, const string& function, int line) {
     Error wrapping_err(error);
     wrapping_err.Wrap(message, filename, function, line);
-    return string("{\"status\":-1,\"error\":\"") + wrapping_err.ToString() + "\"}";
+    return json({
+                        {"status", -1},
+                        {"error",  wrapping_err.ToString()}
+                }).dump();
 }
 
 //
@@ -347,7 +353,8 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             this_thread::sleep_for(chrono::seconds(i));
         }
 
-        auto req_params = BuildRequestParams(method, path, include_auth_tokens, query_params, i + 1, {});
+        auto req_params = BuildRequestParams(method, path, include_auth_tokens, query_params, i + 1,
+                                             {});
         if (!req_params) {
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
@@ -756,6 +763,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
             return MakeError("response did not provide valid TransactionID");
         }
         if (server_expiry.IsZero()) {
+            // Purchase expiry is optional, but we're specifically making a New**Expiring**Purchase
             return MakeError(
                     "response did not provide valid TransactionResponse.Values.Expires");
         }
@@ -765,8 +773,10 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                 .id = transaction_id,
                 .transaction_class = transaction_class,
                 .distinguisher = distinguisher,
-                .server_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(server_expiry),
-                .local_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(server_expiry),
+                .server_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(
+                        server_expiry),
+                .local_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(
+                        server_expiry),
                 .authorization = authorization.empty() ? nullopt : make_optional(authorization)
         };
 
