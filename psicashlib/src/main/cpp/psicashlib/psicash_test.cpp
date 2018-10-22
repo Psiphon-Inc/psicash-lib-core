@@ -1080,6 +1080,22 @@ TEST_F(TestPsiCash, RefreshStateMutators) {
     // Tokens should be unchanged
     ASSERT_EQ(auth_tokens, pc.user_data().GetAuthTokens());
 
+    // RefreshState response with status code indicating invalid tokens
+    pc.user_data().Clear();
+    // Do an initial request to get Tracker tokens
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::Success);
+    auth_tokens = pc.user_data().GetAuthTokens();
+    ASSERT_GE(auth_tokens.size(), 3);
+    // Because we have tokens the first request will be RefreshState
+    pc.SetRequestMutators({"Response:code=401"});
+    res = pc.RefreshState({});
+    ASSERT_TRUE(res) << res.error();
+    ASSERT_EQ(*res, Status::InvalidTokens) << static_cast<int>(*res);
+    // UserData should be cleared
+    ASSERT_EQ(pc.user_data().GetAuthTokens().size(), 0);
+
     // NewTracker response with unknown status code
     // Blow away any existing tokens to force internal NewTracker.
     pc.user_data().Clear();
@@ -1348,4 +1364,18 @@ TEST_F(TestPsiCash, HTTPRequestBadResult) {
     refresh_result = pc.RefreshState({});
     ASSERT_FALSE(refresh_result);
     ASSERT_NE(refresh_result.error().ToString().find(want_error_message), string::npos);
+}
+
+TEST_F(TestPsiCash, ErrorMsg) {
+    auto err_msg = ErrorMsg("mymessage", "filename", "function", 123);
+    auto err_json = json::parse(err_msg);
+    ASSERT_EQ(err_json["status"].get<Status>(), Status::Invalid);
+    ASSERT_NE(err_json["error"].get<string>().find("mymessage"), string::npos);
+
+    auto err = MakeError("innererror");
+    err_msg = ErrorMsg(err, "mymessage", "filename", "function", 123);
+    err_json = json::parse(err_msg);
+    ASSERT_EQ(err_json["status"].get<Status>(), Status::Invalid);
+    ASSERT_NE(err_json["error"].get<string>().find("mymessage"), string::npos);
+    ASSERT_NE(err_json["error"].get<string>().find("innererror"), string::npos);
 }
