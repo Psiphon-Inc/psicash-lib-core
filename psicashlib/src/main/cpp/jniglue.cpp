@@ -118,8 +118,8 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
  * Response JSON structure is:
  * {
  *      status: Status value,
- *      error: "message if status is Status::Invalid",
- *      purchase: Purchase
+ *      error: "message if status==Status::Invalid",
+ *      purchase: Purchase; invalid if not success
  * }
  */
 extern "C" JNIEXPORT jstring

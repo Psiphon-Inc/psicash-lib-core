@@ -1,5 +1,4 @@
 {
-  "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
   "cmake.configureOnOpen": true,
   "files.associations": {
     "stdexcept": "cpp",
@@ -22,7 +21,17 @@
     "algorithm": "cpp",
     "chrono": "cpp",
     "iosfwd": "cpp",
-    "optional": "cpp"
+    "optional": "cpp",
+    "functional": "cpp",
+    "memory": "cpp",
+    "xstring": "cpp",
+    "iostream": "cpp",
+    "regex": "cpp",
+    "__functional_03": "cpp",
+    "sstream": "cpp",
+    "ostream": "cpp",
+    "utility": "cpp",
+    "thread": "cpp"
   },
   "C_Cpp.configurationWarnings": "Disabled"
 }
