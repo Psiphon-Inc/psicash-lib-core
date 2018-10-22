@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include "nonstd/optional.hpp"
+#include "nlohmann/json.hpp"
 #include "datetime.h"
 #include "error.h"
 
