@@ -75,6 +75,10 @@ public class PsiCashLib {
             }
             throw new IllegalArgumentException("Status not found");
         }
+
+        public boolean equals(int code) {
+            return this.code == code;
+        }
     }
 
     static {
@@ -159,6 +163,43 @@ public class PsiCashLib {
         }
 
         return date;
+    }
+
+    public static class Error {
+        String message;
+        public String value() {
+            return message;
+        }
+
+        public static Error fromJSON(String jsonStr) {
+            if (jsonStr == null) {
+                return null;
+            }
+
+            Error error = new Error();
+
+            try {
+                JSONObject json = new JSONObject(jsonStr);
+                int status = json.getInt("status");
+                if (!Status.INVALID.equals(status)) {
+                    return null;
+                }
+
+                error.message = jsonNullableString(json, "error");
+                if (error.message == null) {
+                    return null;
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+                return null;
+            }
+
+            return error;
+        }
+    }
+
+    public Error setRequestMetadataItem(String key, String value) {
+        return Error.fromJSON(this.SetRequestMetadataItem(key, value));
     }
 
     public static class Purchase {
@@ -313,6 +354,8 @@ public class PsiCashLib {
     private static native boolean NativeStaticInit();
 
     private native String NativeObjectInit(String fileStoreRoot, boolean test);
+
+    private native String SetRequestMetadataItem(String key, String value);
 
     private native String NewExpiringPurchase(String params);
 }

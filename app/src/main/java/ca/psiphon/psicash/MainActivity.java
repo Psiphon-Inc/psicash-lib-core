@@ -26,6 +26,11 @@ public class MainActivity extends AppCompatActivity {
             Log.e("temptag", err);
         }
         else {
+            PsiCashLib.Error error = psiCashLib.setRequestMetadataItem("metadatakey", "metadatavalue");
+            if (error != null) {
+                Log.e("temptag", error.value());
+            }
+
             new NetworkTask().execute();
         }
     }

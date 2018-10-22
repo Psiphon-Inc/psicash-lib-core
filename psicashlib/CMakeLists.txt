@@ -7,13 +7,17 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(SRC_DIR "src/main/cpp/psicashlib")
+set(GLUE_SRC_DIR "src/main/cpp")
+set(LIB_SRC_DIR "src/main/cpp/psicashlib")
 
-file (GLOB SOURCES "${SRC_DIR}/*.cpp")
+file (GLOB GLUE_SOURCES "${GLUE_SRC_DIR}/*.cpp")
+file (GLOB SOURCES "${LIB_SRC_DIR}/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
+
+#message("GLUE_SOURCES: ${GLUE_SOURCES}")
 #message("SOURCES: ${SOURCES}")
 
-include_directories("${SRC_DIR}/vendor")
+include_directories("${LIB_SRC_DIR}")
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
@@ -27,7 +31,7 @@ add_library( # Sets the name of the library.
              SHARED
 
              # Provides a relative path to your source file(s).
-             src/main/cpp/jniglue.cpp
+             ${GLUE_SOURCES}
              ${SOURCES} )
 
 # Searches for a specified prebuilt library and stores the path as a

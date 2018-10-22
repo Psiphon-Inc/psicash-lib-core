@@ -11,7 +11,7 @@
 #include "base64.h"
 #include "http_status_codes.h"
 
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
@@ -39,24 +39,6 @@ static constexpr const char* kAPIServerVersion = "v1";
 static const string kLandingPageParamKey = "psicash";
 static constexpr const char* kMethodGET = "GET";
 static constexpr const char* kMethodPOST = "POST";
-
-string ErrorMsg(const string& message, const string& filename, const string& function, int line) {
-    Error err(message, filename, function, line);
-    return json({
-                        {"status", -1},
-                        {"error",  err.ToString()}
-                }).dump();
-}
-
-string ErrorMsg(const Error& error, const string& message,
-                const string& filename, const string& function, int line) {
-    Error wrapping_err(error);
-    wrapping_err.Wrap(message, filename, function, line);
-    return json({
-                        {"status", -1},
-                        {"error",  wrapping_err.ToString()}
-                }).dump();
-}
 
 //
 // PsiCash class implementation

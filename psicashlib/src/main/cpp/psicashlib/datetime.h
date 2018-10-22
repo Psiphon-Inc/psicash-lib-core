@@ -2,7 +2,7 @@
 #define PSICASHLIB_DATETIME_H
 
 #include <chrono>
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 
 namespace datetime {
 using Duration = std::chrono::milliseconds; // millisecond-resolution duration

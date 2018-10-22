@@ -1,9 +1,10 @@
 #include <jni.h>
 #include <string>
 #include <stdio.h>
-#include "error.h"
+#include "jnihelpers.h"
+#include "psicashlib/error.h"
 #include "psicashlib/psicash.h"
-#include "nlohmann/json.hpp"
+#include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
@@ -19,20 +20,35 @@ static jclass g_jClass;
 static jmethodID g_makeHTTPRequestMID;
 static PsiCash g_psiCash;
 
-#define ERROR_MSG(msg)  (ErrorMsg(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
-#define WRAP_ERROR_MSG(err, msg)  (ErrorMsg(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
 
-
-// CheckJNIException returns false if there was no outstanding JNI exception, or returns true if
-// there was, in addition to clearing it (allowing for further JNI operations).
-bool CheckJNIException(JNIEnv* env) {
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe(); // writes to logcat
-        env->ExceptionClear();
-        return true;
-    }
-    return false;
+string ErrorResponse(const string& message, const string& filename, const string& function, int line) {
+    error::Error err(message, filename, function, line);
+    return json({
+                        {"status", Status::Invalid},
+                        {"error",  err.ToString()}
+                }).dump();
 }
+
+string ErrorResponse(const error::Error& error, const string& message,
+                const string& filename, const string& function, int line) {
+    error::Error wrapping_err(error);
+    wrapping_err.Wrap(message, filename, function, line);
+    return json({
+                        {"status", Status::Invalid},
+                        {"error",  wrapping_err.ToString()}
+                }).dump();
+}
+
+string ErrorResponse(const error::Error& error,
+                const string& filename, const string& function, int line) {
+    return ErrorResponse(error, "", filename, function, line);
+}
+
+#define ERROR(msg)              (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+#define WRAP_ERROR(err, msg)    (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+#define JNI_(str)               (str ? env->NewStringUTF(str) : nullptr)
+#define JNI_s(str)              (!str.empty() ? env->NewStringUTF(str.c_str()) : nullptr)
+
 
 // Note that the function returned by this is only valid as long as these arguments are valid.
 // So, generally, it should only be used for the duration of a single JNI call.
@@ -92,14 +108,14 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         jobject /*this_obj*/,
         jstring file_store_root,
         jboolean test) {
-    if (file_store_root == nullptr) {
-        return env->NewStringUTF(ERROR_MSG("file_store_root is null"));
+    if (!file_store_root) {
+        return env->NewStringUTF(ERROR("file_store_root is null"));
     }
 
     auto file_store_root_str = env->GetStringUTFChars(file_store_root, NULL);
 
-    if (file_store_root_str == nullptr) {
-        return env->NewStringUTF(ERROR_MSG("file_store_root_str is null"));
+    if (!file_store_root_str) {
+        return env->NewStringUTF(ERROR("file_store_root_str is null"));
     }
 
     // We can't set the HTTP requester function yet, as we can't cache `this_obj`.
@@ -108,10 +124,26 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
     env->ReleaseStringUTFChars(file_store_root, file_store_root_str);
 
     if (err) {
-        return env->NewStringUTF(WRAP_ERROR_MSG(err, "g_psiCash.Init failed"));
+        return env->NewStringUTF(WRAP_ERROR(err, "g_psiCash.Init failed"));
     }
 
     return nullptr;
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_SetRequestMetadataItem(
+        JNIEnv* env,
+        jobject this_obj,
+        jstring j_key,
+        jstring j_value) {
+    auto key = JStringToString(env, j_key);
+    auto value = JStringToString(env, j_value);
+    if (!key || !value) {
+        return env->NewStringUTF(ERROR("key and value must be non-null"));
+    }
+
+    return JNI_(WRAP_ERROR(g_psiCash.SetRequestMetadataItem(*key, *value), ""));
 }
 
 /*

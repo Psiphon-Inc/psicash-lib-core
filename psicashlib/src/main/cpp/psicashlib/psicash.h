@@ -5,8 +5,8 @@
 #include <functional>
 #include <vector>
 #include <memory>
-#include "nonstd/optional.hpp"
-#include "nlohmann/json.hpp"
+#include "vendor/nonstd/optional.hpp"
+#include "vendor/nlohmann/json.hpp"
 #include "datetime.h"
 #include "error.h"
 
@@ -186,14 +186,6 @@ protected:
     std::unique_ptr<UserData> user_data_;
     MakeHTTPRequestFn make_http_request_fn_;
 };
-
-std::string
-ErrorMsg(const std::string& message, const std::string& filename, const std::string& function,
-         int line);
-
-std::string
-ErrorMsg(const error::Error& error, const std::string& message, const std::string& filename,
-         const std::string& function, int line);
 
 } // namespace psicash
 

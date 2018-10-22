@@ -3,9 +3,8 @@
 
 #include "gtest/gtest.h"
 #include "datetime.h"
-#include "date/date.h"
-
-#include "nlohmann/json.hpp"
+#include "vendor/date/date.h"
+#include "vendor/nlohmann/json.hpp"
 using json = nlohmann::json;
 
 using namespace std;
