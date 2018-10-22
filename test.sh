@@ -26,9 +26,9 @@ if [ ${CLEAN} ]; then
 fi
 
 if [[ $OSTYPE == darwin* ]]; then
-  find . -name "*.gcda" -o -name "*.profraw" -print0 | xargs -0 rm
+  find . -name "*.gcda" -print0 | xargs -0 rm
 else
-  find . -name "*.gcda" -o -name "*.profraw" -print0 | xargs -r -0 rm
+  find . -name "*.gcda" -print0 | xargs -r -0 rm
 fi
 
 mkdir -p build
@@ -47,6 +47,6 @@ if [ ${COVER} ]; then
   genhtml build/coverage.info --output-directory build/cov > /dev/null
   echo "Coverage output in $(pwd)/build/cov/index.html"
 
-  rm *.gcov
+  rm *.gcov *.profraw
   #open build/cov/index.html
 fi

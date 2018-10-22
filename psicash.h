@@ -67,7 +67,7 @@ struct PurchasePrice {
 using PurchasePrices = std::vector<PurchasePrice>;
 
 using TransactionID = std::string;
-constexpr const auto kTransactionIDZero = "";
+extern const char* const kTransactionIDZero;
 
 struct Purchase {
     TransactionID id;
