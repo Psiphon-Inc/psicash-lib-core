@@ -106,3 +106,25 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+
+##############################################################################
+# Sharing some Android Studio config, per https://tips.seebrock3r.me/share-settings-with-the-team-a-year-later-e28c24fc07aa
+##############################################################################
+
+# IDEA/Android Studio ignores
+*.iml
+*.ipr
+*.iws
+/.idea/*
+
+# IDEA/Android Studio Ignore exceptions
+!/.idea/vcs.xml
+!/.idea/fileTemplates/
+!/.idea/inspectionProfiles/
+!/.idea/scopes/
+!/.idea/codeStyles/
+!/.idea/encodings.xml
+!/.idea/copyright/
+!/.idea/compiler.xml
+
