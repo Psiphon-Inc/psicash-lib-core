@@ -366,4 +366,13 @@ TEST_F(TestUserData, Metadata)
     v["temp"] = "temp";
     v = ud.GetRequestMetadata();
     ASSERT_EQ(v.dump(), json({{"k", "v2"}, {"kk", 123}}).dump());
+
+    // Empty key is an error
+    err = ud.SetRequestMetadataItem("", "v");
+    ASSERT_TRUE(err);
+
+    err = ud.SetRequestMetadataItem("k", nullptr);
+    ASSERT_FALSE(err);
+    v = ud.GetRequestMetadata();
+    ASSERT_TRUE(v["k"].is_null());
 }
