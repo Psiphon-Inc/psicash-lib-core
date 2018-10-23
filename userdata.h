@@ -67,6 +67,9 @@ public:
     nlohmann::json GetRequestMetadata() const;
     template<typename T>
     error::Error SetRequestMetadataItem(const std::string& key, const T& val) {
+        if (key.empty()) {
+            return MakeError("Metadata key cannot be empty");
+        }
         auto j = GetRequestMetadata();
         j[key] = val;
         return datastore_.Set({{REQUEST_METADATA, j}});
