@@ -90,6 +90,7 @@ public class PsiCashLib {
     private static final String kErrorMessageKey = "message";
     private static final String kErrorInternalKey = "internal";
     private static final String kResultKey = "result";
+    private static final String kStatusKey = "status";
 
     public static class Error {
         public String message;
@@ -162,11 +163,10 @@ public class PsiCashLib {
     public Error setRequestMetadataItem(String key, String value) {
         String jsonStr = this.SetRequestMetadataItem(key, value);
 
-        JNI.ErrorOrResult<JSON.Nothing> res = new JNI.ErrorOrResult<>(JSON.Nothing.class, jsonStr);
-        return res.error();
+        JNI.Result.SetRequestMetadataItem res = new JNI.Result.SetRequestMetadataItem(jsonStr);
+
+        return res.error;
     }
-
-
 
     /**
      * @returns true if the currently held tokens correspond to an Account, or false if a Tracker.
@@ -174,93 +174,81 @@ public class PsiCashLib {
     public boolean isAccount() {
         String jsonStr = this.NativeIsAccount();
 
-        JNI.ErrorOrResult<JSON.Boolean> res = new JNI.ErrorOrResult<>(JSON.Boolean.class, jsonStr);
-        if (res.error() != null) {
+        JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
+
+        if (res.error != null) {
             // Not expected to happen normally
             return false;
         }
 
-        if (res.result().isNull()) {
-            // Not expected to happen normally
-            return false;
-        }
-
-        return res.result().value();
+        return res.result;
     }
 
-    public static class ValidTokenTypes extends ArrayList<String> implements JSON.Unmarshalable {
-        public ValidTokenTypes() { super(); }
-
-        public void fromJSON(JSONObject json, String key) {
-            this.clear();
-            List<String> vtt = JSON.nullableList(String.class, json, key);;
-            if (vtt != null) {
-                this.addAll(vtt);
-            }
+    public static class ValidTokenTypes extends ArrayList<String> {
+        public ValidTokenTypes(List<String> src) {
+            super(src);
         }
     }
 
+    @Nullable
     public ValidTokenTypes validTokenTypes() {
         String jsonStr = this.NativeValidTokenTypes();
 
-        JNI.ErrorOrResult<ValidTokenTypes> res = new JNI.ErrorOrResult<>(ValidTokenTypes.class, jsonStr);
-        if (res.error() != null) {
+        JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
+        if (res.error != null) {
             // Not expected to happen normally
             return null;
         }
 
-        return res.result();
+        return new ValidTokenTypes(res.result);
     }
 
-    public static class Purchase implements JSON.Unmarshalable {
+    public static class Purchase {
         public String id;
         public String transactionClass;
         public String distinguisher;
         public Date expiry;
         public String authorization;
 
-        public Purchase() {}
-
-        @Override
-        public void fromJSON(JSONObject json, String key) throws JSONException {
-            json = JSON.nullableObject(json, key);
+        public static Purchase fromJSON(JSONObject json) throws JSONException {
             if (json == null) {
-                return;
+                return null;
             }
 
-            this.id = json.getString("id");
-            this.transactionClass = json.getString("class");
-            this.distinguisher = json.getString("distinguisher");
-            this.expiry = JSON.nullableDate(json, "serverTimeExpiry");
-            this.authorization = JSON.nullableString(json, "authorization");
+            Purchase p = new Purchase();
+            p.id = json.getString("id");
+            p.transactionClass = json.getString("class");
+            p.distinguisher = json.getString("distinguisher");
+            p.expiry = JSON.nullableDate(json, "serverTimeExpiry");
+            p.authorization = JSON.nullableString(json, "authorization");
+
+            return p;
         }
     }
 
-    public static class NewExpiringPurchaseResult implements JSON.Unmarshalable {
+    // Used both for JNI glue and API result (although a bit clumsily)
+    public static class NewExpiringPurchaseResult {
         public Error error;
         public Status status;
         public Purchase purchase;
 
-        public NewExpiringPurchaseResult() {}
+        public NewExpiringPurchaseResult(String errorMessage, boolean errorInternal) {
+            this.error = new Error(errorMessage, errorInternal);
+        }
 
-        public void fromJSON(JSONObject json, String key) throws JSONException {
-            json = JSON.nullableObject(json, key);
-            if (json == null) {
+        public NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
+            this.error = res.error;
+            if (this.error != null) {
                 return;
             }
 
-            this.error = null; // handled elsewhere
-            this.status = Status.fromCode(json.getInt("status"));
-            this.purchase = new Purchase();
-            this.purchase.fromJSON(json, "purchase");
+            this.status = res.status;
+            this.purchase = res.purchase;
         }
     }
 
     public NewExpiringPurchaseResult newExpiringPurchase(
             String transactionClass, String distinguisher, long expectedPrice) {
-        NewExpiringPurchaseResult errorResult = new NewExpiringPurchaseResult();
-        errorResult.status = Status.INVALID;
-
         String paramsJSON;
         try {
             JSONObject json = new JSONObject();
@@ -270,19 +258,14 @@ public class PsiCashLib {
             paramsJSON = json.toString();
         } catch (JSONException e) {
             // Should never happen
-            errorResult.error = new Error("Failed to create params JSON: " + e.getMessage(), true);
-            return errorResult;
+            return new NewExpiringPurchaseResult("Failed to create params JSON: " + e.getMessage(), true);
         }
 
         String jsonStr = this.NativeNewExpiringPurchase(paramsJSON);
 
-        JNI.ErrorOrResult<NewExpiringPurchaseResult> res = new JNI.ErrorOrResult<>(NewExpiringPurchaseResult.class, jsonStr);
-        if (res.error() != null) {
-            errorResult.error = res.error;
-            return errorResult;
-        }
+        JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
 
-        return res.result();
+        return new NewExpiringPurchaseResult(res);
     }
 
     public String makeHTTPRequest(String jsonReqParams) {
@@ -435,6 +418,99 @@ public class PsiCashLib {
             private Error error;
             private T result;
         }
+
+        private static class Result {
+
+            private static abstract class Base {
+                Error error;
+
+                public Base(String jsonStr) {
+                    JSONObject json;
+                    try {
+                        json = new JSONObject(jsonStr);
+                    } catch (JSONException e) {
+                        this.error = new Error("Base: Overall JSON parse failed: " + e.getMessage(), true);
+                        return;
+                    }
+
+                    try {
+                        this.error = Error.fromJSON(json);
+                        if (this.error != null) {
+                            return;
+                        }
+                    } catch (JSONException e) {
+                        this.error = new Error("Base: Error JSON parse failed: " + e.getMessage(), true);
+                        return;
+                    }
+
+                    try {
+                        this.fromJSON(json, kResultKey);
+                    } catch (JSONException e) {
+                        this.error = new Error("Base: Result JSON parse failed: " + e.getMessage(), true);
+                        return;
+                    }
+                }
+
+                abstract void fromJSON(JSONObject json, String key) throws JSONException;
+            }
+
+            private static class SetRequestMetadataItem extends Base {
+                public SetRequestMetadataItem(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) {
+                    // There's no result besides error or not-error
+                }
+            }
+
+            private static class IsAccount extends Base {
+                boolean result;
+
+                public IsAccount(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) {
+                    Boolean b = JSON.nullableBoolean(json, key);
+                    this.result = (b == null) ? false : b.booleanValue();
+                }
+            }
+
+            private static class ValidTokenTypes extends Base {
+                List<String> result;
+
+                public ValidTokenTypes(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) {
+                    this.result = JSON.nullableList(String.class, json, key);
+                }
+            }
+
+            private static class NewExpiringPurchase extends Base {
+                public Status status;
+                public Purchase purchase;
+
+                public NewExpiringPurchase(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    json = json.getJSONObject(key);
+
+                    this.status = Status.fromCode(json.getInt(kStatusKey));
+
+                    this.purchase = Purchase.fromJSON(JSON.nullableObject(json, "purchase"));
+                }
+            }
+        }
+
     }
 
     //
@@ -443,35 +519,35 @@ public class PsiCashLib {
 
     private static class JSON {
         @Nullable
-        private static String nullableString(JSONObject json, String key) throws JSONException {
+        private static String nullableString(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.getString(key);
+            return json.optString(key);
         }
 
         @Nullable
-        private static Number nullableInt(JSONObject json, String key) throws JSONException {
+        private static Number nullableInt(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.getInt(key);
+            return json.optInt(key);
         }
 
         @Nullable
-        private static java.lang.Boolean nullableBoolean(JSONObject json, String key) throws JSONException {
+        private static java.lang.Boolean nullableBoolean(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.getBoolean(key);
+            return json.optBoolean(key);
         }
 
         @Nullable
-        private static JSONObject nullableObject(JSONObject json, String key) throws JSONException {
+        private static JSONObject nullableObject(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.getJSONObject(key);
+            return json.optJSONObject(key);
         }
 
         @Nullable
