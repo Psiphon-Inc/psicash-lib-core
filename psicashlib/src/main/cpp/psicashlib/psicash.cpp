@@ -424,7 +424,7 @@ PsiCash::BuildRequestParams(
     metadata["attempt"] = attempt;
 
     try {
-        headers["X-PsiCash-Metadata"] = metadata.dump();
+        headers["X-PsiCash-Metadata"] = metadata.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
         return MakeError(
@@ -442,7 +442,7 @@ PsiCash::BuildRequestParams(
     };
 
     try {
-        return j.dump();
+        return j.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
         return MakeError(
