@@ -6,6 +6,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
 
+import java.util.List;
+
 import ca.psiphon.psicashlib.PsiCashLib;
 
 public class MainActivity extends AppCompatActivity {
@@ -28,8 +30,17 @@ public class MainActivity extends AppCompatActivity {
         else {
             PsiCashLib.Error error = psiCashLib.setRequestMetadataItem("metadatakey", "metadatavalue");
             if (error != null) {
-                Log.e("temptag", error.value());
+                Log.e("temptag", error.message);
             }
+
+            error = psiCashLib.setRequestMetadataItem(null, "blah"); //erroneous
+            if (error != null) {
+                Log.e("temptag", error.message);
+            }
+
+            boolean isAccount = psiCashLib.isAccount();
+            List<String> vtt = psiCashLib.validTokenTypes();
+
 
             new NetworkTask().execute();
         }

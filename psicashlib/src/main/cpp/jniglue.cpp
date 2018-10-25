@@ -18,36 +18,60 @@ using namespace psicash;
 
 static jclass g_jClass;
 static jmethodID g_makeHTTPRequestMID;
-static PsiCash g_psiCash;
+static PsiCash g_psi_cash;
 
 
-string ErrorResponse(const string& message, const string& filename, const string& function, int line) {
-    error::Error err(message, filename, function, line);
-    return json({
-                        {"status", Status::Invalid},
-                        {"error",  err.ToString()}
-                }).dump();
+/// Used to return a JSON error without any potential marshaling exceptions.
+string ErrorResponseFallback(const string& message) {
+    return "{\"error\":{\"message\":"s + message + "\", \"internal\":true}}";
 }
 
+/// Creates a JSON error string appropriate for a JNI response.
+/// If `message` is empty, the result will be a non-error.
+string ErrorResponse(const string& message,
+                     const string& filename, const string& function, int line,
+                     bool internal=false) {
+    try {
+        json j({{"error", nullptr}});
+        if (!message.empty()) {
+            j["error"]["message"] = error::Error(message, filename, function, line).ToString();
+            j["error"]["internal"] = internal;
+        }
+        return j.dump(-1, ' ', true);
+    }
+    catch (json::exception& e) {
+        return ErrorResponseFallback(
+                utils::Stringer("ErrorResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
+    }
+}
+
+/// Creates a JSON error string appropriate for a JNI response. `error` is wrapped.
+/// If `error` is a non-error, the result will be a non-error.
 string ErrorResponse(const error::Error& error, const string& message,
-                const string& filename, const string& function, int line) {
-    error::Error wrapping_err(error);
-    wrapping_err.Wrap(message, filename, function, line);
-    return json({
-                        {"status", Status::Invalid},
-                        {"error",  wrapping_err.ToString()}
-                }).dump();
+                     const string& filename, const string& function, int line,
+                     bool internal=false) {
+    try {
+        json j({{"error", nullptr}});
+        if (error) {
+            j["error"]["message"] = error::Error(error).Wrap(message, filename, function, line).ToString();
+            j["error"]["internal"] = internal;
+        }
+        return j.dump(-1, ' ', true);
+    }
+    catch (json::exception& e) {
+        return ErrorResponseFallback(
+                utils::Stringer("ErrorResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
+    }
 }
 
-string ErrorResponse(const error::Error& error,
-                const string& filename, const string& function, int line) {
-    return ErrorResponse(error, "", filename, function, line);
-}
-
-#define ERROR(msg)              (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
-#define WRAP_ERROR(err, msg)    (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
-#define JNI_(str)               (str ? env->NewStringUTF(str) : nullptr)
-#define JNI_s(str)              (!str.empty() ? env->NewStringUTF(str.c_str()) : nullptr)
+#define ERROR(msg)                      (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+#define ERROR_INTERNAL(msg)             (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__, true).c_str())
+#define WRAP_ERROR1(err, msg)           (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
+#define WRAP_ERROR(err)                 WRAP_ERROR1(err, "")
+#define WRAP_ERROR1_INTERNAL(err, msg)  (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__, true).c_str())
+#define WRAP_ERROR_INTERNAL(err)        WRAP_ERROR1_INTERNAL(err, "")
+#define JNI_(str)                       (str ? env->NewStringUTF(str) : nullptr)
+#define JNI_s(str)                      (!str.empty() ? env->NewStringUTF(str.c_str()) : nullptr)
 
 
 // Note that the function returned by this is only valid as long as these arguments are valid.
@@ -60,21 +84,21 @@ MakeHTTPRequestFn GetHTTPReqFn(JNIEnv* env, jobject& this_obj) {
         if (!jParams) {
             CheckJNIException(env);
             stub_result["error"] = MakeError("NewStringUTF failed").ToString();
-            return stub_result.dump();
+            return stub_result.dump(-1, ' ', true);
         }
 
         auto jResult = (jstring) env->CallObjectMethod(this_obj, g_makeHTTPRequestMID, jParams);
         if (!jResult) {
             CheckJNIException(env);
             stub_result["error"] = MakeError("CallObjectMethod failed").ToString();
-            return stub_result.dump();
+            return stub_result.dump(-1, ' ', true);
         }
 
         auto resultCString = env->GetStringUTFChars(jResult, NULL);
         if (!resultCString) {
             CheckJNIException(env);
             stub_result["error"] = MakeError("GetStringUTFChars failed").ToString();
-            return stub_result.dump();
+            return stub_result.dump(-1, ' ', true);
         }
 
         auto result = string(resultCString);
@@ -106,25 +130,21 @@ JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         JNIEnv* env,
         jobject /*this_obj*/,
-        jstring file_store_root,
+        jstring j_file_store_root,
         jboolean test) {
-    if (!file_store_root) {
-        return env->NewStringUTF(ERROR("file_store_root is null"));
+    if (!j_file_store_root) {
+        return JNI_(ERROR("j_file_store_root is null"));
     }
 
-    auto file_store_root_str = env->GetStringUTFChars(file_store_root, NULL);
-
-    if (!file_store_root_str) {
-        return env->NewStringUTF(ERROR("file_store_root_str is null"));
+    auto file_store_root = JStringToString(env, j_file_store_root);
+    if (!file_store_root) {
+        return JNI_(ERROR("file_store_root is invalid"));
     }
 
     // We can't set the HTTP requester function yet, as we can't cache `this_obj`.
-    auto err = g_psiCash.Init(kPsiCashUserAgent, file_store_root_str, nullptr, test);
-
-    env->ReleaseStringUTFChars(file_store_root, file_store_root_str);
-
+    auto err = g_psi_cash.Init(kPsiCashUserAgent, file_store_root->c_str(), nullptr, test);
     if (err) {
-        return env->NewStringUTF(WRAP_ERROR(err, "g_psiCash.Init failed"));
+        return JNI_(WRAP_ERROR1(err, "g_psi_cash.Init failed"));
     }
 
     return nullptr;
@@ -134,79 +154,98 @@ extern "C" JNIEXPORT jstring
 JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_SetRequestMetadataItem(
         JNIEnv* env,
-        jobject this_obj,
+        jobject /*this_obj*/,
         jstring j_key,
         jstring j_value) {
     auto key = JStringToString(env, j_key);
     auto value = JStringToString(env, j_value);
     if (!key || !value) {
-        return env->NewStringUTF(ERROR("key and value must be non-null"));
+        return JNI_(ERROR("key and value must be non-null"));
     }
 
-    return JNI_(WRAP_ERROR(g_psiCash.SetRequestMetadataItem(*key, *value), ""));
+    return JNI_(WRAP_ERROR(g_psi_cash.SetRequestMetadataItem(*key, *value)));
+}
+
+template<typename T>
+string SuccessResponse(T res) {
+    try {
+        json j({{"result", res}});
+        return j.dump(-1, ' ', true);
+    }
+    catch (json::exception& e) {
+        return ERROR(
+                utils::Stringer("SuccessResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
+    }
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeIsAccount(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    return JNI_s(SuccessResponse(g_psi_cash.IsAccount()));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeValidTokenTypes(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto vtt = g_psi_cash.ValidTokenTypes();
+    return JNI_s(SuccessResponse(vtt));
 }
 
 /*
  * Response JSON structure is:
  * {
- *      status: Status value,
- *      error: "message if status==Status::Invalid",
- *      purchase: Purchase; invalid if not success
+ *      error: { ... },
+ *      result: {
+ *          status: Status value,
+ *          purchase: Purchase; valid iff status == Status::Success
+ *      }
  * }
  */
 extern "C" JNIEXPORT jstring
 JNICALL
-Java_ca_psiphon_psicashlib_PsiCashLib_NewExpiringPurchase(
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
         JNIEnv* env,
         jobject this_obj,
         jstring j_params_json) {
-    auto output = json::object({{"status",   Status::Invalid},
-                                {"error",    nullptr},
-                                {"purchase", nullptr}});
-
     if (!j_params_json) {
-        output["error"] = MakeError("j_params_json is null").ToString();
-        return env->NewStringUTF(output.dump().c_str());
+        return JNI_(ERROR("j_params_json is null"));
     }
 
-    auto c_params_json = env->GetStringUTFChars(j_params_json, NULL);
-    if (!c_params_json) {
-        output["error"] = MakeError("GetStringUTFChars failed").ToString();
-        return env->NewStringUTF(output.dump().c_str());
+    auto params_json = JStringToString(env, j_params_json);
+    if (!params_json) {
+        return JNI_(ERROR("j_params_json is invalid"));
     }
-
-    auto params_json = string(c_params_json);
-    env->ReleaseStringUTFChars(j_params_json, c_params_json);
 
     string transaction_class, distinguisher;
     int64_t expected_price;
     try {
-        auto j = json::parse(params_json);
+        auto j = json::parse(*params_json);
         transaction_class = j["class"].get<string>();
         distinguisher = j["distinguisher"].get<string>();
         expected_price = j["expectedPrice"].get<int64_t>();
     }
     catch (json::exception& e) {
-        output["error"] = MakeError(
-                utils::Stringer("params json parse failed: ", e.what(), "; id:", e.id)).ToString();
-        return env->NewStringUTF(output.dump().c_str());
+        return JNI_(ERROR(utils::Stringer("params json parse failed: ", e.what(), "; id:", e.id)));
     }
 
-    g_psiCash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+    g_psi_cash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
 
-    auto result = g_psiCash.NewExpiringPurchase(transaction_class, distinguisher, expected_price);
+    auto result = g_psi_cash.NewExpiringPurchase(transaction_class, distinguisher, expected_price);
 
     if (!result) {
-        output["error"] = WrapError(result.error(),
-                                    "g_psiCash.NewExpiringPurchase failed").ToString();
-        return env->NewStringUTF(output.dump().c_str());
+        return JNI_(WRAP_ERROR(result.error()));
     }
 
-    output["status"] = result->status;
+    auto output = json::object({{"status",   result->status},
+                                {"purchase", nullptr}});
     if (result->purchase) {
         output["purchase"] = *result->purchase;
     }
 
-    return env->NewStringUTF(output.dump().c_str());
+    return JNI_s(SuccessResponse(output));
 }
 
