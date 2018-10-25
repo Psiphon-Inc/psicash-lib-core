@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class PsiCashLib {
@@ -109,21 +110,24 @@ public class PsiCashLib {
         }
 
         @Nullable
-        public static Error fromJSON(JSONObject json) throws JSONException {
-            Error error = new Error();
+        public static Error fromJSON(JSONObject json) {
+            // We don't know for sure that the JSON contains an Error at this point.
 
             JSONObject errorObj = JSON.nullableObject(json, kErrorKey);
             if (errorObj == null) {
+                // The object will be absent if this isn't actually an error
                 return null;
             }
 
+            Error error = new Error();
             error.message = JSON.nullableString(errorObj, kErrorMessageKey);
             if (error.message == null) {
+                // Message is required for this to be considered an error
                 return null;
             }
 
             Boolean internal = JSON.nullableBoolean(errorObj, kErrorInternalKey);
-            error.internal = internal == null ? false : internal.booleanValue();
+            error.internal = internal != null && internal;
 
             return error;
         }
@@ -282,9 +286,9 @@ public class PsiCashLib {
 
             String hostname = json.getString("hostname");
 
-            Number port = JSON.nullableInt(json, "port");
+            Integer port = JSON.nullableInteger(json, "port");
             if (port != null) {
-                hostname += ":" + port.intValue();
+                hostname += ":" + port;
             }
 
             uriBuilder.encodedAuthority(hostname);
@@ -297,7 +301,7 @@ public class PsiCashLib {
             if (jsonHeaders != null) {
                 Iterator<?> headerKeys = jsonHeaders.keys();
                 while (headerKeys.hasNext()) {
-                    String key = (String) headerKeys.next();
+                    String key = (String)headerKeys.next();
                     String value = jsonHeaders.getString(key);
                     reqParams.headers.put(key, value);
                 }
@@ -337,87 +341,6 @@ public class PsiCashLib {
     //
 
     private static class JNI {
-        @Nullable
-        private static Boolean resultBoolean(String jsonStr) {
-            try {
-                JSONObject json = new JSONObject(jsonStr);
-                return JSON.nullableBoolean(json, kResultKey);
-            } catch (JSONException e) {
-                e.printStackTrace(); // TODO
-                return null;
-            }
-        }
-
-        @Nullable
-        private static <T> T result(Class<T> clazz, String jsonStr) throws JSONException {
-            JSONObject json = new JSONObject(jsonStr);
-            return JSON.nullable(clazz, json, kResultKey);
-        }
-
-        @Nullable
-        private static <T> List<T> resultList(Class<T> clazz, String jsonStr) throws JSONException {
-            JSONObject json = new JSONObject(jsonStr);
-            return JSON.nullableList(clazz, json, kResultKey);
-        }
-
-
-        private static class ErrorOrResult<T extends JSON.Unmarshalable> {
-            public ErrorOrResult(Class<T> clazz, String jsonStr) {
-                if (jsonStr == null) {
-                    this.error = new Error("Result JSON string is null", true);
-                    return;
-                }
-
-                JSONObject json;
-                try {
-                    json = new JSONObject(jsonStr);
-                } catch (JSONException e) {
-                    this.error = new Error("ErrorOrResult: Overall JSON parse failed: " + e.getMessage(), true);
-                    return;
-                }
-
-                try {
-                    this.error = Error.fromJSON(json);
-                    if (this.error != null) {
-                        return;
-                    }
-                } catch (JSONException e) {
-                    this.error = new Error("ErrorOrResult: Error JSON parse failed: " + e.getMessage(), true);
-                    return;
-                }
-
-                try {
-                    this.result = clazz.newInstance();
-                } catch (InstantiationException e) {
-                    this.error = new Error("ErrorOrResult: Missing public default constructor for " + clazz.getSimpleName() + "; " + e.getMessage(), true);
-                    return;
-                } catch (IllegalAccessException e) {
-                    this.error = new Error("ErrorOrResult: Missing public default constructor for " + clazz.getSimpleName() + "; " + e.getMessage(), true);
-                    return;
-                }
-
-                try {
-                    this.result.fromJSON(json, kResultKey);
-                } catch (JSONException e) {
-                    this.error = new Error("ErrorOrResult: Result JSON parse failed: " + e.getMessage(), true);
-                    return;
-                }
-            }
-
-            public Error error() {
-                return this.error;
-            }
-
-            public T result() {
-                if (this.error != null) {
-                    return null;
-                }
-                return this.result;
-            }
-
-            private Error error;
-            private T result;
-        }
 
         private static class Result {
 
@@ -433,13 +356,8 @@ public class PsiCashLib {
                         return;
                     }
 
-                    try {
-                        this.error = Error.fromJSON(json);
-                        if (this.error != null) {
-                            return;
-                        }
-                    } catch (JSONException e) {
-                        this.error = new Error("Base: Error JSON parse failed: " + e.getMessage(), true);
+                    this.error = Error.fromJSON(json);
+                    if (this.error != null) {
                         return;
                     }
 
@@ -475,7 +393,7 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) {
                     Boolean b = JSON.nullableBoolean(json, key);
-                    this.result = (b == null) ? false : b.booleanValue();
+                    this.result = (b != null) && b;
                 }
             }
 
@@ -507,6 +425,11 @@ public class PsiCashLib {
                     this.status = Status.fromCode(json.getInt(kStatusKey));
 
                     this.purchase = Purchase.fromJSON(JSON.nullableObject(json, "purchase"));
+
+                    if (this.status == Status.SUCCESS && this.purchase == null) {
+                        // Not a sane state.
+                        throw new JSONException("NewExpiringPurchase.fromJSON got SUCCESS but no purchase object" );
+                    }
                 }
             }
         }
@@ -519,27 +442,43 @@ public class PsiCashLib {
 
     private static class JSON {
         @Nullable
+        private static Boolean nullableBoolean(JSONObject json, String key) {
+            if (!json.has(key) || json.isNull(key)) {
+                return null;
+            }
+            return json.optBoolean(key, false);
+        }
+
+        @Nullable
+        private static Double nullableDouble(JSONObject json, String key) {
+            if (!json.has(key) || json.isNull(key)) {
+                return null;
+            }
+            return json.optDouble(key, 0.0);
+        }
+
+        @Nullable
+        private static Integer nullableInteger(JSONObject json, String key) {
+            if (!json.has(key) || json.isNull(key)) {
+                return null;
+            }
+            return json.optInt(key, 0);
+        }
+
+        @Nullable
+        private static Long nullableLong(JSONObject json, String key) {
+            if (!json.has(key) || json.isNull(key)) {
+                return null;
+            }
+            return json.optLong(key, 0L);
+        }
+
+        @Nullable
         private static String nullableString(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.optString(key);
-        }
-
-        @Nullable
-        private static Number nullableInt(JSONObject json, String key) {
-            if (!json.has(key) || json.isNull(key)) {
-                return null;
-            }
-            return json.optInt(key);
-        }
-
-        @Nullable
-        private static java.lang.Boolean nullableBoolean(JSONObject json, String key) {
-            if (!json.has(key) || json.isNull(key)) {
-                return null;
-            }
-            return json.optBoolean(key);
+            return json.optString(key, null);
         }
 
         @Nullable
@@ -558,6 +497,7 @@ public class PsiCashLib {
             return json.getJSONArray(key);
         }
 
+        // This function throws if the JSON field is present, but cannot be converted to a Date.
         @Nullable
         private static Date nullableDate(JSONObject json, String key) throws JSONException {
             String dateString = nullableString(json, key);
@@ -568,11 +508,11 @@ public class PsiCashLib {
             Date date;
 
             // We need to try different formats depending on the presence of milliseconds.
-            SimpleDateFormat isoFormatWithMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss.SSS'Z'");
+            SimpleDateFormat isoFormatWithMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss.SSS'Z'", Locale.US);
             try {
                 date = isoFormatWithMS.parse(dateString);
             } catch (ParseException e1) {
-                SimpleDateFormat isoFormatWithoutMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+                SimpleDateFormat isoFormatWithoutMS = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'", Locale.US);
                 try {
                     date = isoFormatWithoutMS.parse(dateString);
                 } catch (ParseException e2) {
@@ -582,32 +522,6 @@ public class PsiCashLib {
             }
 
             return date;
-        }
-
-        @Nullable
-        private static <T> T cast(Class<T> clazz, Object o) {
-            if (o == null) {
-                return null;
-            }
-
-            if (!clazz.isAssignableFrom(o.getClass())) {
-                // TODO: Log?
-                return null;
-            }
-
-            return clazz.cast(o);
-        }
-
-        @Nullable
-        private static <T> T nullable(Class<T> clazz, JSONObject json, String key) {
-            Object o = json.opt(key);
-            return cast(clazz, o);
-        }
-
-        @Nullable
-        private static <T> T nullable(Class<T> clazz, JSONArray json, int key) {
-            Object o = json.opt(key);
-            return cast(clazz, o);
         }
 
         @Nullable
@@ -626,36 +540,27 @@ public class PsiCashLib {
             return result;
         }
 
-        private interface Unmarshalable {
-            // NOTE: Also requires public default constructor
-
-            void fromJSON(JSONObject json, String key) throws JSONException;
-        }
-
-        private static class Nothing implements Unmarshalable {
-            public Nothing() {}
-
-            @Override
-            public void fromJSON(JSONObject json, String key) {
-            }
-        }
-
-        private static class Boolean implements Unmarshalable {
-            public Boolean() {}
-
-            @Override
-            public void fromJSON(JSONObject json, String key) {
-                this.value = JSON.nullable(java.lang.Boolean.class, json, key);
+        // Helper; should (probably) not be used directly
+        @Nullable
+        private static <T> T cast(Class<T> clazz, Object o) {
+            if (o == null) {
+                return null;
             }
 
-            public boolean isNull() {
-                return this.value == null;
+            if (!clazz.isAssignableFrom(o.getClass())) {
+                // TODO: Log?
+                return null;
             }
 
-            public java.lang.Boolean value() { return value; }
-            private java.lang.Boolean value;
+            return clazz.cast(o);
         }
 
+        // Helper; should (probably) not be used directly
+        @Nullable
+        private static <T> T nullable(Class<T> clazz, JSONArray json, int key) {
+            Object o = json.opt(key);
+            return cast(clazz, o);
+        }
     }
 
     /*
