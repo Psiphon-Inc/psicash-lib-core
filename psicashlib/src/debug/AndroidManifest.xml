@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- This is required for our auto-tests to be able to access the internet. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

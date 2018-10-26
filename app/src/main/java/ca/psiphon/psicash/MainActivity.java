@@ -23,9 +23,9 @@ public class MainActivity extends AppCompatActivity {
         tv.setText("Initial text");
 
         psiCashLib = new PsiCashLib();
-        String err = psiCashLib.init(getFilesDir().toString(), new PsiCashLibHelper());
+        PsiCashLib.Error err = psiCashLib.init(getFilesDir().toString(), new PsiCashLibHelper());
         if (err != null) {
-            Log.e("temptag", err);
+            Log.e("temptag", err.message);
         }
         else {
             PsiCashLib.Error error = psiCashLib.setRequestMetadataItem("metadatakey", "metadatavalue");
