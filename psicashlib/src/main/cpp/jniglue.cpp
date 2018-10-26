@@ -2,6 +2,7 @@
 #include <string>
 #include <stdio.h>
 #include "jnihelpers.h"
+#include "jnitest.h"
 #include "psicashlib/error.h"
 #include "psicashlib/psicash.h"
 #include "vendor/nlohmann/json.hpp"
@@ -16,9 +17,19 @@ static constexpr const char* kPsiCashUserAgent = "Psiphon-PsiCash-iOS"; // TODO:
 using namespace std;
 using namespace psicash;
 
+static bool g_test = false;
 static jclass g_jClass;
 static jmethodID g_makeHTTPRequestMID;
-static PsiCash g_psi_cash;
+
+static PsiCash& GetPsiCash() {
+    static PsiCash psi_cash;
+    static PsiCash psi_cash_test;
+    return g_test ? psi_cash_test : psi_cash;
+}
+
+static PsiCashTest& GetPsiCashTest() {
+    return (PsiCashTest&)GetPsiCash();
+}
 
 
 /// Used to return a JSON error without any potential marshaling exceptions.
@@ -149,6 +160,8 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         jobject /*this_obj*/,
         jstring j_file_store_root,
         jboolean test) {
+    g_test = test;
+
     if (!j_file_store_root) {
         return JNI_(ERROR("j_file_store_root is null"));
     }
@@ -159,9 +172,9 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
     }
 
     // We can't set the HTTP requester function yet, as we can't cache `this_obj`.
-    auto err = g_psi_cash.Init(kPsiCashUserAgent, file_store_root->c_str(), nullptr, test);
+    auto err = GetPsiCash().Init(kPsiCashUserAgent, file_store_root->c_str(), nullptr, test);
     if (err) {
-        return JNI_(WRAP_ERROR1(err, "g_psi_cash.Init failed"));
+        return JNI_(WRAP_ERROR1(err, "PsiCash.Init failed"));
     }
 
     return JNI_s(SuccessResponse());
@@ -180,7 +193,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_SetRequestMetadataItem(
         return JNI_(ERROR("key and value must be non-null"));
     }
 
-    return JNI_(WRAP_ERROR(g_psi_cash.SetRequestMetadataItem(*key, *value)));
+    return JNI_(WRAP_ERROR(GetPsiCash().SetRequestMetadataItem(*key, *value)));
 }
 
 extern "C" JNIEXPORT jstring
@@ -188,7 +201,7 @@ JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeIsAccount(
         JNIEnv* env,
         jobject /*this_obj*/) {
-    return JNI_s(SuccessResponse(g_psi_cash.IsAccount()));
+    return JNI_s(SuccessResponse(GetPsiCash().IsAccount()));
 }
 
 extern "C" JNIEXPORT jstring
@@ -196,8 +209,16 @@ JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeValidTokenTypes(
         JNIEnv* env,
         jobject /*this_obj*/) {
-    auto vtt = g_psi_cash.ValidTokenTypes();
+    auto vtt = GetPsiCash().ValidTokenTypes();
     return JNI_s(SuccessResponse(vtt));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeBalance(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    return JNI_s(SuccessResponse(GetPsiCash().Balance()));
 }
 
 /*
@@ -227,9 +248,9 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeRefreshState(
         }
     }
 
-    g_psi_cash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
 
-    auto result = g_psi_cash.RefreshState(purchase_classes);
+    auto result = GetPsiCash().RefreshState(purchase_classes);
     if (!result) {
         return JNI_(WRAP_ERROR(result.error()));
     }
@@ -264,9 +285,9 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
         return JNI_(ERROR("transaction and distinguisher are required"));
     }
 
-    g_psi_cash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
 
-    auto result = g_psi_cash.NewExpiringPurchase(*transaction_class, *distinguisher, expected_price);
+    auto result = GetPsiCash().NewExpiringPurchase(*transaction_class, *distinguisher, expected_price);
     if (!result) {
         return JNI_(WRAP_ERROR(result.error()));
     }
@@ -280,3 +301,27 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
     return JNI_s(SuccessResponse(output));
 }
 
+// Returns null on success, error message otherwise.
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestReward(
+        JNIEnv* env,
+        jobject this_obj,
+        jstring j_transaction_class,
+        jstring j_distinguisher) {
+    auto transaction_class = JStringToString(env, j_transaction_class);
+    auto distinguisher = JStringToString(env, j_distinguisher);
+
+    if (!transaction_class || !distinguisher) {
+        return JNI_("transaction and distinguisher are required");
+    }
+
+    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+
+    auto err = GetPsiCashTest().TestReward(*transaction_class, *distinguisher);
+    if (err) {
+        return JNI_s(err.ToString());
+    }
+
+    return nullptr;
+}

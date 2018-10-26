@@ -40,9 +40,7 @@ public class TestBase {
             for (File child : fileOrDirectory.listFiles())
                 deleteRecursive(child);
 
-        if (!fileOrDirectory.delete()) {
-            int i = 0; // TEMP
-        }
+        fileOrDirectory.delete();
     }
 
     protected String getTempDir() {
@@ -69,6 +67,7 @@ public class TestBase {
         }
     }
 
+    // TODO: Don't duplicate this with the app (although maybe we don't need the app anymore).
     public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
         public PsiCashLib.HTTPRequester.Result httpRequest(PsiCashLib.HTTPRequester.ReqParams reqParams) {
             PsiCashLib.HTTPRequester.Result res = new PsiCashLib.HTTPRequester.Result();

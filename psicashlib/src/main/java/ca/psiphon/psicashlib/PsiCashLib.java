@@ -204,6 +204,19 @@ public class PsiCashLib {
         return new ValidTokenTypes(res.result);
     }
 
+    public long balance() {
+        String jsonStr = this.NativeBalance();
+
+        JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
+
+        if (res.error != null) {
+            // Not expected to happen normally
+            return 0;
+        }
+
+        return res.result;
+    }
+
     public static class RefreshStateResult {
         public Error error;
         public Status status;
@@ -412,6 +425,20 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) {
                     this.result = JSON.nullableList(String.class, json, key);
+                }
+            }
+
+            private static class Balance extends Base {
+                long result;
+
+                public Balance(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) {
+                    Long l = JSON.nullableLong(json, key);
+                    this.result = (l == null) ? 0 : l;
                 }
             }
 
@@ -638,6 +665,14 @@ public class PsiCashLib {
     /**
      * @return {
      *  "error": {...},
+     *  "result": long
+     * }
+     */
+    private native String NativeBalance();
+
+    /**
+     * @return {
+     *  "error": {...},
      *  "result": Status
      * }
      */
@@ -653,4 +688,11 @@ public class PsiCashLib {
      * }
      */
     private native String NativeNewExpiringPurchase(String transactionClass, String distinguisher, long expectedPrice);
+
+    /*
+     * TEST ONLY Native functions
+     * It doesn't seem possible to have these declared in the PsiCashLibTester subclass.
+     */
+
+    protected native String NativeTestReward(String transactionClass, String distinguisher);
 }
