@@ -131,16 +131,14 @@ public class PsiCashLib {
 
             return error;
         }
-    }
 
-    static {
-        // Load the C++ library.
-        System.loadLibrary("psicash");
-
-        // Call the C++ init function each time the library loads.
-        if (!NativeStaticInit()) {
-            // This shouldn't happen, unless the apk is misconfigured.
-            throw new AssertionError("psicash library init failed");
+        // Returns null if string is null
+        @Nullable
+        public static Error fromString(String message, boolean internal) {
+            if (message == null) {
+                return null;
+            }
+            return new Error(message, internal);
         }
     }
 
@@ -148,16 +146,16 @@ public class PsiCashLib {
     }
 
     // TODO: Figure out return type
-    public String init(String fileStoreRoot, HTTPRequester httpRequester) {
+    public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
+        return init(fileStoreRoot, httpRequester, false);
+    }
+
+    protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
         this.httpRequester = httpRequester;
 
-        String err = this.NativeObjectInit(fileStoreRoot, true);
-
-        if (err != null) {
-            return "PsiCashLib NativeObjectInit failed: " + err;
-        }
-
-        return null;
+        String jsonStr = this.NativeObjectInit(fileStoreRoot, test);
+        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
+        return res.error;
     }
 
     /**
@@ -167,8 +165,7 @@ public class PsiCashLib {
     public Error setRequestMetadataItem(String key, String value) {
         String jsonStr = this.SetRequestMetadataItem(key, value);
 
-        JNI.Result.SetRequestMetadataItem res = new JNI.Result.SetRequestMetadataItem(jsonStr);
-
+        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
         return res.error;
     }
 
@@ -207,6 +204,31 @@ public class PsiCashLib {
         return new ValidTokenTypes(res.result);
     }
 
+    public static class RefreshStateResult {
+        public Error error;
+        public Status status;
+
+        public RefreshStateResult(JNI.Result.RefreshState res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+
+            this.status = res.status;
+        }
+    }
+
+    public RefreshStateResult refreshState(List<String> purchaseClasses) {
+        if (purchaseClasses == null) {
+            purchaseClasses = new ArrayList<>();
+        }
+
+        String jsonStr = this.NativeRefreshState(purchaseClasses.toArray(new String[0]));
+
+        JNI.Result.RefreshState res = new JNI.Result.RefreshState(jsonStr);
+        return new RefreshStateResult(res);
+    }
+
     public static class Purchase {
         public String id;
         public String transactionClass;
@@ -230,15 +252,10 @@ public class PsiCashLib {
         }
     }
 
-    // Used both for JNI glue and API result (although a bit clumsily)
     public static class NewExpiringPurchaseResult {
         public Error error;
         public Status status;
         public Purchase purchase;
-
-        public NewExpiringPurchaseResult(String errorMessage, boolean errorInternal) {
-            this.error = new Error(errorMessage, errorInternal);
-        }
 
         public NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
             this.error = res.error;
@@ -253,25 +270,13 @@ public class PsiCashLib {
 
     public NewExpiringPurchaseResult newExpiringPurchase(
             String transactionClass, String distinguisher, long expectedPrice) {
-        String paramsJSON;
-        try {
-            JSONObject json = new JSONObject();
-            json.put("class", transactionClass);
-            json.put("distinguisher", distinguisher);
-            json.put("expectedPrice", expectedPrice);
-            paramsJSON = json.toString();
-        } catch (JSONException e) {
-            // Should never happen
-            return new NewExpiringPurchaseResult("Failed to create params JSON: " + e.getMessage(), true);
-        }
-
-        String jsonStr = this.NativeNewExpiringPurchase(paramsJSON);
+        String jsonStr = this.NativeNewExpiringPurchase(transactionClass, distinguisher, expectedPrice);
 
         JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
-
         return new NewExpiringPurchaseResult(res);
     }
 
+    @SuppressWarnings("unused") // used as a native callback
     public String makeHTTPRequest(String jsonReqParams) {
         HTTPRequester.Result result = new HTTPRequester.Result();
 
@@ -372,8 +377,8 @@ public class PsiCashLib {
                 abstract void fromJSON(JSONObject json, String key) throws JSONException;
             }
 
-            private static class SetRequestMetadataItem extends Base {
-                public SetRequestMetadataItem(String jsonStr) {
+            private static class ErrorOnly extends Base {
+                public ErrorOnly(String jsonStr) {
                     super(jsonStr);
                 }
 
@@ -407,6 +412,19 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) {
                     this.result = JSON.nullableList(String.class, json, key);
+                }
+            }
+
+            private static class RefreshState extends Base {
+                public Status status;
+
+                public RefreshState(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    this.status = Status.fromCode(json.getInt(key));
                 }
             }
 
@@ -581,6 +599,17 @@ public class PsiCashLib {
     Any field may be absent or null if not applicable, but either "error" or "result" must be present.
     */
 
+    static {
+        // Load the C++ library.
+        System.loadLibrary("psicash");
+
+        // Call the C++ init function each time the library loads.
+        if (!NativeStaticInit()) {
+            // This shouldn't happen, unless the apk is misconfigured.
+            throw new AssertionError("psicash library init failed");
+        }
+    }
+
     private static native boolean NativeStaticInit();
 
     private native String NativeObjectInit(String fileStoreRoot, boolean test);
@@ -606,5 +635,22 @@ public class PsiCashLib {
      */
     private native String NativeValidTokenTypes();
 
-    private native String NativeNewExpiringPurchase(String params);
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": Status
+     * }
+     */
+    private native String NativeRefreshState(String[] purchaseClasses);
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": {
+     *      "status": Status,
+     *      "purchase": Purchase
+     *  }
+     * }
+     */
+    private native String NativeNewExpiringPurchase(String transactionClass, String distinguisher, long expectedPrice);
 }

@@ -73,6 +73,23 @@ string ErrorResponse(const error::Error& error, const string& message,
 #define JNI_(str)                       (str ? env->NewStringUTF(str) : nullptr)
 #define JNI_s(str)                      (!str.empty() ? env->NewStringUTF(str.c_str()) : nullptr)
 
+template<typename T>
+string SuccessResponse(T res) {
+    try {
+        json j({{"result", res}});
+        return j.dump(-1, ' ', true);
+    }
+    catch (json::exception& e) {
+        return ERROR(
+                utils::Stringer("SuccessResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
+    }
+}
+
+// To be used for successful responses that don't have a result payload.
+string SuccessResponse() {
+    return SuccessResponse(nullptr);
+}
+
 
 // Note that the function returned by this is only valid as long as these arguments are valid.
 // So, generally, it should only be used for the duration of a single JNI call.
@@ -147,7 +164,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         return JNI_(WRAP_ERROR1(err, "g_psi_cash.Init failed"));
     }
 
-    return nullptr;
+    return JNI_s(SuccessResponse());
 }
 
 extern "C" JNIEXPORT jstring
@@ -164,18 +181,6 @@ Java_ca_psiphon_psicashlib_PsiCashLib_SetRequestMetadataItem(
     }
 
     return JNI_(WRAP_ERROR(g_psi_cash.SetRequestMetadataItem(*key, *value)));
-}
-
-template<typename T>
-string SuccessResponse(T res) {
-    try {
-        json j({{"result", res}});
-        return j.dump(-1, ' ', true);
-    }
-    catch (json::exception& e) {
-        return ERROR(
-                utils::Stringer("SuccessResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
-    }
 }
 
 extern "C" JNIEXPORT jstring
@@ -207,35 +212,61 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeValidTokenTypes(
  */
 extern "C" JNIEXPORT jstring
 JNICALL
-Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeRefreshState(
         JNIEnv* env,
         jobject this_obj,
-        jstring j_params_json) {
-    if (!j_params_json) {
-        return JNI_(ERROR("j_params_json is null"));
-    }
+        jobjectArray j_purchase_classes) {
 
-    auto params_json = JStringToString(env, j_params_json);
-    if (!params_json) {
-        return JNI_(ERROR("j_params_json is invalid"));
-    }
+    vector<string> purchase_classes;
 
-    string transaction_class, distinguisher;
-    int64_t expected_price;
-    try {
-        auto j = json::parse(*params_json);
-        transaction_class = j["class"].get<string>();
-        distinguisher = j["distinguisher"].get<string>();
-        expected_price = j["expectedPrice"].get<int64_t>();
-    }
-    catch (json::exception& e) {
-        return JNI_(ERROR(utils::Stringer("params json parse failed: ", e.what(), "; id:", e.id)));
+    int purchase_classes_count = env->GetArrayLength(j_purchase_classes);
+    for (int i = 0; i < purchase_classes_count; i++) {
+        auto purchase_class = JStringToString(env, (jstring)env->GetObjectArrayElement(j_purchase_classes, i));
+        if (purchase_class) {
+            purchase_classes.push_back(*purchase_class);
+        }
     }
 
     g_psi_cash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
 
-    auto result = g_psi_cash.NewExpiringPurchase(transaction_class, distinguisher, expected_price);
+    auto result = g_psi_cash.RefreshState(purchase_classes);
+    if (!result) {
+        return JNI_(WRAP_ERROR(result.error()));
+    }
 
+    return JNI_s(SuccessResponse(*result));
+}
+
+/*
+ * Response JSON structure is:
+ * {
+ *      error: { ... },
+ *      result: {
+ *          status: Status value,
+ *          purchase: Purchase; valid iff status == Status::Success
+ *      }
+ * }
+ */
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
+        JNIEnv* env,
+        jobject this_obj,
+        jstring j_transaction_class,
+        jstring j_distinguisher,
+        jlong j_expected_price) {
+
+    auto transaction_class = JStringToString(env, j_transaction_class);
+    auto distinguisher = JStringToString(env, j_distinguisher);
+    int64_t expected_price = j_expected_price;
+
+    if (!transaction_class || !distinguisher) {
+        return JNI_(ERROR("transaction and distinguisher are required"));
+    }
+
+    g_psi_cash.SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+
+    auto result = g_psi_cash.NewExpiringPurchase(*transaction_class, *distinguisher, expected_price);
     if (!result) {
         return JNI_(WRAP_ERROR(result.error()));
     }
