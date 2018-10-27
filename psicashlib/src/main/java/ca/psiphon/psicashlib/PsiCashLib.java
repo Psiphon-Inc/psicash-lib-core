@@ -499,6 +499,32 @@ public class PsiCashLib {
     }
 
     /*
+     * GetRewardedActivityData
+     */
+
+    public static class GetRewardedActivityDataResult {
+        @Nullable
+        public Error error;
+        @Nullable // can be null even on success, if there is no data
+        public String data;
+
+        public GetRewardedActivityDataResult(JNI.Result.GetRewardedActivityData res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.data = res.data;
+        }
+    }
+
+    @NonNull
+    public GetRewardedActivityDataResult getRewardedActivityData() {
+        String jsonStr = this.NativeGetRewardedActivityData();
+        JNI.Result.GetRewardedActivityData res = new JNI.Result.GetRewardedActivityData(jsonStr);
+        return new GetRewardedActivityDataResult(res);
+    }
+
+    /*
      * RefreshState
      */
 
@@ -840,6 +866,20 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
                     this.url = JSON.nonnullString(json, key);
+                }
+            }
+
+            private static class GetRewardedActivityData extends Base {
+                String data;
+
+                public GetRewardedActivityData(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) {
+                    // Can be null even on success
+                    this.data = JSON.nullableString(json, key);
                 }
             }
 
@@ -1253,6 +1293,14 @@ public class PsiCashLib {
      * }
      */
     private native String NativeModifyLandingPage(String url);
+
+    /**
+     * @return {
+     *  "error": {...}
+     *  "result": string encoded data
+     * }
+     */
+    private native String NativeGetRewardedActivityData();
 
     /**
      * @return {

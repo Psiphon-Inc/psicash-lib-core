@@ -321,6 +321,18 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeModifyLandingPage(
     return JNI_s(SuccessResponse(*result));
 }
 
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeGetRewardedActivityData(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto result = GetPsiCash().GetRewardedActivityData();
+    if (!result) {
+        return JNI_(WRAP_ERROR(result.error()));
+    }
+    return JNI_s(SuccessResponse(*result));
+}
+
 /*
  * Response JSON structure is:
  * {

@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
             error = psiCashLib.removePurchases(ids);
 
             PsiCashLib.ModifyLandingPageResult mlpr = psiCashLib.modifyLandingPage("https://example.com/foo");
+            PsiCashLib.GetRewardedActivityDataResult gradr = psiCashLib.getRewardedActivityData();
 
 
             PsiCashLib.NewExpiringPurchaseResult nep = psiCashLib.newExpiringPurchase(
