@@ -333,6 +333,15 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeGetRewardedActivityData(
     return JNI_s(SuccessResponse(*result));
 }
 
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeGetDiagnosticInfo(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto json = GetPsiCash().GetDiagnosticInfo();
+    return JNI_s(SuccessResponse(json.dump(-1, ' ', true)));
+}
+
 /*
  * Response JSON structure is:
  * {

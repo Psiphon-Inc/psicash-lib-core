@@ -525,6 +525,32 @@ public class PsiCashLib {
     }
 
     /*
+     * GetDiagnosticInfo
+     */
+
+    public static class GetDiagnosticInfoResult {
+        @Nullable
+        public Error error;
+        @Nullable // null iff error not null
+        public String jsonString;
+
+        public GetDiagnosticInfoResult(JNI.Result.GetDiagnosticInfo res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.jsonString = res.jsonString;
+        }
+    }
+
+    @NonNull
+    public GetDiagnosticInfoResult getDiagnosticInfo() {
+        String jsonStr = this.NativeGetDiagnosticInfo();
+        JNI.Result.GetDiagnosticInfo res = new JNI.Result.GetDiagnosticInfo(jsonStr);
+        return new GetDiagnosticInfoResult(res);
+    }
+
+    /*
      * RefreshState
      */
 
@@ -880,6 +906,19 @@ public class PsiCashLib {
                 public void fromJSON(JSONObject json, String key) {
                     // Can be null even on success
                     this.data = JSON.nullableString(json, key);
+                }
+            }
+
+            private static class GetDiagnosticInfo extends Base {
+                String jsonString;
+
+                public GetDiagnosticInfo(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    this.jsonString = JSON.nonnullString(json, key);
                 }
             }
 
@@ -1301,6 +1340,14 @@ public class PsiCashLib {
      * }
      */
     private native String NativeGetRewardedActivityData();
+
+    /**
+     * @return {
+     *  "error": {...}
+     *  "result": diagnostic JSON as string
+     * }
+     */
+    private native String NativeGetDiagnosticInfo();
 
     /**
      * @return {
