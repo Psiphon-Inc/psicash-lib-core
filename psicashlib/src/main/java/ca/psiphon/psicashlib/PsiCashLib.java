@@ -1,6 +1,7 @@
 package ca.psiphon.psicashlib;
 
 import android.net.Uri;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import org.json.JSONArray;
@@ -142,104 +143,23 @@ public class PsiCashLib {
         }
     }
 
-    public PsiCashLib() {
-    }
-
-    // TODO: Figure out return type
-    public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
-        return init(fileStoreRoot, httpRequester, false);
-    }
-
-    protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
-        this.httpRequester = httpRequester;
-
-        String jsonStr = this.NativeObjectInit(fileStoreRoot, test);
-        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
-        return res.error;
-    }
-
-    /**
-     * @returns null if no error; Error otherwise
-     */
-    @Nullable
-    public Error setRequestMetadataItem(String key, String value) {
-        String jsonStr = this.SetRequestMetadataItem(key, value);
-
-        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
-        return res.error;
-    }
-
-    /**
-     * @returns true if the currently held tokens correspond to an Account, or false if a Tracker.
-     */
-    public boolean isAccount() {
-        String jsonStr = this.NativeIsAccount();
-
-        JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
-
-        if (res.error != null) {
-            // Not expected to happen normally
-            return false;
-        }
-
-        return res.result;
-    }
-
     public static class ValidTokenTypes extends ArrayList<String> {
         public ValidTokenTypes(List<String> src) {
             super(src);
         }
     }
 
-    @Nullable
-    public ValidTokenTypes validTokenTypes() {
-        String jsonStr = this.NativeValidTokenTypes();
-
-        JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
-        if (res.error != null) {
-            // Not expected to happen normally
-            return null;
-        }
-
-        return new ValidTokenTypes(res.result);
+    public static class PurchasePrice {
+        public String transactionClass;
+        public String distinguisher;
+        public long price;
     }
 
-    public long balance() {
-        String jsonStr = this.NativeBalance();
-
-        JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
-
-        if (res.error != null) {
-            // Not expected to happen normally
-            return 0;
+    public static class PurchasePrices extends ArrayList<PurchasePrice> {
+        public PurchasePrices() { }
+        public PurchasePrices(List<PurchasePrice> src) {
+            super(src);
         }
-
-        return res.result;
-    }
-
-    public static class RefreshStateResult {
-        public Error error;
-        public Status status;
-
-        public RefreshStateResult(JNI.Result.RefreshState res) {
-            this.error = res.error;
-            if (this.error != null) {
-                return;
-            }
-
-            this.status = res.status;
-        }
-    }
-
-    public RefreshStateResult refreshState(List<String> purchaseClasses) {
-        if (purchaseClasses == null) {
-            purchaseClasses = new ArrayList<>();
-        }
-
-        String jsonStr = this.NativeRefreshState(purchaseClasses.toArray(new String[0]));
-
-        JNI.Result.RefreshState res = new JNI.Result.RefreshState(jsonStr);
-        return new RefreshStateResult(res);
     }
 
     public static class Purchase {
@@ -255,9 +175,9 @@ public class PsiCashLib {
             }
 
             Purchase p = new Purchase();
-            p.id = json.getString("id");
-            p.transactionClass = json.getString("class");
-            p.distinguisher = json.getString("distinguisher");
+            p.id = JSON.nonnullString(json, "id");
+            p.transactionClass = JSON.nonnullString(json, "class");
+            p.distinguisher = JSON.nonnullString(json, "distinguisher");
             p.expiry = JSON.nullableDate(json, "serverTimeExpiry");
             p.authorization = JSON.nullableString(json, "authorization");
 
@@ -265,9 +185,334 @@ public class PsiCashLib {
         }
     }
 
-    public static class NewExpiringPurchaseResult {
+    public static class Purchases extends ArrayList<Purchase> {
+        public Purchases() { }
+        public Purchases(List<Purchase> src) {
+            super(src);
+        }
+
+        public static Purchases fromJSON(JSONArray jsonArray) throws JSONException {
+            if (jsonArray == null) {
+                return null;
+            }
+
+            Purchases purchases = new Purchases();
+
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject j = JSON.nonnullObject(jsonArray, i);
+                purchases.add(Purchase.fromJSON(j));
+            }
+
+            return purchases;
+        }
+    }
+
+    public PsiCashLib() {
+    }
+
+    /*
+     * Init
+     */
+
+    /**
+     * @returns null if no error; Error otherwise
+     */
+    @Nullable
+    public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
+        return init(fileStoreRoot, httpRequester, false);
+    }
+
+    @Nullable
+    protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
+        this.httpRequester = httpRequester;
+
+        String jsonStr = this.NativeObjectInit(fileStoreRoot, test);
+        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
+        return res.error;
+    }
+
+    /*
+     * SetRequestMetadataItem
+     */
+
+    /**
+     * @returns null if no error; Error otherwise
+     */
+    @Nullable
+    public Error setRequestMetadataItem(String key, String value) {
+        String jsonStr = this.SetRequestMetadataItem(key, value);
+
+        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
+        return res.error;
+    }
+
+    /*
+     * IsAccount
+     */
+
+    public static class IsAccountResult {
+        public Error error; // should never happen
+        public boolean isAccount;
+
+        public IsAccountResult(JNI.Result.IsAccount res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.isAccount = res.isAccount;
+        }
+    }
+
+    @NonNull
+    public IsAccountResult isAccount() {
+        String jsonStr = this.NativeIsAccount();
+        JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
+        return new IsAccountResult(res);
+    }
+
+    /*
+     * ValidTokenTypes
+     */
+
+    public static class ValidTokenTypesResult {
+        @Nullable // and expected to always be null; indicates glue problem
         public Error error;
+
+        @Nullable // but never expected to be null
+        public ValidTokenTypes validTokenTypes;
+
+        public ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.validTokenTypes = new ValidTokenTypes(res.validTokenTypes);
+        }
+    }
+
+    @NonNull
+    public ValidTokenTypesResult validTokenTypes() {
+        String jsonStr = this.NativeValidTokenTypes();
+        JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
+        return new ValidTokenTypesResult(res);
+    }
+
+    /*
+     * Balance
+     */
+
+    public static class BalanceResult {
+        @Nullable // and expected to always be null; indicates glue problem
+        public Error error;
+        @Nullable // but never expected to be null
+        public long balance;
+
+        public BalanceResult(JNI.Result.Balance res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.balance = res.balance;
+        }
+    }
+
+    @NonNull
+    public BalanceResult balance() {
+        String jsonStr = this.NativeBalance();
+        JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
+        return new BalanceResult(res);
+    }
+
+    /*
+     * GetPurchasePrices
+     */
+
+    public static class GetPurchasePricesResult {
+        @Nullable // and expected to always be null; indicates glue problem
+        public Error error;
+        @Nullable // but never expected to be null
+        public PurchasePrices purchasePrices;
+
+        public GetPurchasePricesResult(JNI.Result.GetPurchasePrices res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.purchasePrices = res.purchasePrices;
+        }
+    }
+
+    @Nullable
+    public GetPurchasePricesResult getPurchasePrices() {
+        String jsonStr = this.NativeGetPurchasePrices();
+        JNI.Result.GetPurchasePrices res = new JNI.Result.GetPurchasePrices(jsonStr);
+        return new GetPurchasePricesResult(res);
+    }
+
+    /*
+     * GetPurchases
+     */
+
+    public static class GetPurchasesResult {
+        @Nullable // and expected to always be null; indicates glue problem
+        public Error error;
+        @Nullable // but never expected to be null
+        public Purchases purchases;
+
+        public GetPurchasesResult(JNI.Result.GetPurchases res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.purchases = res.purchases;
+        }
+    }
+
+    @NonNull
+    public GetPurchasesResult getPurchases() {
+        String jsonStr = this.NativeGetPurchases();
+        JNI.Result.GetPurchases res = new JNI.Result.GetPurchases(jsonStr);
+        return new GetPurchasesResult(res);
+    }
+
+    /*
+     * ValidPurchases
+     */
+
+    public static class ValidPurchasesResult {
+        @Nullable // and expected to always be null; indicates glue problem
+        public Error error;
+        @Nullable // but never expected to be null
+        public Purchases purchases;
+
+        public ValidPurchasesResult(JNI.Result.ValidPurchases res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.purchases = res.purchases;
+        }
+    }
+
+    @NonNull
+    public ValidPurchasesResult validPurchases() {
+        String jsonStr = this.NativeValidPurchases();
+        JNI.Result.ValidPurchases res = new JNI.Result.ValidPurchases(jsonStr);
+        return new ValidPurchasesResult(res);
+    }
+
+    /*
+     * NextExpiringPurchase
+     */
+
+    public static class NextExpiringPurchaseResult {
+        @Nullable // and expected to always be null; indicates glue problem
+        public Error error;
+        @Nullable // will be null if no such purchase
+        public Purchase purchase;
+
+        public NextExpiringPurchaseResult(JNI.Result.NextExpiringPurchase res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.purchase = res.purchase;
+        }
+    }
+
+    @NonNull
+    public NextExpiringPurchaseResult nextExpiringPurchase() {
+        String jsonStr = this.NativeNextExpiringPurchase();
+        JNI.Result.NextExpiringPurchase res = new JNI.Result.NextExpiringPurchase(jsonStr);
+        return new NextExpiringPurchaseResult(res);
+    }
+
+    /*
+     * ExpirePurchases
+     */
+
+    public static class ExpirePurchasesResult {
+        @Nullable
+        public Error error;
+        @Nullable // may be null if no purchases were expired
+        public Purchases purchases;
+
+        public ExpirePurchasesResult(JNI.Result.ExpirePurchases res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.purchases = res.purchases;
+        }
+    }
+
+    @NonNull
+    public ExpirePurchasesResult expirePurchases() {
+        String jsonStr = this.NativeExpirePurchases();
+        JNI.Result.ExpirePurchases res = new JNI.Result.ExpirePurchases(jsonStr);
+        return new ExpirePurchasesResult(res);
+    }
+
+    /*
+     * RemovePurchases
+     */
+
+    /**
+     * @returns null if no error; Error otherwise
+     */
+    @Nullable
+    public Error removePurchases(List<String> transactionIDs) {
+        if (transactionIDs == null) {
+            return null;
+        }
+        String [] idsArray = transactionIDs.toArray(new String[0]);
+
+        String jsonStr = this.NativeRemovePurchases(idsArray);
+        JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
+        return res.error;
+    }
+
+    /*
+     * RefreshState
+     */
+
+    public static class RefreshStateResult {
+        @Nullable
+        public Error error;
+        @Nullable // null iff error is non-null
         public Status status;
+
+        public RefreshStateResult(JNI.Result.RefreshState res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.status = res.status;
+        }
+    }
+
+    @NonNull
+    public RefreshStateResult refreshState(List<String> purchaseClasses) {
+        if (purchaseClasses == null) {
+            purchaseClasses = new ArrayList<>();
+        }
+
+        String jsonStr = this.NativeRefreshState(purchaseClasses.toArray(new String[0]));
+
+        JNI.Result.RefreshState res = new JNI.Result.RefreshState(jsonStr);
+        return new RefreshStateResult(res);
+    }
+
+    /*
+     * NewExpiringPurchase
+     */
+
+    public static class NewExpiringPurchaseResult {
+        @Nullable
+        public Error error;
+        @Nullable
+        public Status status;
+        @Nullable
         public Purchase purchase;
 
         public NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
@@ -275,16 +520,15 @@ public class PsiCashLib {
             if (this.error != null) {
                 return;
             }
-
             this.status = res.status;
             this.purchase = res.purchase;
         }
     }
 
+    @NonNull
     public NewExpiringPurchaseResult newExpiringPurchase(
             String transactionClass, String distinguisher, long expectedPrice) {
         String jsonStr = this.NativeNewExpiringPurchase(transactionClass, distinguisher, expectedPrice);
-
         JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
         return new NewExpiringPurchaseResult(res);
     }
@@ -300,9 +544,9 @@ public class PsiCashLib {
         try {
             JSONObject json = new JSONObject(jsonReqParams);
 
-            uriBuilder.scheme(json.getString("scheme"));
+            uriBuilder.scheme(JSON.nonnullString(json, "scheme"));
 
-            String hostname = json.getString("hostname");
+            String hostname = JSON.nonnullString(json, "hostname");
 
             Integer port = JSON.nullableInteger(json, "port");
             if (port != null) {
@@ -311,16 +555,16 @@ public class PsiCashLib {
 
             uriBuilder.encodedAuthority(hostname);
 
-            reqParams.method = json.getString("method");
+            reqParams.method = JSON.nonnullString(json, "method");
 
-            uriBuilder.encodedPath(json.getString("path"));
+            uriBuilder.encodedPath(JSON.nonnullString(json, "path"));
 
             JSONObject jsonHeaders = JSON.nullableObject(json, "headers");
             if (jsonHeaders != null) {
                 Iterator<?> headerKeys = jsonHeaders.keys();
                 while (headerKeys.hasNext()) {
                     String key = (String)headerKeys.next();
-                    String value = jsonHeaders.getString(key);
+                    String value = JSON.nonnullString(jsonHeaders, key);
                     reqParams.headers.put(key, value);
                 }
             }
@@ -329,9 +573,9 @@ public class PsiCashLib {
             JSONArray jsonQueryParams = JSON.nullableArray(json, "query");
             if (jsonQueryParams != null) {
                 for (int i = 0; i < jsonQueryParams.length(); i++) {
-                    JSONArray param = jsonQueryParams.getJSONArray(i);
-                    String key = param.getString(0);
-                    String value = param.getString(1);
+                    JSONArray param = JSON.nonnullArray(jsonQueryParams, i);
+                    String key = JSON.nullableString(param, 0);
+                    String value = JSON.nullableString(param, 1);
                     uriBuilder.appendQueryParameter(key, value);
                 }
             }
@@ -363,9 +607,15 @@ public class PsiCashLib {
         private static class Result {
 
             private static abstract class Base {
-                Error error;
+                @Nullable
+                Error error; // Null iff there's no error
 
                 public Base(String jsonStr) {
+                    if (jsonStr == null) {
+                        this.error = new Error("Base: got null JSON string", true);
+                        return;
+                    }
+
                     JSONObject json;
                     try {
                         json = new JSONObject(jsonStr);
@@ -376,9 +626,11 @@ public class PsiCashLib {
 
                     this.error = Error.fromJSON(json);
                     if (this.error != null) {
+                        // The JSON encoded an error
                         return;
                     }
 
+                    // There's no error, so let's extract the result.
                     try {
                         this.fromJSON(json, kResultKey);
                     } catch (JSONException e) {
@@ -387,6 +639,8 @@ public class PsiCashLib {
                     }
                 }
 
+                // Will be called iff there's no error, so must produce a value (except for ErrorOnly)
+                // or throw an exception.
                 abstract void fromJSON(JSONObject json, String key) throws JSONException;
             }
 
@@ -402,21 +656,21 @@ public class PsiCashLib {
             }
 
             private static class IsAccount extends Base {
-                boolean result;
+                boolean isAccount;
 
                 public IsAccount(String jsonStr) {
                     super(jsonStr);
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) {
-                    Boolean b = JSON.nullableBoolean(json, key);
-                    this.result = (b != null) && b;
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    boolean b = JSON.nonnullBoolean(json, key);
+                    this.isAccount = b;
                 }
             }
 
             private static class ValidTokenTypes extends Base {
-                List<String> result;
+                List<String> validTokenTypes;
 
                 public ValidTokenTypes(String jsonStr) {
                     super(jsonStr);
@@ -424,21 +678,129 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) {
-                    this.result = JSON.nullableList(String.class, json, key);
+                    // Allow for an null list (probably won't happen, but could represent no valid token types)
+                    this.validTokenTypes = JSON.nullableList(String.class, json, key);
                 }
             }
 
             private static class Balance extends Base {
-                long result;
+                long balance;
 
                 public Balance(String jsonStr) {
                     super(jsonStr);
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) {
-                    Long l = JSON.nullableLong(json, key);
-                    this.result = (l == null) ? 0 : l;
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    long l = JSON.nonnullLong(json, key);
+                    this.balance = l;
+                }
+            }
+
+            private static class GetPurchasePrices extends Base {
+                PsiCashLib.PurchasePrices purchasePrices;
+
+                public GetPurchasePrices(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    this.purchasePrices = new PsiCashLib.PurchasePrices();
+
+                    // We'll allow a null value to indicate no available purchase prices
+                    JSONArray jsonArray = JSON.nullableArray(json, key);
+                    if (jsonArray == null) {
+                        return;
+                    }
+
+                    for (int i = 0; i < jsonArray.length(); i++) {
+                        JSONObject ppJSON = JSON.nonnullObject(jsonArray, i);
+
+                        PurchasePrice pp = new PurchasePrice();
+                        pp.transactionClass = JSON.nonnullString(ppJSON, "class");
+                        pp.distinguisher = JSON.nonnullString(ppJSON, "distinguisher");
+                        pp.price = JSON.nonnullLong(ppJSON, "price");
+
+                        this.purchasePrices.add(pp);
+                    }
+                }
+            }
+
+            private static class GetPurchases extends Base {
+                PsiCashLib.Purchases purchases;
+
+                public GetPurchases(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    // We'll allow a null value to indicate no purchases
+                    JSONArray jsonArray = JSON.nullableArray(json, key);
+                    if (jsonArray == null) {
+                        this.purchases = new PsiCashLib.Purchases();
+                        return;
+                    }
+
+                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                }
+            }
+
+            private static class ValidPurchases extends Base {
+                PsiCashLib.Purchases purchases;
+
+                public ValidPurchases(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    // We'll allow a null value to indicate no purchases
+                    JSONArray jsonArray = JSON.nullableArray(json, key);
+                    if (jsonArray == null) {
+                        this.purchases = new PsiCashLib.Purchases();
+                        return;
+                    }
+
+                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                }
+            }
+
+            private static class NextExpiringPurchase extends Base {
+                PsiCashLib.Purchase purchase;
+
+                public NextExpiringPurchase(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    // Even a valid result may give a null value (iff no existing expiring purchases)                    json = JSON.nullableObject(json, key);
+                    if (json == null) {
+                        return;
+                    }
+
+                    this.purchase = PsiCashLib.Purchase.fromJSON(json);
+                }
+            }
+
+            private static class ExpirePurchases extends Base {
+                PsiCashLib.Purchases purchases;
+
+                public ExpirePurchases(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    // Null is allowable, as no purchases may have expired
+                    JSONArray jsonArray = JSON.nullableArray(json, key);
+                    if (jsonArray == null) {
+                        return;
+                    }
+
+                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
                 }
             }
 
@@ -451,7 +813,7 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
-                    this.status = Status.fromCode(json.getInt(key));
+                    this.status = Status.fromCode(JSON.nonnullInteger(json, key));
                 }
             }
 
@@ -465,10 +827,11 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
-                    json = json.getJSONObject(key);
+                    json = JSON.nonnullObject(json, key);
 
-                    this.status = Status.fromCode(json.getInt(kStatusKey));
+                    this.status = Status.fromCode(JSON.nonnullInteger(json, kStatusKey));
 
+                    // Allow for null purchase, as it will only be populated on status==success.
                     this.purchase = Purchase.fromJSON(JSON.nullableObject(json, "purchase"));
 
                     if (this.status == Status.SUCCESS && this.purchase == null) {
@@ -486,12 +849,25 @@ public class PsiCashLib {
     //
 
     private static class JSON {
+        // The standard org.json.JSONObject does some unpleasant coercing of null into values, so
+        // we're going to provide a bunch of helpers that behave sanely and consistently.
+        // Please use these instead of the standard methods. (And consider adding more if any are missing.)
+
         @Nullable
         private static Boolean nullableBoolean(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
             return json.optBoolean(key, false);
+        }
+
+        @NonNull
+        private static boolean nonnullBoolean(JSONObject json, String key) throws JSONException {
+            Boolean v = nullableBoolean(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullBoolean can't find non-null key: " + key);
+            }
+            return v;
         }
 
         @Nullable
@@ -502,6 +878,15 @@ public class PsiCashLib {
             return json.optDouble(key, 0.0);
         }
 
+        @NonNull
+        private static double nonnullDouble(JSONObject json, String key) throws JSONException {
+            Double v = nullableDouble(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullDouble can't find non-null key: " + key);
+            }
+            return v;
+        }
+
         @Nullable
         private static Integer nullableInteger(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
@@ -510,12 +895,30 @@ public class PsiCashLib {
             return json.optInt(key, 0);
         }
 
+        @NonNull
+        private static int nonnullInteger(JSONObject json, String key) throws JSONException {
+            Integer v = nullableInteger(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullInteger can't find non-null key: " + key);
+            }
+            return v;
+        }
+
         @Nullable
         private static Long nullableLong(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
             return json.optLong(key, 0L);
+        }
+
+        @NonNull
+        private static long nonnullLong(JSONObject json, String key) throws JSONException {
+            Long v = nullableLong(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullLong can't find non-null key: " + key);
+            }
+            return v;
         }
 
         @Nullable
@@ -527,6 +930,32 @@ public class PsiCashLib {
         }
 
         @Nullable
+        private static String nullableString(JSONArray json, int index) {
+            if (index >= json.length() || json.isNull(index)) {
+                return null;
+            }
+            return json.optString(index, null);
+        }
+
+        @NonNull
+        private static String nonnullString(JSONArray json, int index) throws JSONException {
+            String v = nullableString(json, index);
+            if (v == null) {
+                throw new JSONException("nonnullString can't find non-null index: " + index);
+            }
+            return v;
+        }
+
+        @NonNull
+        private static String nonnullString(JSONObject json, String key) throws JSONException {
+            String v = nullableString(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullString can't find non-null key: " + key);
+            }
+            return v;
+        }
+
+        @Nullable
         private static JSONObject nullableObject(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
@@ -534,12 +963,64 @@ public class PsiCashLib {
             return json.optJSONObject(key);
         }
 
+        @NonNull
+        private static JSONObject nonnullObject(JSONObject json, String key) throws JSONException {
+            JSONObject v = nullableObject(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullObject can't find non-null key: " + key);
+            }
+            return v;
+        }
+
         @Nullable
-        private static JSONArray nullableArray(JSONObject json, String key) throws JSONException {
+        private static JSONObject nullableObject(JSONArray json, int index) {
+            if (index >= json.length() || json.isNull(index)) {
+                return null;
+            }
+            return json.optJSONObject(index);
+        }
+
+        @NonNull
+        private static JSONObject nonnullObject(JSONArray json, int index) throws JSONException {
+            JSONObject v = nullableObject(json, index);
+            if (v == null) {
+                throw new JSONException("nonnullObject can't find non-null index: " + index);
+            }
+            return v;
+        }
+
+        @Nullable
+        private static JSONArray nullableArray(JSONObject json, String key) {
             if (!json.has(key) || json.isNull(key)) {
                 return null;
             }
-            return json.getJSONArray(key);
+            return json.optJSONArray(key);
+        }
+
+        @NonNull
+        private static JSONArray nonnullArray(JSONObject json, String key) throws JSONException {
+            JSONArray v = nullableArray(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullArray can't find non-null key: " + key);
+            }
+            return v;
+        }
+
+        @Nullable
+        private static JSONArray nullableArray(JSONArray json, int index) {
+            if (index >= json.length() || json.isNull(index)) {
+                return null;
+            }
+            return json.optJSONArray(index);
+        }
+
+        @NonNull
+        private static JSONArray nonnullArray(JSONArray json, int index) throws JSONException {
+            JSONArray v = nullableArray(json, index);
+            if (v == null) {
+                throw new JSONException("nonnullArray can't find non-null index: " + index);
+            }
+            return v;
         }
 
         // This function throws if the JSON field is present, but cannot be converted to a Date.
@@ -569,9 +1050,18 @@ public class PsiCashLib {
             return date;
         }
 
+        @NonNull
+        private static Date nonnullDate(JSONObject json, String key) throws JSONException {
+            Date v = nullableDate(json, key);
+            if (v == null) {
+                throw new JSONException("nonnullDate can't find non-null key: " + key);
+            }
+            return v;
+        }
+
         @Nullable
         private static <T> List<T> nullableList(Class<T> clazz, JSONObject json, String key) {
-            JSONArray jsonArray = json.optJSONArray(key);
+            JSONArray jsonArray = nullableArray(json, key);
             if (jsonArray == null) {
                 return null;
             }
@@ -669,6 +1159,53 @@ public class PsiCashLib {
      * }
      */
     private native String NativeBalance();
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": [ ... PurchasePrices ... ]
+     * }
+     */
+    private native String NativeGetPurchasePrices();
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": [ ... Purchases ... ]
+     * }
+     */
+    private native String NativeValidPurchases();
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": [ ... Purchases ... ]
+     * }
+     */
+    private native String NativeGetPurchases();
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": Purchase or null
+     * }
+     */
+    private native String NativeNextExpiringPurchase();
+
+    /**
+     * @return {
+     *  "error": {...},
+     *  "result": [ ... Purchases ... ]
+     * }
+     */
+    private native String NativeExpirePurchases();
+
+    /**
+     * @return {
+     *  "error": {...}
+     * }
+     */
+    private native String NativeRemovePurchases(String[] transaction_ids);
 
     /**
      * @return {

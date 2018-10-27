@@ -218,7 +218,89 @@ JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeBalance(
         JNIEnv* env,
         jobject /*this_obj*/) {
-    return JNI_s(SuccessResponse(GetPsiCash().Balance()));
+    auto b = GetPsiCash().Balance();
+    return JNI_s(SuccessResponse(b));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeGetPurchasePrices(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto pp = GetPsiCash().GetPurchasePrices();
+    return JNI_s(SuccessResponse(pp));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeGetPurchases(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto p = GetPsiCash().GetPurchases();
+    return JNI_s(SuccessResponse(p));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeValidPurchases(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto p = GetPsiCash().ValidPurchases();
+    return JNI_s(SuccessResponse(p));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeNextExpiringPurchase(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto p = GetPsiCash().NextExpiringPurchase();
+    if (!p) {
+        return JNI_s(SuccessResponse(nullptr));
+    }
+    return JNI_s(SuccessResponse(*p));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeExpirePurchases(
+        JNIEnv* env,
+        jobject /*this_obj*/) {
+    auto result = GetPsiCash().ExpirePurchases();
+    if (!result) {
+        return JNI_(WRAP_ERROR(result.error()));
+    }
+    return JNI_s(SuccessResponse(*result));
+}
+
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeRemovePurchases(
+        JNIEnv* env,
+        jobject /*this_obj*/,
+        jobjectArray transaction_ids) {
+    if (!transaction_ids) {
+        return JNI_s(SuccessResponse());
+    }
+
+    int id_count = env->GetArrayLength(transaction_ids);
+    if (id_count == 0) {
+        return JNI_s(SuccessResponse());
+    }
+
+    vector<TransactionID> ids;
+    for (int i = 0; i < id_count; ++i) {
+        auto id = JStringToString(env, (jstring)(env->GetObjectArrayElement(transaction_ids, i)));
+        if (id) {
+            ids.push_back(*id);
+        }
+    }
+
+    auto err = GetPsiCash().RemovePurchases(ids);
+    if (err) {
+        return JNI_(WRAP_ERROR(err));
+    }
+    return JNI_s(SuccessResponse());
 }
 
 /*

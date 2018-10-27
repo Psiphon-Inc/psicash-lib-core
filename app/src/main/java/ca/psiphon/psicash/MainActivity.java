@@ -6,6 +6,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import ca.psiphon.psicashlib.PsiCashLib;
@@ -28,6 +30,14 @@ public class MainActivity extends AppCompatActivity {
             Log.e("temptag", err.message);
         }
         else {
+            new NetworkTask().execute();
+        }
+    }
+
+    private class NetworkTask extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... params) {
             PsiCashLib.Error error = psiCashLib.setRequestMetadataItem("metadatakey", "metadatavalue");
             if (error != null) {
                 Log.e("temptag", error.message);
@@ -38,24 +48,28 @@ public class MainActivity extends AppCompatActivity {
                 Log.e("temptag", error.message);
             }
 
-            boolean isAccount = psiCashLib.isAccount();
-            List<String> vtt = psiCashLib.validTokenTypes();
+            List<String> purchaseClasses = new ArrayList<>(Arrays.asList("speed-boost"));
+            PsiCashLib.RefreshStateResult rsr = psiCashLib.refreshState(purchaseClasses);
+
+            PsiCashLib.IsAccountResult isAccount = psiCashLib.isAccount();
+            PsiCashLib.ValidTokenTypesResult vtt = psiCashLib.validTokenTypes();
+            PsiCashLib.BalanceResult b = psiCashLib.balance();
+            PsiCashLib.GetPurchasePricesResult pp = psiCashLib.getPurchasePrices();
+            PsiCashLib.GetPurchasesResult gpr = psiCashLib.getPurchases();
+            PsiCashLib.ValidPurchasesResult vpr = psiCashLib.validPurchases();
+            PsiCashLib.NextExpiringPurchaseResult ner = psiCashLib.nextExpiringPurchase();
+            PsiCashLib.ExpirePurchasesResult epr = psiCashLib.expirePurchases();
+
+            List<String> ids = new ArrayList<>(Arrays.asList("id1", "id2"));
+            error = psiCashLib.removePurchases(ids);
 
 
-            new NetworkTask().execute();
-        }
-    }
-
-    private class NetworkTask extends AsyncTask<Void, Void, String> {
-
-        @Override
-        protected String doInBackground(Void... params) {
-            PsiCashLib.NewExpiringPurchaseResult result = psiCashLib.newExpiringPurchase(
+            PsiCashLib.NewExpiringPurchaseResult nep = psiCashLib.newExpiringPurchase(
                     "speed-boost",
                     "1hr",
                     100000000000L);
 
-            return result.status.toString();
+            return nep.status.toString();
         }
 
         @Override
