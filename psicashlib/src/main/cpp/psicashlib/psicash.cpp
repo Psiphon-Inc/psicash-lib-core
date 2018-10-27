@@ -215,7 +215,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     psicash_data["v"] = 1;
 
     auto auth_tokens = user_data_->GetAuthTokens();
-    if (auth_tokens.size() == 0) {
+    if (auth_tokens.size() == 0 || auth_tokens.count(kEarnerTokenType) == 0) {
         psicash_data["tokens"] = nullptr;
     } else {
         psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
