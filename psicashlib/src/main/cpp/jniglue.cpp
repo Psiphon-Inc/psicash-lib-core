@@ -303,6 +303,24 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeRemovePurchases(
     return JNI_s(SuccessResponse());
 }
 
+extern "C" JNIEXPORT jstring
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeModifyLandingPage(
+        JNIEnv* env,
+        jobject /*this_obj*/,
+        jstring j_url) {
+    auto url = JStringToString(env, j_url);
+    if (!url) {
+        return JNI_(ERROR("url is required"));
+    }
+
+    auto result = GetPsiCash().ModifyLandingPage(*url);
+    if (!result) {
+        return JNI_(WRAP_ERROR(result.error()));
+    }
+    return JNI_s(SuccessResponse(*result));
+}
+
 /*
  * Response JSON structure is:
  * {

@@ -473,6 +473,32 @@ public class PsiCashLib {
     }
 
     /*
+     * ModifyLandingPage
+     */
+
+    public static class ModifyLandingPageResult {
+        @Nullable
+        public Error error;
+        @Nullable // null iff error
+        public String url;
+
+        public ModifyLandingPageResult(JNI.Result.ModifyLandingPage res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.url = res.url;
+        }
+    }
+
+    @NonNull
+    public ModifyLandingPageResult modifyLandingPage(String url) {
+        String jsonStr = this.NativeModifyLandingPage(url);
+        JNI.Result.ModifyLandingPage res = new JNI.Result.ModifyLandingPage(jsonStr);
+        return new ModifyLandingPageResult(res);
+    }
+
+    /*
      * RefreshState
      */
 
@@ -801,6 +827,19 @@ public class PsiCashLib {
                     }
 
                     this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                }
+            }
+
+            private static class ModifyLandingPage extends Base {
+                String url;
+
+                public ModifyLandingPage(String jsonStr) {
+                    super(jsonStr);
+                }
+
+                @Override
+                public void fromJSON(JSONObject json, String key) throws JSONException {
+                    this.url = JSON.nonnullString(json, key);
                 }
             }
 
@@ -1206,6 +1245,14 @@ public class PsiCashLib {
      * }
      */
     private native String NativeRemovePurchases(String[] transaction_ids);
+
+    /**
+     * @return {
+     *  "error": {...}
+     *  "result": modified url string
+     * }
+     */
+    private native String NativeModifyLandingPage(String url);
 
     /**
      * @return {

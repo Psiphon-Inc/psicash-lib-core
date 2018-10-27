@@ -63,6 +63,8 @@ public class MainActivity extends AppCompatActivity {
             List<String> ids = new ArrayList<>(Arrays.asList("id1", "id2"));
             error = psiCashLib.removePurchases(ids);
 
+            PsiCashLib.ModifyLandingPageResult mlpr = psiCashLib.modifyLandingPage("https://example.com/foo");
+
 
             PsiCashLib.NewExpiringPurchaseResult nep = psiCashLib.newExpiringPurchase(
                     "speed-boost",
