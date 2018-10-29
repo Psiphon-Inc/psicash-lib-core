@@ -687,6 +687,21 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
                                                         "\"kEarnerTokenType\",\"v\":1}",
                                                         true));
 
+    // Some tokens, but no earner token (different code path)
+    auth_tokens = {{kSpenderTokenType, "kSpenderTokenType"},
+                   {kIndicatorTokenType, "kIndicatorTokenType"}};
+    err = pc.user_data().SetAuthTokens(auth_tokens, false);
+    ASSERT_FALSE(err);
+    url_in = {"https://asdf.sadf.gf", "", ""};
+    res = pc.ModifyLandingPage(url_in.ToString());
+    ASSERT_TRUE(res);
+    url_out.Parse(*res);
+    ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
+    ASSERT_EQ(url_out.query_, url_in.query_);
+    ASSERT_EQ(url_out.fragment_, key_part + URL::Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
+                                                        "null,\"v\":1}",
+                                                        true));
+
     //
     // Errors
     //
