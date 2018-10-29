@@ -47,6 +47,8 @@ if [ ${COVER} ]; then
   genhtml build/coverage.info --output-directory build/cov > /dev/null
   echo "Coverage output in $(pwd)/build/cov/index.html"
 
-  rm *.gcov *.profraw
+  rm *.gcov
   #open build/cov/index.html
 fi
+
+rm -f *.profraw

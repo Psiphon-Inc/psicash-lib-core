@@ -4,6 +4,7 @@
 
 testtemp/
 Secret*
+*.profraw
 
 ##############################################################################
 # https://github.com/github/gitignore/blob/master/Android.gitignore
