@@ -9,6 +9,8 @@ android {
         versionCode 1
         versionName "1.0"
 
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
         externalNativeBuild {
             cmake {
                 cppFlags "-frtti -fexceptions"
@@ -18,8 +20,12 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+
+        debug {
+            testCoverageEnabled true
         }
     }
 
@@ -29,15 +35,6 @@ android {
         }
     }
 
-    flavorDimensions "testing"
-    productFlavors {
-        autoTest {
-            dimension "testing"
-            minSdkVersion 14
-            targetSdkVersion 28
-            testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
-        }
-    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
