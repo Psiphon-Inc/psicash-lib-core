@@ -1,14 +1,15 @@
 package ca.psiphon.psicashlib;
 
-import android.support.test.runner.AndroidJUnit4;
 
 import org.junit.*;
-import org.junit.runner.RunWith;
 
+import java.util.Arrays;
+
+import static ca.psiphon.psicashlib.SecretTestValues.TEST_DEBIT_TRANSACTION_CLASS;
 import static org.junit.Assert.*;
 
-@RunWith(AndroidJUnit4.class)
 public class RefreshStateTest extends TestBase {
+
     @Test
     public void simpleSuccess() {
         PsiCashLibTester pcl = new PsiCashLibTester();
@@ -20,23 +21,25 @@ public class RefreshStateTest extends TestBase {
         assertFalse(iar.isAccount);
         PsiCashLib.ValidTokenTypesResult vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(vttr.validTokenTypes.size(), 0);
+        assertEquals(0, vttr.validTokenTypes.size());
         PsiCashLib.BalanceResult br = pcl.balance();
         assertNull(br.error);
-        assertEquals(br.balance, 0L);
+        assertEquals(0L, br.balance);
+        PsiCashLib.GetPurchasePricesResult gppr = pcl.getPurchasePrices();
+        assertEquals(0, gppr.purchasePrices.size());
 
         PsiCashLib.RefreshStateResult res = pcl.refreshState(null);
-        assertNull(cond(res.error, "message"), res.error);
-        assertEquals(res.status, PsiCashLib.Status.SUCCESS);
+        assertNull(conds(res.error, "message"), res.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, res.status);
         iar = pcl.isAccount();
         assertNull(iar.error);
         assertFalse(iar.isAccount);
         vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(vttr.validTokenTypes.size(), 3);
+        assertEquals(3, vttr.validTokenTypes.size());
         br = pcl.balance();
         assertNull(br.error);
-        assertEquals(br.balance, 0L);
+        assertEquals(0L, br.balance);
     }
 
     @Test
@@ -46,27 +49,66 @@ public class RefreshStateTest extends TestBase {
         assertNull(err);
 
         PsiCashLib.RefreshStateResult res = pcl.refreshState(null);
-        assertNull(cond(res.error, "message"), res.error);
-        assertEquals(res.status, PsiCashLib.Status.SUCCESS);
+        assertNull(conds(res.error, "message"), res.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, res.status);
         PsiCashLib.IsAccountResult iar = pcl.isAccount();
         assertNull(iar.error);
         assertFalse(iar.isAccount);
         PsiCashLib.ValidTokenTypesResult vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(vttr.validTokenTypes.size(), 3);
+        assertEquals(3, vttr.validTokenTypes.size());
         PsiCashLib.BalanceResult br = pcl.balance();
         assertNull(br.error);
-        assertEquals(br.balance, 0L);
+        assertEquals(0L, br.balance);
 
         err = pcl.testReward(1);
-        assertNull(cond(err, "message"), err);
+        assertNull(conds(err, "message"), err);
 
         res = pcl.refreshState(null);
-        assertNull(cond(res.error, "message"), res.error);
-        assertEquals(res.status, PsiCashLib.Status.SUCCESS);
+        assertNull(conds(res.error, "message"), res.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, res.status);
 
         br = pcl.balance();
         assertNull(br.error);
-        assertEquals(br.balance, SecretTestValues.ONE_TRILLION);
+        assertEquals(SecretTestValues.ONE_TRILLION, br.balance);
+    }
+
+    @Test
+    public void withPurchaseClasses() {
+        PsiCashLibTester pcl = new PsiCashLibTester();
+        PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
+        assertNull(err);
+
+        PsiCashLib.GetPurchasePricesResult gppr = pcl.getPurchasePrices();
+        assertEquals(0, gppr.purchasePrices.size());
+
+        PsiCashLib.RefreshStateResult res = pcl.refreshState(Arrays.asList("speed-boost", TEST_DEBIT_TRANSACTION_CLASS));
+        assertNull(conds(res.error, "message"), res.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, res.status);
+
+        gppr = pcl.getPurchasePrices();
+        assertNotEquals(0, gppr.purchasePrices.size());
+    }
+
+    @Test
+    public void serverErrors() {
+        PsiCashLibTester pcl = new PsiCashLibTester();
+        PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
+        assertNull(err);
+
+        pcl.setRequestMutator("Timeout:11");
+        PsiCashLib.RefreshStateResult res = pcl.refreshState(null);
+        assertNotNull(res.error);
+        assertTrue(res.error.message, res.error.message.contains("timeout"));
+
+        pcl.setRequestMutator("Response:code=666");
+        res = pcl.refreshState(null);
+        assertNotNull(res.error);
+        assertTrue(res.error.message, res.error.message.contains("666"));
+
+        pcl.setRequestMutators(Arrays.asList("Response:code=500", "Response:code=500", "Response:code=500"));
+        res = pcl.refreshState(null);
+        assertNull(res.error);
+        assertEquals(PsiCashLib.Status.SERVER_ERROR, res.status);
     }
 }

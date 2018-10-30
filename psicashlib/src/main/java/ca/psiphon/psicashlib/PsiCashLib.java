@@ -38,7 +38,7 @@ public class PsiCashLib {
             public String date;
             public String error;
 
-            public String toJSON() {
+            String toJSON() {
                 JSONObject json = new JSONObject();
                 try {
                     json.put("status", this.status);
@@ -111,7 +111,7 @@ public class PsiCashLib {
         }
 
         @Nullable
-        public static Error fromJSON(JSONObject json) {
+        static Error fromJSON(JSONObject json) {
             // We don't know for sure that the JSON contains an Error at this point.
 
             JSONObject errorObj = JSON.nullableObject(json, kErrorKey);
@@ -169,7 +169,7 @@ public class PsiCashLib {
         public Date expiry;
         public String authorization;
 
-        public static Purchase fromJSON(JSONObject json) throws JSONException {
+        static Purchase fromJSON(JSONObject json) throws JSONException {
             if (json == null) {
                 return null;
             }
@@ -191,7 +191,7 @@ public class PsiCashLib {
             super(src);
         }
 
-        public static Purchases fromJSON(JSONArray jsonArray) throws JSONException {
+        static Purchases fromJSON(JSONArray jsonArray) throws JSONException {
             if (jsonArray == null) {
                 return null;
             }
@@ -215,7 +215,7 @@ public class PsiCashLib {
      */
 
     /**
-     * @returns null if no error; Error otherwise
+     * @return null if no error; Error otherwise
      */
     @Nullable
     public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
@@ -236,7 +236,7 @@ public class PsiCashLib {
      */
 
     /**
-     * @returns null if no error; Error otherwise
+     * @return null if no error; Error otherwise
      */
     @Nullable
     public Error setRequestMetadataItem(String key, String value) {
@@ -254,7 +254,7 @@ public class PsiCashLib {
         public Error error; // should never happen
         public boolean isAccount;
 
-        public IsAccountResult(JNI.Result.IsAccount res) {
+        IsAccountResult(JNI.Result.IsAccount res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -281,7 +281,7 @@ public class PsiCashLib {
         @Nullable // but never expected to be null
         public ValidTokenTypes validTokenTypes;
 
-        public ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
+        ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -304,10 +304,9 @@ public class PsiCashLib {
     public static class BalanceResult {
         @Nullable // and expected to always be null; indicates glue problem
         public Error error;
-        @Nullable // but never expected to be null
         public long balance;
 
-        public BalanceResult(JNI.Result.Balance res) {
+        BalanceResult(JNI.Result.Balance res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -333,7 +332,7 @@ public class PsiCashLib {
         @Nullable // but never expected to be null
         public PurchasePrices purchasePrices;
 
-        public GetPurchasePricesResult(JNI.Result.GetPurchasePrices res) {
+        GetPurchasePricesResult(JNI.Result.GetPurchasePrices res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -359,7 +358,7 @@ public class PsiCashLib {
         @Nullable // but never expected to be null
         public Purchases purchases;
 
-        public GetPurchasesResult(JNI.Result.GetPurchases res) {
+        GetPurchasesResult(JNI.Result.GetPurchases res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -385,7 +384,7 @@ public class PsiCashLib {
         @Nullable // but never expected to be null
         public Purchases purchases;
 
-        public ValidPurchasesResult(JNI.Result.ValidPurchases res) {
+        ValidPurchasesResult(JNI.Result.ValidPurchases res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -411,7 +410,7 @@ public class PsiCashLib {
         @Nullable // will be null if no such purchase
         public Purchase purchase;
 
-        public NextExpiringPurchaseResult(JNI.Result.NextExpiringPurchase res) {
+        NextExpiringPurchaseResult(JNI.Result.NextExpiringPurchase res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -437,7 +436,7 @@ public class PsiCashLib {
         @Nullable // may be null if no purchases were expired
         public Purchases purchases;
 
-        public ExpirePurchasesResult(JNI.Result.ExpirePurchases res) {
+        ExpirePurchasesResult(JNI.Result.ExpirePurchases res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -482,7 +481,7 @@ public class PsiCashLib {
         @Nullable // null iff error
         public String url;
 
-        public ModifyLandingPageResult(JNI.Result.ModifyLandingPage res) {
+        ModifyLandingPageResult(JNI.Result.ModifyLandingPage res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -508,7 +507,7 @@ public class PsiCashLib {
         @Nullable // can be null even on success, if there is no data
         public String data;
 
-        public GetRewardedActivityDataResult(JNI.Result.GetRewardedActivityData res) {
+        GetRewardedActivityDataResult(JNI.Result.GetRewardedActivityData res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -534,7 +533,7 @@ public class PsiCashLib {
         @Nullable // null iff error not null
         public String jsonString;
 
-        public GetDiagnosticInfoResult(JNI.Result.GetDiagnosticInfo res) {
+        GetDiagnosticInfoResult(JNI.Result.GetDiagnosticInfo res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -560,7 +559,7 @@ public class PsiCashLib {
         @Nullable // null iff error is non-null
         public Status status;
 
-        public RefreshStateResult(JNI.Result.RefreshState res) {
+        RefreshStateResult(JNI.Result.RefreshState res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -593,7 +592,7 @@ public class PsiCashLib {
         @Nullable
         public Purchase purchase;
 
-        public NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
+        NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
@@ -723,7 +722,7 @@ public class PsiCashLib {
             }
 
             private static class ErrorOnly extends Base {
-                public ErrorOnly(String jsonStr) {
+                ErrorOnly(String jsonStr) {
                     super(jsonStr);
                 }
 
@@ -742,8 +741,7 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
-                    boolean b = JSON.nonnullBoolean(json, key);
-                    this.isAccount = b;
+                    this.isAccount = JSON.nonnullBoolean(json, key);
                 }
             }
 
@@ -770,8 +768,7 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
-                    long l = JSON.nonnullLong(json, key);
-                    this.balance = l;
+                    this.balance = JSON.nonnullLong(json, key);
                 }
             }
 
@@ -979,7 +976,6 @@ public class PsiCashLib {
             return json.optBoolean(key, false);
         }
 
-        @NonNull
         private static boolean nonnullBoolean(JSONObject json, String key) throws JSONException {
             Boolean v = nullableBoolean(json, key);
             if (v == null) {
@@ -996,7 +992,6 @@ public class PsiCashLib {
             return json.optDouble(key, 0.0);
         }
 
-        @NonNull
         private static double nonnullDouble(JSONObject json, String key) throws JSONException {
             Double v = nullableDouble(json, key);
             if (v == null) {
@@ -1013,7 +1008,6 @@ public class PsiCashLib {
             return json.optInt(key, 0);
         }
 
-        @NonNull
         private static int nonnullInteger(JSONObject json, String key) throws JSONException {
             Integer v = nullableInteger(json, key);
             if (v == null) {
@@ -1030,7 +1024,6 @@ public class PsiCashLib {
             return json.optLong(key, 0L);
         }
 
-        @NonNull
         private static long nonnullLong(JSONObject json, String key) throws JSONException {
             Long v = nullableLong(json, key);
             if (v == null) {
@@ -1374,4 +1367,5 @@ public class PsiCashLib {
      */
 
     protected native String NativeTestReward(String transactionClass, String distinguisher);
+    protected native boolean NativeTestSetRequestMutators(String[] mutators);
 }

@@ -2,6 +2,8 @@ package ca.psiphon.psicashlib;
 
 import android.support.annotation.Nullable;
 
+import java.util.List;
+
 public class PsiCashLibTester extends PsiCashLib {
     @Override
     public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
@@ -24,5 +26,17 @@ public class PsiCashLibTester extends PsiCashLib {
             }
         }
         return null;
+    }
+
+    public boolean mutatorsEnabled() {
+        return this.NativeTestSetRequestMutators(null);
+    }
+
+    public void setRequestMutators(List<String> mutators) {
+        this.NativeTestSetRequestMutators(mutators.toArray(new String[0]));
+    }
+
+    public void setRequestMutator(String mutator) {
+        this.NativeTestSetRequestMutators(new String[]{mutator});
     }
 }

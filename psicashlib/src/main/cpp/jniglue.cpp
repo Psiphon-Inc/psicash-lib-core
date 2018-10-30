@@ -2,7 +2,7 @@
 #include <string>
 #include <stdio.h>
 #include "jnihelpers.h"
-#include "jnitest.h"
+#include "psicashlib/psicash_tester.h"
 #include "psicashlib/error.h"
 #include "psicashlib/psicash.h"
 #include "vendor/nlohmann/json.hpp"
@@ -23,18 +23,21 @@ static jmethodID g_makeHTTPRequestMID;
 
 static PsiCash& GetPsiCash() {
     static PsiCash psi_cash;
-    static PsiCash psi_cash_test;
-    return g_test ? psi_cash_test : psi_cash;
+    static testing::PsiCashTester psi_cash_test;
+    if (g_test) {
+        return psi_cash_test;
+    }
+    return psi_cash;
 }
 
-static PsiCashTest& GetPsiCashTest() {
-    return (PsiCashTest&)GetPsiCash();
+static testing::PsiCashTester& GetPsiCashTester() {
+    return static_cast<testing::PsiCashTester&>(GetPsiCash());
 }
 
 
 /// Used to return a JSON error without any potential marshaling exceptions.
 string ErrorResponseFallback(const string& message) {
-    return "{\"error\":{\"message\":"s + message + "\", \"internal\":true}}";
+    return "{\"error\":{\"message\":\""s + message + "\", \"internal\":true}}";
 }
 
 /// Creates a JSON error string appropriate for a JNI response.
@@ -358,7 +361,6 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeRefreshState(
         JNIEnv* env,
         jobject this_obj,
         jobjectArray j_purchase_classes) {
-
     vector<string> purchase_classes;
 
     int purchase_classes_count = env->GetArrayLength(j_purchase_classes);
@@ -397,7 +399,6 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
         jstring j_transaction_class,
         jstring j_distinguisher,
         jlong j_expected_price) {
-
     auto transaction_class = JStringToString(env, j_transaction_class);
     auto distinguisher = JStringToString(env, j_distinguisher);
     int64_t expected_price = j_expected_price;
@@ -422,6 +423,10 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
     return JNI_s(SuccessResponse(output));
 }
 
+/**************************************************************************
+ * TEST HELPERS
+ **************************************************************************/
+
 // Returns null on success, error message otherwise.
 extern "C" JNIEXPORT jstring
 JNICALL
@@ -439,10 +444,39 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestReward(
 
     GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
 
-    auto err = GetPsiCashTest().TestReward(*transaction_class, *distinguisher);
+    auto err = GetPsiCashTester().MakeRewardRequests(*transaction_class, *distinguisher);
     if (err) {
         return JNI_s(err.ToString());
     }
 
     return nullptr;
+}
+
+extern "C" JNIEXPORT jboolean
+JNICALL
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestSetRequestMutators(
+        JNIEnv* env,
+        jobject this_obj,
+        jobjectArray j_mutators) {
+    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
+    if (!GetPsiCashTester().MutatorsEnabled()) {
+        return false;
+    }
+
+    int mutator_count = j_mutators ? env->GetArrayLength(j_mutators) : 0;
+    if (mutator_count == 0) {
+        return true;
+    }
+
+    vector<string> mutators;
+    for (int i = 0; i < mutator_count; ++i) {
+        auto m = JStringToString(env, (jstring)(env->GetObjectArrayElement(j_mutators, i)));
+        if (m) {
+            mutators.push_back(*m);
+        }
+    }
+
+    GetPsiCashTester().SetRequestMutators(mutators);
+
+    return true;
 }
