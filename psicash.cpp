@@ -327,6 +327,10 @@ inline bool IsServerError(int code) {
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params) {
+    if (!make_http_request_fn_) {
+        throw std::runtime_error("make_http_request_fn_ must be set before requests are attempted");
+    }
+
     const int max_attempts = 3;
     HTTPResult http_result;
 

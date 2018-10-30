@@ -6,6 +6,7 @@
 #include "test_helpers.h"
 #include "url.h"
 #include "userdata.h"
+#include "psicash_tester.h"
 #include "gtest/gtest.h"
 #include <regex>
 #include <thread>
@@ -13,15 +14,11 @@ using json = nlohmann::json;
 
 using namespace std;
 using namespace psicash;
-
-// Making this a global rather than PsiCashTester member, because it needs to be modified
-// inside a const member. (Tests are not multithreaded, so this is okay.)
-static std::vector<std::string> g_request_mutators;
+using namespace testing;
 
 class TestPsiCash : public ::testing::Test, public TempDir {
   public:
     TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {
-      g_request_mutators.clear();
     }
 
     static string HTTPRequester(const string& params) {
@@ -122,85 +119,8 @@ class TestPsiCash : public ::testing::Test, public TempDir {
 
 };
 
-// Subclass psicash::PsiCash to get access to private members for testing.
-// This would probably be done more cleanly with dependency injection, but that
-// adds a bunch of overhead for little gain.
-class PsiCashTester : public psicash::PsiCash {
-  public:
-    virtual ~PsiCashTester() {}
+#define MAKE_1T_REWARD(pc, count) (pc.MakeRewardRequests(TEST_CREDIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, count))
 
-    UserData& user_data() { return *user_data_; }
-
-    error::Error MakeRewardRequests(int trillions) {
-        for (int i = 0; i < trillions; ++i) {
-            if (i != 0) {
-                // Sleep a bit to avoid server DB transaction conflicts
-                this_thread::sleep_for(chrono::milliseconds(100));
-            }
-
-            auto result = MakeHTTPRequestWithRetry(
-                    "POST", "/transaction", true,
-                    {{"class", TEST_CREDIT_TRANSACTION_CLASS},
-                     {"distinguisher", TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER}});
-            if (!result) {
-                return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
-            } else if (result->status != kHTTPStatusOK) {
-                return MakeError(utils::Stringer("1T reward request failed: ", result->status, "; ",
-                                                 result->error, "; ", result->body));
-            }
-        }
-        return error::nullerr;
-    }
-
-    virtual error::Result<string>
-    BuildRequestParams(const std::string& method, const std::string& path, bool include_auth_tokens,
-                       const std::vector<std::pair<std::string, std::string>>& query_params,
-                       int attempt,
-                       const std::map<std::string, std::string>& additional_headers) const {
-        auto bonus_headers = additional_headers;
-        if (!g_request_mutators.empty()) {
-            auto mutator = g_request_mutators.back();
-            if (!mutator.empty()) {
-                bonus_headers[TEST_HEADER] = mutator;
-            }
-            g_request_mutators.pop_back();
-        }
-
-        return PsiCash::BuildRequestParams(method, path, include_auth_tokens, query_params, attempt,
-                                           bonus_headers);
-    }
-
-    bool MutatorsEnabled() {
-      static bool checked = false;
-      if (checked) {
-        return mutators_enabled_;
-      }
-      checked = true;
-
-      SetRequestMutators({"CheckEnabled"});
-      auto result = MakeHTTPRequestWithRetry(
-              "GET", "/refresh-state", false, {});
-      if (!result) {
-          throw std::runtime_error("MUTATOR CHECK FAILED: "s + result.error().ToString());
-      }
-
-      mutators_enabled_ = (result->status == kHTTPStatusAccepted);
-
-      if (!mutators_enabled_) {
-          cout << "SKIPPING MUTATOR TESTS; status: " << result->status << endl;
-      }
-
-      return mutators_enabled_;
-    }
-
-    void SetRequestMutators(const std::vector<std::string>& mutators) {
-        // We're going to store it reversed so we can pop off the end.
-        g_request_mutators.assign(mutators.crbegin(), mutators.crend());
-    }
-
-private:
-    bool mutators_enabled_;
-};
 
 TEST_F(TestPsiCash, InitSimple) {
     {
@@ -839,7 +759,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_TRUE(res) << res.error();
     ASSERT_EQ(*res, Status::Success);
     ASSERT_EQ(pc.Balance(), 0);
-    err = pc.MakeRewardRequests(1);
+    err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     res = pc.RefreshState({"speed-boost"}); // with class
     ASSERT_TRUE(res) << res.error();
@@ -1148,7 +1068,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     auto refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
-    err = pc.MakeRewardRequests(1);
+    err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
@@ -1204,17 +1124,24 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_FALSE(purchase_opt);
 
     // Multiple purchases
-    err = pc.MakeRewardRequests(3);
+    err = MAKE_1T_REWARD(pc, 3);
     ASSERT_FALSE(err) << err;
+    refresh_result = pc.RefreshState({});
+    ASSERT_TRUE(refresh_result) << refresh_result.error();
+    ASSERT_EQ(*refresh_result, Status::Success);
+    ASSERT_EQ(pc.Balance(), 3*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
+    ASSERT_EQ(pc.Balance(), 2*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
-    ASSERT_EQ(purchase_result->status, Status::Success);
+    ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
+    ASSERT_EQ(pc.Balance(), 1*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success);
+    ASSERT_EQ(pc.Balance(), 0);
     purchases = pc.GetPurchases();
     ASSERT_EQ(purchases.size(), 3);
     // Sleep long enough for the short purchases to expire (but not so long that the long one will)
@@ -1257,7 +1184,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_EQ(expire_result->size(), 0);
 
     // Falure: existing transaction
-    err = pc.MakeRewardRequests(2);
+    err = MAKE_1T_REWARD(pc, 2);
     ASSERT_FALSE(err) << err;
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
@@ -1322,7 +1249,7 @@ TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
     ASSERT_FALSE(purchase_result);
 
     // Success: One 500 response (sucessful retry)
-    err = pc.MakeRewardRequests(1);
+    err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     pc.SetRequestMutators({"Response:code=500"});
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
@@ -1330,7 +1257,7 @@ TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
     ASSERT_EQ(purchase_result->status, Status::Success);
 
     // Success: Two 500 response (sucessful retry)
-    err = pc.MakeRewardRequests(1);
+    err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     pc.SetRequestMutators({"Response:code=500", "Response:code=500"});
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
@@ -1338,7 +1265,7 @@ TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
     ASSERT_EQ(purchase_result->status, Status::Success);
 
     // Failure: Three 500 responses (exceed retry)
-    err = pc.MakeRewardRequests(1);
+    err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     pc.SetRequestMutators({"Response:code=500", "Response:code=500", "Response:code=500"});
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
