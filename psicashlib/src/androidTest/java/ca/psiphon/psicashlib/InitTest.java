@@ -1,7 +1,6 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
-
 import static org.junit.Assert.*;
 
 public class InitTest extends TestBase {
