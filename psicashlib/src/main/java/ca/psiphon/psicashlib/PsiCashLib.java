@@ -507,6 +507,7 @@ public class PsiCashLib {
         }
     }
 
+    // Returns error if no earner token present
     @NonNull
     public GetRewardedActivityDataResult getRewardedActivityData() {
         String jsonStr = this.NativeGetRewardedActivityData();

@@ -9,13 +9,13 @@ import static ca.psiphon.psicashlib.SecretTestValues.TEST_DEBIT_TRANSACTION_CLAS
 import static org.junit.Assert.*;
 
 public class RefreshStateTest extends TestBase {
-
     @Test
     public void simpleSuccess() {
         PsiCashLibTester pcl = new PsiCashLibTester();
         PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
         assertNull(err);
 
+        // Before first call, so default values
         PsiCashLib.IsAccountResult iar = pcl.isAccount();
         assertNull(iar.error);
         assertFalse(iar.isAccount);
@@ -28,7 +28,22 @@ public class RefreshStateTest extends TestBase {
         PsiCashLib.GetPurchasePricesResult gppr = pcl.getPurchasePrices();
         assertEquals(0, gppr.purchasePrices.size());
 
+        // First call, which gets tokens
         PsiCashLib.RefreshStateResult res = pcl.refreshState(null);
+        assertNull(conds(res.error, "message"), res.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, res.status);
+        iar = pcl.isAccount();
+        assertNull(iar.error);
+        assertFalse(iar.isAccount);
+        vttr = pcl.validTokenTypes();
+        assertNull(vttr.error);
+        assertEquals(3, vttr.validTokenTypes.size());
+        br = pcl.balance();
+        assertNull(br.error);
+        assertEquals(0L, br.balance);
+
+        // Second call, which just refreshes
+        res = pcl.refreshState(null);
         assertNull(conds(res.error, "message"), res.error);
         assertEquals(PsiCashLib.Status.SUCCESS, res.status);
         iar = pcl.isAccount();
