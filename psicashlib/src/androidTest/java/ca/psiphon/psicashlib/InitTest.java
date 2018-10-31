@@ -29,7 +29,7 @@ public class InitTest extends TestBase {
         {
             // Bad file store root
             PsiCashLibTester pcl = new PsiCashLibTester();
-            PsiCashLib.Error err = pcl.init("/a/b/c/d/e/f", new PsiCashLibHelper());
+            PsiCashLib.Error err = pcl.init("/a:%$*&/b/c/d/e/f", new PsiCashLibHelper());
             assertNotNull(err);
         }
         {

@@ -84,6 +84,14 @@ public class TestBase {
         return ((Integer)o).toString();
     }
 
+    protected void sleep(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
     // TODO: Don't duplicate this with the app (although maybe we don't need the app anymore).
     public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
         public PsiCashLib.HTTPRequester.Result httpRequest(PsiCashLib.HTTPRequester.ReqParams reqParams) {

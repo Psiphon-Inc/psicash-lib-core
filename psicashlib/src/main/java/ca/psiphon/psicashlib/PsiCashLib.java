@@ -132,15 +132,6 @@ public class PsiCashLib {
 
             return error;
         }
-
-        // Returns null if string is null
-        @Nullable
-        public static Error fromString(String message, boolean internal) {
-            if (message == null) {
-                return null;
-            }
-            return new Error(message, internal);
-        }
     }
 
     public static class ValidTokenTypes extends ArrayList<String> {
@@ -852,6 +843,7 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
                     // Even a valid result may give a null value (iff no existing expiring purchases)                    json = JSON.nullableObject(json, key);
+                    json = JSON.nullableObject(json, key);
                     if (json == null) {
                         return;
                     }
