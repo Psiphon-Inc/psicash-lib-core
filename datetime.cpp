@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2018, Psiphon Inc.
+ * All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #include <ctime>
 #include <string>
 #include <sstream>
@@ -128,23 +147,23 @@ bool DateTime::operator>(const DateTime& rhs) const {
 }
 
 namespace datetime {
-    bool operator==(const DateTime& lhs, const DateTime& rhs) {
-        return lhs.time_point_ == rhs.time_point_;
-    }
+bool operator==(const DateTime& lhs, const DateTime& rhs) {
+    return lhs.time_point_ == rhs.time_point_;
+}
 
-    void to_json(json& j, const DateTime& dt) {
-        j = dt.ToISO8601();
-    }
+void to_json(json& j, const DateTime& dt) {
+    j = dt.ToISO8601();
+}
 
-    void from_json(const json& j, DateTime& dt) {
-        dt.FromISO8601(j.get<string>());
-    }
+void from_json(const json& j, DateTime& dt) {
+    dt.FromISO8601(j.get<string>());
+}
 
-    int64_t DurationToInt64(const Duration& d) {
-        return d.count();
-    }
+int64_t DurationToInt64(const Duration& d) {
+    return d.count();
+}
 
-    Duration DurationFromInt64(const int64_t d) {
-        return Duration(d);
-    }
+Duration DurationFromInt64(const int64_t d) {
+    return Duration(d);
+}
 } // namespace datetime
