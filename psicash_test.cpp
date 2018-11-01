@@ -507,6 +507,14 @@ TEST_F(TestPsiCash, RemovePurchases) {
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), remaining.size());
     ASSERT_EQ(v, remaining);
+
+    // totally fake IDs
+    err = pc.RemovePurchases({"invalid1", "invalid2"});
+    ASSERT_FALSE(err);
+
+    v = pc.GetPurchases();
+    ASSERT_EQ(v.size(), remaining.size());
+    ASSERT_EQ(v, remaining);
 }
 
 TEST_F(TestPsiCash, ModifyLandingPage) {
