@@ -1,7 +1,9 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
+
 import static ca.psiphon.psicashlib.SecretTestValues.*;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 public class ExpirePurchasesTest extends TestBase {
@@ -46,49 +48,52 @@ public class ExpirePurchasesTest extends TestBase {
         assertNull(conds(epr.error, "message"), epr.error);
         assertEquals(0, epr.purchases.size());
 
-        err = pcl.testReward(3);
+        err = pcl.testReward(4);
         assertNull(err);
 
         res = pcl.refreshState(null);
         assertNull(res.error);
         assertEquals(PsiCashLib.Status.SUCCESS, res.status);
 
-        // Make three purchases: one that expires immediately, and two that don't.
+        // Make four purchases: two that expire immediately, and two that don't.
         // Too vulnerable to clock skew?
         PsiCashLib.NewExpiringPurchaseResult newExprPurchRes = pcl.newExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
         assertNull(newExprPurchRes.error);
         assertEquals(PsiCashLib.Status.SUCCESS, newExprPurchRes.status);
-        newExprPurchRes = pcl.newExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER, ONE_TRILLION);
+        newExprPurchRes = pcl.newExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
         assertNull(newExprPurchRes.error);
         assertEquals(PsiCashLib.Status.SUCCESS, newExprPurchRes.status);
         newExprPurchRes = pcl.newExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
         assertNull(newExprPurchRes.error);
         assertEquals(PsiCashLib.Status.SUCCESS, newExprPurchRes.status);
+        newExprPurchRes = pcl.newExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MINUTE_DISTINGUISHER, ONE_TRILLION);
+        assertNull(newExprPurchRes.error);
+        assertEquals(PsiCashLib.Status.SUCCESS, newExprPurchRes.status);
 
-        // Only the short purchase should have expired
+        // Ensure (as best we can) that the short purchases are expired, but not the longer ones.
+        sleep(2000);
+
+        // Only the short purchases should have expired
         epr = pcl.expirePurchases();
         assertNull(epr.error);
-        assertEquals(1, epr.purchases.size());
-        assertNotEquals(0, epr.purchases.get(0).id.length());
-        assertEquals(TEST_DEBIT_TRANSACTION_CLASS, epr.purchases.get(0).transactionClass);
-        assertEquals(TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, epr.purchases.get(0).distinguisher);
-        assertNotNull(epr.purchases.get(0).expiry);
-        assertNull(epr.purchases.get(0).authorization);
-
-        // Let both long-expiry purchases expire
-        sleep(15000);
-        epr = pcl.expirePurchases();
-        assertNull(epr.error);
-        assertEquals(2, epr.purchases.size());
-        assertNotEquals(0, epr.purchases.get(0).id.length());
-        assertNotEquals(0, epr.purchases.get(1).id.length());
-        assertEquals(TEST_DEBIT_TRANSACTION_CLASS, epr.purchases.get(0).transactionClass);
-        assertEquals(TEST_DEBIT_TRANSACTION_CLASS, epr.purchases.get(1).transactionClass);
-        assertTrue((TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER.equals(epr.purchases.get(0).distinguisher)) || (TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER.equals(epr.purchases.get(0).distinguisher)));
-        assertTrue((TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER.equals(epr.purchases.get(1).distinguisher)) || (TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER.equals(epr.purchases.get(1).distinguisher)));
+        assertThat(epr.purchases.size(), is(2));
+        assertThat(epr.purchases, containsPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER));
+        assertThat(epr.purchases, containsPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_MICROSECOND_DISTINGUISHER));
+        assertFalse(epr.purchases.get(0).id.isEmpty());
+        assertFalse(epr.purchases.get(1).id.isEmpty());
         assertNotNull(epr.purchases.get(0).expiry);
         assertNotNull(epr.purchases.get(1).expiry);
         assertNull(epr.purchases.get(0).authorization);
         assertNull(epr.purchases.get(1).authorization);
+
+        // Let the next-shortest-expiry purchase expire
+        sleep(15000);
+        epr = pcl.expirePurchases();
+        assertNull(epr.error);
+        assertThat(epr.purchases.size(), is(1));
+        assertThat(epr.purchases, containsPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER));
+        assertFalse(epr.purchases.get(0).id.isEmpty());
+        assertNotNull(epr.purchases.get(0).expiry);
+        assertNull(epr.purchases.get(0).authorization);
     }
 }
