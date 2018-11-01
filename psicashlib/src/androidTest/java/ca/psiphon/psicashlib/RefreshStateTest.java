@@ -6,6 +6,7 @@ import org.junit.*;
 import java.util.Arrays;
 
 import static ca.psiphon.psicashlib.SecretTestValues.TEST_DEBIT_TRANSACTION_CLASS;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 public class RefreshStateTest extends TestBase {
@@ -21,7 +22,7 @@ public class RefreshStateTest extends TestBase {
         assertFalse(iar.isAccount);
         PsiCashLib.ValidTokenTypesResult vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(0, vttr.validTokenTypes.size());
+        assertThat(vttr.validTokenTypes.size(), is(0));
         PsiCashLib.BalanceResult br = pcl.balance();
         assertNull(br.error);
         assertEquals(0L, br.balance);
@@ -37,7 +38,7 @@ public class RefreshStateTest extends TestBase {
         assertFalse(iar.isAccount);
         vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(3, vttr.validTokenTypes.size());
+        assertThat(vttr.validTokenTypes.size(), is(3));
         br = pcl.balance();
         assertNull(br.error);
         assertEquals(0L, br.balance);
@@ -51,7 +52,7 @@ public class RefreshStateTest extends TestBase {
         assertFalse(iar.isAccount);
         vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(3, vttr.validTokenTypes.size());
+        assertThat(vttr.validTokenTypes.size(), is(3));
         br = pcl.balance();
         assertNull(br.error);
         assertEquals(0L, br.balance);
@@ -71,7 +72,7 @@ public class RefreshStateTest extends TestBase {
         assertFalse(iar.isAccount);
         PsiCashLib.ValidTokenTypesResult vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
-        assertEquals(3, vttr.validTokenTypes.size());
+        assertThat(vttr.validTokenTypes.size(), is(3));
         PsiCashLib.BalanceResult br = pcl.balance();
         assertNull(br.error);
         assertEquals(0L, br.balance);
@@ -95,14 +96,14 @@ public class RefreshStateTest extends TestBase {
         assertNull(err);
 
         PsiCashLib.GetPurchasePricesResult gppr = pcl.getPurchasePrices();
-        assertEquals(0, gppr.purchasePrices.size());
+        assertThat(gppr.purchasePrices.size(), is(0));
 
         PsiCashLib.RefreshStateResult res = pcl.refreshState(Arrays.asList("speed-boost", TEST_DEBIT_TRANSACTION_CLASS));
         assertNull(conds(res.error, "message"), res.error);
         assertEquals(PsiCashLib.Status.SUCCESS, res.status);
 
         gppr = pcl.getPurchasePrices();
-        assertNotEquals(0, gppr.purchasePrices.size());
+        assertThat(gppr.purchasePrices.size(), greaterThan(0));
     }
 
     @Test
@@ -111,19 +112,19 @@ public class RefreshStateTest extends TestBase {
         PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
         assertNull(err);
 
-        pcl.setRequestMutator("Timeout:11");
+        pcl.setRequestMutators(Arrays.asList("Response:code=500", "Response:code=500", "Response:code=500"));
         PsiCashLib.RefreshStateResult res = pcl.refreshState(null);
+        assertNull(res.error);
+        assertEquals(PsiCashLib.Status.SERVER_ERROR, res.status);
+
+        pcl.setRequestMutator("Timeout:11");
+        res = pcl.refreshState(null);
         assertNotNull(res.error);
-        assertTrue(res.error.message, res.error.message.contains("timeout"));
+        assertThat(res.error.message, containsString("timeout"));
 
         pcl.setRequestMutator("Response:code=666");
         res = pcl.refreshState(null);
         assertNotNull(res.error);
-        assertTrue(res.error.message, res.error.message.contains("666"));
-
-        pcl.setRequestMutators(Arrays.asList("Response:code=500", "Response:code=500", "Response:code=500"));
-        res = pcl.refreshState(null);
-        assertNull(res.error);
-        assertEquals(PsiCashLib.Status.SERVER_ERROR, res.status);
+        assertThat(res.error.message, containsString("666"));
     }
 }

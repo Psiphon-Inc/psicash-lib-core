@@ -64,7 +64,7 @@ public class TestBase {
             return null;
         }
         try {
-            Field field =  nullable.getClass().getField(fieldName);
+            Field field = nullable.getClass().getField(fieldName);
             Object o = field.get(nullable);
             return o;
         } catch (NoSuchFieldException e) {
@@ -102,7 +102,7 @@ public class TestBase {
         return new BaseMatcher<PsiCashLib.Purchases>() {
             @Override
             public boolean matches(final Object item) {
-                final PsiCashLib.Purchases purchases = (PsiCashLib.Purchases) item;
+                final PsiCashLib.Purchases purchases = (PsiCashLib.Purchases)item;
                 for (PsiCashLib.Purchase p : purchases) {
                     if (p.transactionClass.equals(transactionClass) && p.distinguisher.equals(distinguisher)) {
                         return true;
@@ -110,6 +110,7 @@ public class TestBase {
                 }
                 return false;
             }
+
             @Override
             public void describeTo(final Description description) {
                 description
@@ -175,20 +176,17 @@ public class TestBase {
                 }
 
                 res.body = buffer.toString();
-            }
-            catch (IOException e) {
+            } catch (IOException e) {
                 Log.e("PsiCashLibHelper", "httpRequest: failed with IOException ", e);
                 res.error = "httpRequest: failed with IOException: " + e.toString();
                 res.status = -1;
                 res.body = null;
-            }
-            catch (RuntimeException e) {
+            } catch (RuntimeException e) {
                 Log.e("PsiCashLibHelper", "httpRequest: failed with RuntimeException ", e);
                 res.error = "httpRequest: failed with RuntimeException: " + e.toString();
                 res.status = -1;
                 res.body = null;
-            }
-            finally {
+            } finally {
                 if (urlConn != null) {
                     urlConn.disconnect();
                 }

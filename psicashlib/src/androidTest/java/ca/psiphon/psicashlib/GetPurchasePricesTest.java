@@ -1,6 +1,7 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
+
 import java.util.Arrays;
 
 import static org.junit.Assert.*;

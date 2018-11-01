@@ -147,7 +147,9 @@ public class PsiCashLib {
     }
 
     public static class PurchasePrices extends ArrayList<PurchasePrice> {
-        public PurchasePrices() { }
+        public PurchasePrices() {
+        }
+
         public PurchasePrices(List<PurchasePrice> src) {
             super(src);
         }
@@ -177,7 +179,9 @@ public class PsiCashLib {
     }
 
     public static class Purchases extends ArrayList<Purchase> {
-        public Purchases() { }
+        public Purchases() {
+        }
+
         public Purchases(List<Purchase> src) {
             super(src);
         }
@@ -455,7 +459,7 @@ public class PsiCashLib {
         if (transactionIDs == null) {
             return null;
         }
-        String [] idsArray = transactionIDs.toArray(new String[0]);
+        String[] idsArray = transactionIDs.toArray(new String[0]);
 
         String jsonStr = this.NativeRemovePurchases(idsArray);
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
@@ -612,20 +616,15 @@ public class PsiCashLib {
 
         try {
             JSONObject json = new JSONObject(jsonReqParams);
-
             uriBuilder.scheme(JSON.nonnullString(json, "scheme"));
-
             String hostname = JSON.nonnullString(json, "hostname");
-
             Integer port = JSON.nullableInteger(json, "port");
             if (port != null) {
                 hostname += ":" + port;
             }
 
             uriBuilder.encodedAuthority(hostname);
-
             reqParams.method = JSON.nonnullString(json, "method");
-
             uriBuilder.encodedPath(JSON.nonnullString(json, "path"));
 
             JSONObject jsonHeaders = JSON.nullableObject(json, "headers");
@@ -660,8 +659,8 @@ public class PsiCashLib {
         // Check for consistency in the result.
         // Ensure sanity if there's an error: status must be -1 iff there's an error message
         if ((result.status == -1) != (result.error != null && !result.error.isEmpty())) {
+            result.status = -1;
             result.error = "Request result is not in sane error state: " + result.toString();
-            return result.toJSON();
         }
 
         return result.toJSON();
@@ -865,6 +864,7 @@ public class PsiCashLib {
                     // Null is allowable, as no purchases may have expired
                     JSONArray jsonArray = JSON.nullableArray(json, key);
                     if (jsonArray == null) {
+                        this.purchases = new PsiCashLib.Purchases();
                         return;
                     }
 
@@ -944,7 +944,7 @@ public class PsiCashLib {
 
                     if (this.status == Status.SUCCESS && this.purchase == null) {
                         // Not a sane state.
-                        throw new JSONException("NewExpiringPurchase.fromJSON got SUCCESS but no purchase object" );
+                        throw new JSONException("NewExpiringPurchase.fromJSON got SUCCESS but no purchase object");
                     }
                 }
             }
@@ -1242,114 +1242,114 @@ public class PsiCashLib {
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": boolean
+     * "error": {...},
+     * "result": boolean
      * }
      */
     private native String NativeIsAccount();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": ["earner", "indicator", ...]
+     * "error": {...},
+     * "result": ["earner", "indicator", ...]
      * }
      */
     private native String NativeValidTokenTypes();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": long
+     * "error": {...},
+     * "result": long
      * }
      */
     private native String NativeBalance();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": [ ... PurchasePrices ... ]
+     * "error": {...},
+     * "result": [ ... PurchasePrices ... ]
      * }
      */
     private native String NativeGetPurchasePrices();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": [ ... Purchases ... ]
+     * "error": {...},
+     * "result": [ ... Purchases ... ]
      * }
      */
     private native String NativeValidPurchases();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": [ ... Purchases ... ]
+     * "error": {...},
+     * "result": [ ... Purchases ... ]
      * }
      */
     private native String NativeGetPurchases();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": Purchase or null
+     * "error": {...},
+     * "result": Purchase or null
      * }
      */
     private native String NativeNextExpiringPurchase();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": [ ... Purchases ... ]
+     * "error": {...},
+     * "result": [ ... Purchases ... ]
      * }
      */
     private native String NativeExpirePurchases();
 
     /**
      * @return {
-     *  "error": {...}
+     * "error": {...}
      * }
      */
     private native String NativeRemovePurchases(String[] transaction_ids);
 
     /**
      * @return {
-     *  "error": {...}
-     *  "result": modified url string
+     * "error": {...}
+     * "result": modified url string
      * }
      */
     private native String NativeModifyLandingPage(String url);
 
     /**
      * @return {
-     *  "error": {...}
-     *  "result": string encoded data
+     * "error": {...}
+     * "result": string encoded data
      * }
      */
     private native String NativeGetRewardedActivityData();
 
     /**
      * @return {
-     *  "error": {...}
-     *  "result": diagnostic JSON as string
+     * "error": {...}
+     * "result": diagnostic JSON as string
      * }
      */
     private native String NativeGetDiagnosticInfo();
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": Status
+     * "error": {...},
+     * "result": Status
      * }
      */
     private native String NativeRefreshState(String[] purchaseClasses);
 
     /**
      * @return {
-     *  "error": {...},
-     *  "result": {
-     *      "status": Status,
-     *      "purchase": Purchase
-     *  }
+     * "error": {...},
+     * "result": {
+     * "status": Status,
+     * "purchase": Purchase
+     * }
      * }
      */
     private native String NativeNewExpiringPurchase(String transactionClass, String distinguisher, long expectedPrice);
@@ -1360,5 +1360,6 @@ public class PsiCashLib {
      */
 
     protected native String NativeTestReward(String transactionClass, String distinguisher);
+
     protected native boolean NativeTestSetRequestMutators(String[] mutators);
 }

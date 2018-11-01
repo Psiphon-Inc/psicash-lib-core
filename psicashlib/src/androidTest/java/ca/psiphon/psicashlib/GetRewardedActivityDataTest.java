@@ -1,6 +1,7 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
+
 import static org.junit.Assert.*;
 
 public class GetRewardedActivityDataTest extends TestBase {

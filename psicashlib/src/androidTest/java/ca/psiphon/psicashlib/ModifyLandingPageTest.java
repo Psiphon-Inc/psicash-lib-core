@@ -1,14 +1,15 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
+
 import static org.junit.Assert.*;
 
 public class ModifyLandingPageTest extends TestBase {
-        @Test
-        public void simpleSuccess() {
-            PsiCashLibTester pcl = new PsiCashLibTester();
-            PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
-            assertNull(err);
+    @Test
+    public void simpleSuccess() {
+        PsiCashLibTester pcl = new PsiCashLibTester();
+        PsiCashLib.Error err = pcl.init(getTempDir(), new PsiCashLibHelper());
+        assertNull(err);
 
         String url = "http://example.com/a/b";
 

@@ -1,6 +1,7 @@
 package ca.psiphon.psicashlib;
 
 import org.junit.*;
+
 import static ca.psiphon.psicashlib.SecretTestValues.*;
 import static org.junit.Assert.*;
 
