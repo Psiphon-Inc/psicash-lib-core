@@ -52,7 +52,7 @@ public class PsiCashLib {
         }
 
         class Result {
-            public int status = -1; // Negative indicates error trying to make the request
+            public int code = -1; // Negative indicates error trying to make the request
             public String body;
             public String date;
             public String error;
@@ -60,7 +60,7 @@ public class PsiCashLib {
             String toJSON() {
                 JSONObject json = new JSONObject();
                 try {
-                    json.put("status", this.status);
+                    json.put("code", this.code);
                     json.put("body", this.body);
                     json.put("date", this.date);
                     json.put("error", this.error);
@@ -676,9 +676,9 @@ public class PsiCashLib {
         result = httpRequester.httpRequest(reqParams);
 
         // Check for consistency in the result.
-        // Ensure sanity if there's an error: status must be -1 iff there's an error message
-        if ((result.status == -1) != (result.error != null && !result.error.isEmpty())) {
-            result.status = -1;
+        // Ensure sanity if there's an error: code must be -1 iff there's an error message
+        if ((result.code == -1) != (result.error != null && !result.error.isEmpty())) {
+            result.code = -1;
             result.error = "Request result is not in sane error state: " + result.toString();
         }
 

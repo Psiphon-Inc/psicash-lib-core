@@ -35,12 +35,12 @@ public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
 
             urlConn.connect();
 
-            res.status = urlConn.getResponseCode();
+            res.code = urlConn.getResponseCode();
             res.date = urlConn.getHeaderField("Date");
 
             // Read the input stream into a String
             InputStream inputStream;
-            if (200 <= res.status && res.status <= 399) {
+            if (200 <= res.code && res.code <= 399) {
                 inputStream = urlConn.getInputStream();
             } else {
                 inputStream = urlConn.getErrorStream();
@@ -69,13 +69,13 @@ public class PsiCashLibHelper implements PsiCashLib.HTTPRequester {
         catch (IOException e) {
             Log.e("PsiCashLibHelper", "httpRequest: failed with IOException ", e);
             res.error = "httpRequest: failed with IOException: " + e.toString();
-            res.status = -1;
+            res.code = -1;
             res.body = null;
         }
         catch (RuntimeException e) {
             Log.e("PsiCashLibHelper", "httpRequest: failed with RuntimeException ", e);
             res.error = "httpRequest: failed with RuntimeException: " + e.toString();
-            res.status = -1;
+            res.code = -1;
             res.body = null;
         }
         finally {

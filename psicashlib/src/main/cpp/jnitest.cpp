@@ -30,9 +30,9 @@ error::Error PsiCashTest::TestReward(const string& transaction_class, const stri
              {"distinguisher", distinguisher}});
     if (!result) {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
-    } else if (result->status != kHTTPStatusOK) {
-        return MakeError(utils::Stringer("reward request failed: ", result->status, "; ",
-                                         result->error, "; ", result->body));
+    } else if (result->code != kHTTPStatusOK) {
+        return MakeError(
+                utils::Stringer("reward request failed: ", result->code, "; ", result->error, "; ", result->body));
     }
 
     return error::nullerr;
