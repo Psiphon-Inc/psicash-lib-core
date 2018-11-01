@@ -42,8 +42,8 @@ error::Error PsiCashTester::MakeRewardRequests(const std::string& transaction_cl
                  {"distinguisher", distinguisher}});
         if (!result) {
             return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
-        } else if (result->status != kHTTPStatusOK) {
-            return MakeError(utils::Stringer("1T reward request failed: ", result->status, "; ",
+        } else if (result->code != kHTTPStatusOK) {
+            return MakeError(utils::Stringer("1T reward request failed: ", result->code, "; ",
                                              result->error, "; ", result->body));
         }
     }
@@ -83,10 +83,10 @@ bool PsiCashTester::MutatorsEnabled() {
         throw std::runtime_error("MUTATOR CHECK FAILED: "s + result.error().ToString());
     }
 
-    mutators_enabled_ = (result->status == kHTTPStatusAccepted);
+    mutators_enabled_ = (result->code == kHTTPStatusAccepted);
 
     if (!mutators_enabled_) {
-        //cout << "SKIPPING MUTATOR TESTS; status: " << result->status << endl;
+        //cout << "SKIPPING MUTATOR TESTS; code: " << result->code << endl;
     }
 
     return mutators_enabled_;

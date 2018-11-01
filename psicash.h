@@ -48,7 +48,7 @@ namespace psicash {
 // The string param that it returns is an encoding of this structure:
 struct HTTPResult {
     // 200, 404, etc. -1 if unable to talk to server (or other catastrophe).
-    int status;
+    int code;
 
     // The contents of the response body, if any.
     std::string body;
@@ -60,7 +60,7 @@ struct HTTPResult {
     // must be empty if the request succeeded (regardless of status code).
     std::string error;
 
-    HTTPResult() : status(-1) {}
+    HTTPResult() : code(-1) {}
 };
 
 using MakeHTTPRequestFn = std::function<std::string(const std::string&)>;

@@ -373,7 +373,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
 
         try {
             auto j = json::parse(result_string);
-            http_result.status = j["status"].get<int>();
+            http_result.code = j["code"].get<int>();
 
             if (j["body"].is_string()) {
                 http_result.body = j["body"].get<string>();
@@ -392,8 +392,8 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
                     utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
 
-        if (http_result.status == -1 && http_result.error.empty()) {
-            return MakeError("HTTP result status is -1 but no error message provided");
+        if (http_result.code == -1 && http_result.error.empty()) {
+            return MakeError("HTTP result code is -1 but no error message provided");
         }
 
         // We just got a fresh server timestamp, so set the server time diff
@@ -411,7 +411,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return MakeError(("Request resulted in error: "s + http_result.error).c_str());
         }
 
-        if (IsServerError(http_result.status)) {
+        if (IsServerError(http_result.code)) {
             // Server error; retry
             continue;
         }
@@ -484,10 +484,10 @@ Result<Status> PsiCash::NewTracker() {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
     }
 
-    if (result->status == kHTTPStatusOK) {
+    if (result->code == kHTTPStatusOK) {
         if (result->body.empty()) {
             return MakeError(
-                    utils::Stringer("result has no body; status: ", result->status).c_str());
+                    utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
         AuthTokens auth_tokens;
@@ -516,13 +516,13 @@ Result<Status> PsiCash::NewTracker() {
         }
 
         return Status::Success;
-    } else if (IsServerError(result->status)) {
+    } else if (IsServerError(result->code)) {
         return Status::ServerError;
     }
 
     return MakeError(
-            utils::Stringer("request returned unexpected status code: ",
-                            result->status).c_str());
+            utils::Stringer("request returned unexpected result code: ",
+                            result->code).c_str());
 }
 
 Result<Status> PsiCash::RefreshState(const std::vector<std::string>& purchase_classes) {
@@ -594,10 +594,10 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
     }
 
-    if (result->status == kHTTPStatusOK) {
+    if (result->code == kHTTPStatusOK) {
         if (result->body.empty()) {
             return MakeError(
-                    utils::Stringer("result has no body; status: ", result->status).c_str());
+                    utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
         try {
@@ -673,18 +673,18 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         }
 
         return RefreshState(purchase_classes, true);
-    } else if (result->status == kHTTPStatusUnauthorized) {
+    } else if (result->code == kHTTPStatusUnauthorized) {
         // This can only happen if the tokens we sent didn't all belong to same user.
         // This really should never happen.
         user_data_->Clear();
         return Status::InvalidTokens;
-    } else if (IsServerError(result->status)) {
+    } else if (IsServerError(result->code)) {
         return Status::ServerError;
     }
 
     return MakeError(
-            utils::Stringer("request returned unexpected status code: ",
-                            result->status).c_str());
+            utils::Stringer("request returned unexpected result code: ",
+                            result->code).c_str());
 }
 
 Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
@@ -710,13 +710,13 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
     datetime::DateTime server_expiry;
 
     // These statuses require the response body to be parsed
-    if (result->status == kHTTPStatusOK ||
-        result->status == kHTTPStatusTooManyRequests ||
-        result->status == kHTTPStatusPaymentRequired ||
-        result->status == kHTTPStatusConflict) {
+    if (result->code == kHTTPStatusOK ||
+        result->code == kHTTPStatusTooManyRequests ||
+        result->code == kHTTPStatusPaymentRequired ||
+        result->code == kHTTPStatusConflict) {
         if (result->body.empty()) {
             return MakeError(
-                    utils::Stringer("result has no body; status: ", result->status).c_str());
+                    utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
         try {
@@ -759,7 +759,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
     }
 
-    if (result->status == kHTTPStatusOK) {
+    if (result->code == kHTTPStatusOK) {
         if (transaction_type != "expiring-purchase") {
             return MakeError(
                     ("response contained incorrect TransactionResponse.Type; want 'expiring-purchase', got "s +
@@ -796,35 +796,35 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                 .status = Status::Success,
                 .purchase = purchase
         };
-    } else if (result->status == kHTTPStatusTooManyRequests) {
+    } else if (result->code == kHTTPStatusTooManyRequests) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::ExistingTransaction
         };
-    } else if (result->status == kHTTPStatusPaymentRequired) {
+    } else if (result->code == kHTTPStatusPaymentRequired) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::InsufficientBalance
         };
-    } else if (result->status == kHTTPStatusConflict) {
+    } else if (result->code == kHTTPStatusConflict) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::TransactionAmountMismatch
         };
-    } else if (result->status == kHTTPStatusNotFound) {
+    } else if (result->code == kHTTPStatusNotFound) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::TransactionTypeNotFound
         };
-    } else if (result->status == kHTTPStatusUnauthorized) {
+    } else if (result->code == kHTTPStatusUnauthorized) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::InvalidTokens
         };
-    } else if (IsServerError(result->status)) {
+    } else if (IsServerError(result->code)) {
         return PsiCash::NewExpiringPurchaseResponse{
                 .status = Status::ServerError
         };
     }
 
     return MakeError(
-            utils::Stringer("request returned unexpected status code: ",
-                            result->status).c_str());
+            utils::Stringer("request returned unexpected result code: ",
+                            result->code).c_str());
 }
 
 
