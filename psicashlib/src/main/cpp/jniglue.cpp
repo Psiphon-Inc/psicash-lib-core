@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2018, Psiphon Inc.
+ * All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #include <jni.h>
 #include <string>
 #include <stdio.h>
@@ -44,7 +63,7 @@ string ErrorResponseFallback(const string& message) {
 /// If `message` is empty, the result will be a non-error.
 string ErrorResponse(const string& message,
                      const string& filename, const string& function, int line,
-                     bool internal=false) {
+                     bool internal = false) {
     try {
         json j({{"error", nullptr}});
         if (!message.empty()) {
@@ -63,7 +82,7 @@ string ErrorResponse(const string& message,
 /// If `error` is a non-error, the result will be a non-error.
 string ErrorResponse(const error::Error& error, const string& message,
                      const string& filename, const string& function, int line,
-                     bool internal=false) {
+                     bool internal = false) {
     try {
         json j({{"error", nullptr}});
         if (error) {
@@ -109,7 +128,10 @@ string SuccessResponse() {
 // So, generally, it should only be used for the duration of a single JNI call.
 MakeHTTPRequestFn GetHTTPReqFn(JNIEnv* env, jobject& this_obj) {
     MakeHTTPRequestFn http_req_fn = [env, &this_obj = this_obj](const string& params) -> string {
-        json stub_result = {{"status", -1}, {"error", nullptr}, {"body", nullptr}, {"date", nullptr}};
+        json stub_result = {{"status", -1},
+                            {"error",  nullptr},
+                            {"body",   nullptr},
+                            {"date",   nullptr}};
 
         auto jParams = env->NewStringUTF(params.c_str());
         if (!jParams) {
@@ -118,7 +140,7 @@ MakeHTTPRequestFn GetHTTPReqFn(JNIEnv* env, jobject& this_obj) {
             return stub_result.dump(-1, ' ', true);
         }
 
-        auto jResult = (jstring) env->CallObjectMethod(this_obj, g_makeHTTPRequestMID, jParams);
+        auto jResult = (jstring)env->CallObjectMethod(this_obj, g_makeHTTPRequestMID, jParams);
         if (!jResult) {
             CheckJNIException(env);
             stub_result["error"] = MakeError("CallObjectMethod failed").ToString();

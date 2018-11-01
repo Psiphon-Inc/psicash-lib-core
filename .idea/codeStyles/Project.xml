@@ -1,5 +1,11 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
+    <Objective-C>
+      <option name="SPACE_BEFORE_POINTER_IN_DECLARATION" value="false" />
+      <option name="SPACE_AFTER_POINTER_IN_DECLARATION" value="true" />
+      <option name="SPACE_BEFORE_REFERENCE_IN_DECLARATION" value="false" />
+      <option name="SPACE_AFTER_REFERENCE_IN_DECLARATION" value="true" />
+    </Objective-C>
     <Objective-C-extensions>
       <file>
         <option name="com.jetbrains.cidr.lang.util.OCDeclarationKind" value="Import" />
@@ -26,6 +32,9 @@
       </extensions>
     </Objective-C-extensions>
     <codeStyleSettings language="JAVA">
+      <option name="SPACE_AFTER_TYPE_CAST" value="false" />
+    </codeStyleSettings>
+    <codeStyleSettings language="ObjectiveC">
       <option name="SPACE_AFTER_TYPE_CAST" value="false" />
     </codeStyleSettings>
   </code_scheme>
