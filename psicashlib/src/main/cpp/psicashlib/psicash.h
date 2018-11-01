@@ -32,8 +32,12 @@
 
 namespace psicash {
 
+// Forward declarations
+class UserData;
+
+
 //
-// HTTP Request-related types
+// HTTP Requester-related types
 //
 // The string param that MakeHTTPRequestFn takes is a JSON-encoding of this structure:
 // {
@@ -62,14 +66,14 @@ struct HTTPResult {
 
     HTTPResult() : code(-1) {}
 };
-
+// This is the signature for the HTTP Requester callback provided by the native consumer.
 using MakeHTTPRequestFn = std::function<std::string(const std::string&)>;
 
-
-constexpr const char* kEarnerTokenType = "earner";
-constexpr const char* kSpenderTokenType = "spender";
-constexpr const char* kIndicatorTokenType = "indicator";
-constexpr const char* kAccountTokenType = "account";
+// These are the possible token types.
+extern const char* const kEarnerTokenType;
+extern const char* const kSpenderTokenType;
+extern const char* const kIndicatorTokenType;
+extern const char* const kAccountTokenType;
 
 using TokenTypes = std::vector<std::string>;
 
@@ -86,7 +90,7 @@ struct PurchasePrice {
 using PurchasePrices = std::vector<PurchasePrice>;
 
 using TransactionID = std::string;
-extern const char* const kTransactionIDZero;
+extern const char* const kTransactionIDZero; // The "zero value" for a TransactionID
 
 struct Purchase {
     TransactionID id;
@@ -103,8 +107,10 @@ struct Purchase {
 
 using Purchases = std::vector<Purchase>;
 
+// Possible API method result statuses. Which are possible and what they mean will
+// be described for each method.
 enum class Status {
-    Invalid = -1, // TODO: Is this made obsolete by Result<>?
+    Invalid = -1, // Should never be used if well-behaved
     Success = 0,
     ExistingTransaction,
     InsufficientBalance,
@@ -114,59 +120,131 @@ enum class Status {
     ServerError
 };
 
-class UserData; // forward declaration
-
 class PsiCash {
 public:
     PsiCash();
-
     virtual ~PsiCash();
 
-    // Must be called once. make_http_request_fn may be null and set later with SetHTTPRequestFn.
-    // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
+    /// Must be called once, before any other methods (or behaviour is undefined).
+    /// `make_http_request_fn` may be null and set later with SetHTTPRequestFn.
+    /// Returns false if there's an unrecoverable error (such as an inability to use the
+    /// filesystem).
+    /// If `test` is true, then the test server will be used, and other testing interfaces
+    /// will be available. Should only be used for glue code testing.
     error::Error Init(const char* user_agent, const char* file_store_root,
                       MakeHTTPRequestFn make_http_request_fn, bool test = false);
 
-    // Can be used for updating the HTTP requester function pointer.
+    /// Can be used for updating the HTTP requester function pointer.
     void SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn);
 
+    /// Set values that will be included in the request metadata. This includes
+    /// client_version, client_region, sponsor_id, and propagation_channel_id.
     error::Error SetRequestMetadataItem(const std::string& key, const std::string& value);
 
     //
     // Stored info accessors
     //
 
-    bool IsAccount() const;
-
-    // Returns the stored valid token types. Like ["spender", "indicator"].
-    // May be nil or empty.
+    /// Returns the stored valid token types. Like ["spender", "indicator"].
+    /// Will be empty if no tokens are available.
     TokenTypes ValidTokenTypes() const;
 
+    /// Returns the stored info about whether the user is a Tracker or an Account.
+    bool IsAccount() const;
+
+    /// Returns the stored user balance.
     int64_t Balance() const;
 
+    /// Returns the stored purchase prices.
+    /// Will be empty if no purchase prices are available.
     PurchasePrices GetPurchasePrices() const;
 
+    /// Returns the set of active purchases, if any.
     Purchases GetPurchases() const;
 
+    /// Returns the set of active purchases that are not expired, if any.
     Purchases ValidPurchases() const;
 
-    // The returned optional will false if there's no next expiring purchase.
+    /// Get the next expiring purchase (with local_time_expiry populated).
+    /// The returned optional will false if there is no outstanding expiring purchase (or
+    /// no outstanding purchases at all). The returned purchase may already be expired.
     nonstd::optional<Purchase> NextExpiringPurchase() const;
 
+    /// Clear out expired purchases. Return the ones that were expired, if any.
     error::Result<Purchases> ExpirePurchases();
 
+    /// Force removal of purchases with the given transaction IDs.
+    /// This is to be called when the Psiphon server indicates that a purchase has
+    /// expired (even if the local clock hasn't yet indicated it).
     error::Error RemovePurchases(const std::vector<TransactionID>& ids);
 
+    /// Utilizes stored tokens and metadata to craft a landing page URL.
+    /// Returns an error if modification is impossible. (In that case the error
+    /// should be logged -- and added to feedback -- and home page opening should
+    /// proceed with the original URL.)
     error::Result<std::string> ModifyLandingPage(const std::string& url) const;
 
+    /// Creates a data package that should be included with a webhook for a user
+    /// action that should be rewarded (such as watching a rewarded video).
+    /// NOTE: The resulting string will still need to be encoded for use in a URL.
+    /// Returns an error if there is no earner token available and therefore the
+    /// reward cannot possibly succeed. (Error may also result from a JSON
+    /// serialization problem, but that's very improbable.)
+    /// So, the library user may want to call this _before_ showing the rewarded
+    /// activity, to perhaps decide _not_ to show that activity. An exception may be
+    /// if the Psiphon connection attempt and subsequent RefreshClientState may
+    /// occur _during_ the rewarded activity, so an earner token may be obtained
+    /// before it's complete.
     error::Result<std::string> GetRewardedActivityData() const;
 
+    // TODO: This return value might be a problem for direct C++ consumers (vs glue).
+    /// Returns a JSON object suitable for serializing that can be included in a
+    /// feedback diagnostic data package.
     nlohmann::json GetDiagnosticInfo() const;
 
     //
     // API Server Requests
     //
 
+    /**
+    Refreshes the client state. Retrieves info about whether the user has an
+    Account (vs Tracker), balance, valid token types, and purchase prices. After a
+    successful request, the retrieved values can be accessed with the accessor
+    methods.
+
+    If there are no tokens stored locally (e.g., if this is the first run), then
+    new Tracker tokens will obtained.
+
+    If the user is/has an Account, then it is possible some tokens will be invalid
+    (they expire at different rates). Login may be necessary before spending, etc.
+    (It's even possible that validTokenTypes is empty -- i.e., there are no valid
+    tokens.)
+
+    If there is no valid indicator token, then balance and purchase prices will not
+    be retrieved, but there may be stored (possibly stale) values that can be used.
+
+    Input parameters:
+
+    • purchase_classes: The purchase class names for which prices should be
+      retrieved, like `{"speed-boost"}`. If null or empty, no purchase prices will be retrieved.
+
+    Result fields:
+
+    • error: If set, the request failed utterly and no other params are valid.
+
+    • status: Request success indicator. See below for possible values.
+
+    Possible status codes:
+
+    • Success: Call was successful. Tokens may now be available (depending on if
+      IsAccount is true, ValidTokenTypes should be checked, as a login may be required).
+
+    • ServerError: The server returned 500 error response. Note that the request has
+      already been retried internally and any further retry should not be immediate.
+
+    • InvalidTokens: Should never happen (indicates something like
+      local storage corruption). The local user state will be cleared.
+    */
     error::Result<Status> RefreshState(const std::vector<std::string>& purchase_classes);
 
     struct NewExpiringPurchaseResponse {

@@ -41,6 +41,11 @@ using namespace error;
 
 namespace psicash {
 
+constexpr const char* const kEarnerTokenType = "earner";
+constexpr const char* const kSpenderTokenType = "spender";
+constexpr const char* const kIndicatorTokenType = "indicator";
+constexpr const char* const kAccountTokenType = "account";
+
 const char* const kTransactionIDZero = "";
 
 namespace prod {
@@ -119,10 +124,6 @@ Error PsiCash::SetRequestMetadataItem(const string& key, const string& value) {
 // Stored info accessors
 //
 
-bool PsiCash::IsAccount() const {
-    return user_data_->GetIsAccount();
-}
-
 TokenTypes PsiCash::ValidTokenTypes() const {
     TokenTypes tt;
 
@@ -132,6 +133,10 @@ TokenTypes PsiCash::ValidTokenTypes() const {
     }
 
     return tt;
+}
+
+bool PsiCash::IsAccount() const {
+    return user_data_->GetIsAccount();
 }
 
 int64_t PsiCash::Balance() const {
