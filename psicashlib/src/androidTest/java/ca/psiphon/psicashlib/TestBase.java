@@ -3,6 +3,12 @@ package ca.psiphon.psicashlib;
 import android.support.test.InstrumentationRegistry;
 import android.util.Log;
 
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Factory;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.*;
 
 import java.io.BufferedReader;
@@ -90,6 +96,27 @@ public class TestBase {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    Matcher<PsiCashLib.Purchases> containsPurchase(String transactionClass, String distinguisher) {
+        return new BaseMatcher<PsiCashLib.Purchases>() {
+            @Override
+            public boolean matches(final Object item) {
+                final PsiCashLib.Purchases purchases = (PsiCashLib.Purchases) item;
+                for (PsiCashLib.Purchase p : purchases) {
+                    if (p.transactionClass.equals(transactionClass) && p.distinguisher.equals(distinguisher)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            @Override
+            public void describeTo(final Description description) {
+                description
+                        .appendText("purchases list should contain purchase with transactionClass '").appendText(transactionClass)
+                        .appendText("' and distinguisher '").appendText(distinguisher).appendText("'");
+            }
+        };
     }
 
     // TODO: Don't duplicate this with the app (although maybe we don't need the app anymore).
