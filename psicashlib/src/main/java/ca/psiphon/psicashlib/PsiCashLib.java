@@ -232,12 +232,12 @@ public class PsiCashLib {
      * @return null if no error; Error otherwise
      */
     @Nullable
-    public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
+    synchronized public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
         return init(fileStoreRoot, httpRequester, false);
     }
 
     @Nullable
-    protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
+    synchronized protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
         this.httpRequester = httpRequester;
 
         String jsonStr = this.NativeObjectInit(fileStoreRoot, test);
@@ -253,7 +253,7 @@ public class PsiCashLib {
      * @return null if no error; Error otherwise
      */
     @Nullable
-    public Error setRequestMetadataItem(String key, String value) {
+    synchronized public Error setRequestMetadataItem(String key, String value) {
         String jsonStr = this.SetRequestMetadataItem(key, value);
 
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
@@ -278,7 +278,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public IsAccountResult isAccount() {
+    synchronized public IsAccountResult isAccount() {
         String jsonStr = this.NativeIsAccount();
         JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
         return new IsAccountResult(res);
@@ -305,7 +305,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public ValidTokenTypesResult validTokenTypes() {
+    synchronized public ValidTokenTypesResult validTokenTypes() {
         String jsonStr = this.NativeValidTokenTypes();
         JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
         return new ValidTokenTypesResult(res);
@@ -330,7 +330,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public BalanceResult balance() {
+    synchronized public BalanceResult balance() {
         String jsonStr = this.NativeBalance();
         JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
         return new BalanceResult(res);
@@ -356,7 +356,7 @@ public class PsiCashLib {
     }
 
     @Nullable
-    public GetPurchasePricesResult getPurchasePrices() {
+    synchronized public GetPurchasePricesResult getPurchasePrices() {
         String jsonStr = this.NativeGetPurchasePrices();
         JNI.Result.GetPurchasePrices res = new JNI.Result.GetPurchasePrices(jsonStr);
         return new GetPurchasePricesResult(res);
@@ -382,7 +382,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public GetPurchasesResult getPurchases() {
+    synchronized public GetPurchasesResult getPurchases() {
         String jsonStr = this.NativeGetPurchases();
         JNI.Result.GetPurchases res = new JNI.Result.GetPurchases(jsonStr);
         return new GetPurchasesResult(res);
@@ -408,7 +408,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public ValidPurchasesResult validPurchases() {
+    synchronized public ValidPurchasesResult validPurchases() {
         String jsonStr = this.NativeValidPurchases();
         JNI.Result.ValidPurchases res = new JNI.Result.ValidPurchases(jsonStr);
         return new ValidPurchasesResult(res);
@@ -434,7 +434,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public NextExpiringPurchaseResult nextExpiringPurchase() {
+    synchronized public NextExpiringPurchaseResult nextExpiringPurchase() {
         String jsonStr = this.NativeNextExpiringPurchase();
         JNI.Result.NextExpiringPurchase res = new JNI.Result.NextExpiringPurchase(jsonStr);
         return new NextExpiringPurchaseResult(res);
@@ -460,7 +460,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public ExpirePurchasesResult expirePurchases() {
+    synchronized public ExpirePurchasesResult expirePurchases() {
         String jsonStr = this.NativeExpirePurchases();
         JNI.Result.ExpirePurchases res = new JNI.Result.ExpirePurchases(jsonStr);
         return new ExpirePurchasesResult(res);
@@ -474,7 +474,7 @@ public class PsiCashLib {
      * @returns null if no error; Error otherwise
      */
     @Nullable
-    public Error removePurchases(List<String> transactionIDs) {
+    synchronized public Error removePurchases(List<String> transactionIDs) {
         if (transactionIDs == null) {
             return null;
         }
@@ -505,7 +505,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public ModifyLandingPageResult modifyLandingPage(String url) {
+    synchronized public ModifyLandingPageResult modifyLandingPage(String url) {
         String jsonStr = this.NativeModifyLandingPage(url);
         JNI.Result.ModifyLandingPage res = new JNI.Result.ModifyLandingPage(jsonStr);
         return new ModifyLandingPageResult(res);
@@ -532,7 +532,7 @@ public class PsiCashLib {
 
     // Returns error if no earner token present
     @NonNull
-    public GetRewardedActivityDataResult getRewardedActivityData() {
+    synchronized public GetRewardedActivityDataResult getRewardedActivityData() {
         String jsonStr = this.NativeGetRewardedActivityData();
         JNI.Result.GetRewardedActivityData res = new JNI.Result.GetRewardedActivityData(jsonStr);
         return new GetRewardedActivityDataResult(res);
@@ -558,7 +558,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public GetDiagnosticInfoResult getDiagnosticInfo() {
+    synchronized public GetDiagnosticInfoResult getDiagnosticInfo() {
         String jsonStr = this.NativeGetDiagnosticInfo();
         JNI.Result.GetDiagnosticInfo res = new JNI.Result.GetDiagnosticInfo(jsonStr);
         return new GetDiagnosticInfoResult(res);
@@ -584,7 +584,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public RefreshStateResult refreshState(List<String> purchaseClasses) {
+    synchronized public RefreshStateResult refreshState(List<String> purchaseClasses) {
         if (purchaseClasses == null) {
             purchaseClasses = new ArrayList<>();
         }
@@ -618,7 +618,7 @@ public class PsiCashLib {
     }
 
     @NonNull
-    public NewExpiringPurchaseResult newExpiringPurchase(
+    synchronized public NewExpiringPurchaseResult newExpiringPurchase(
             String transactionClass, String distinguisher, long expectedPrice) {
         String jsonStr = this.NativeNewExpiringPurchase(transactionClass, distinguisher, expectedPrice);
         JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
