@@ -11,7 +11,7 @@ This is the C++ core of the library. It can be used directly or wrapped with nat
 
 ### Supplying the HTTP Requester
 
-This library relies on the native environment to provide an HTTP request callback. Notes about its signature, inputs and outputs can be found in `psicash.h`.
+This library relies on the native environment to provide an HTTP request callback. Notes about its signature, inputs and outputs can be found in `psicash.hpp`.
 
 There is an _example_ implementation in the Android wrapper project. But note that it _does not support proxied requests_, which may be necessary depending on the environment. (E.g., it probably doesn't matter on iOS, since our app only supported full-device VPN. But on Windows the app mostly uses a local proxy, so the HTTP Requester must support proxying.)
 

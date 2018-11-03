@@ -1,24 +1,17 @@
-# PsiCash Library JNI Glue
+# Android PsiCash Library
 
-## Exchange formats
+This is a C++ core library wrapped in Java/JNI glue for Android. Eventually the C++ will
+be split out into its own repository (and become a git subtree in this repo).
 
-Types of return values in the library interface:
+## Usage
 
-* primitives
-    - `bool`, `int64_t`
-* `std::optional`
-    - `optional<Purchase>`
-* `std::vector`
-    - `TokenTypes` aka `vector<string>`; `Purchases` aka
-      `vector<Purchase>` aka `vector<struct>`; `PurchasePrices` aka
-      `vector<PurchasePrice>` aka `vector<struct>`
-* `error::Error`
-    - Essentially a bool-cast message holder
-* `error::Result`
-    - Can be `Error` or `<typename T>`.
-    - `Result<Purchases>`, `Result<string>`, `Result<Status>`,
-      `Result<NewExpiringPurchaseResponse>`
-* `nlohmann::json`
+### Thread considerations
+
+All library methods are `synchronized`. All methods are synchronous/blocking.
+
+Network requests will be made on the same thread the method is called on.
+
+## Glue exchange formats
 
 ### Consideration: Everything can be an error
 
