@@ -29,24 +29,32 @@
 
 namespace error {
 
+/*
+ * Error
+ */
+
+/// Represents an error value.
+/// Boolean cast can be used to check if the Error is actually set.
 class Error {
 public:
     Error();
     Error(const Error& src);
-    Error(const std::string& message, const std::string& filename, const std::string& function,
-          int line);
+    Error(const std::string& message,
+          const std::string& filename, const std::string& function, int line);
     Error& operator=(const Error&) = default;
 
     // Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
     // unconditionally without introducing an error where there isn't one.
     // Returns *this.
-    Error&
-    Wrap(const std::string& message, const std::string& filename, const std::string& function,
-         int line);
+    Error& Wrap(const std::string& message,
+                const std::string& filename, const std::string& function, int line);
 
     Error& Wrap(const std::string& filename, const std::string& function, int line);
 
-    operator bool() const;
+    /// Used to check if the current instance is an error or not.
+    constexpr bool HasValue() const { return is_error_; }
+    /// Used to check if the current instance is an error or not.
+    constexpr operator bool() const { return HasValue(); }
 
     std::string ToString() const;
     friend std::ostream& operator<<(std::ostream& os, const Error& err);
@@ -64,8 +72,11 @@ private:
     std::vector<StackFrame> stack_;
 };
 
+/// Used to represent a non-error Error.
+// TODO: A more sophisticated implementation of this should model std::nullopt_t and nullopt.
 const Error nullerr;
 
+// Macros to assist with Error construction.
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
 #endif
@@ -73,6 +84,13 @@ const Error nullerr;
 #define WrapError(err, message)    (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
 #define PassError(err)             (err.Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
 
+
+/*
+ * Result
+ */
+
+/// Result holds an error-or-value. For usage, see nonstd::expected
+/// or actual current usage.
 template<typename T>
 class Result : public nonstd::expected<T, Error> {
 public:

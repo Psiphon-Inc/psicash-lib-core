@@ -39,6 +39,15 @@ std::string Stringer(const T& value, const Args& ... args) {
     return Stringer(value) + Stringer(args...);
 }
 
+// From https://stackoverflow.com/a/43894724/729729
+/// Synchronizes access to a block, using the given mutex. Used like:
+/// SYNCHRONIZE_BLOCK(mutex_) {
+///     ...do stuff
+/// }
+#define SYNCHRONIZE_BLOCK(m) for(std::unique_lock<std::recursive_mutex> lk(m); lk; lk.unlock())
+/// Synchronize the current scope using the given mutex.
+#define SYNCHRONIZE(m) std::unique_lock<std::recursive_mutex> synchronize_lock(m)
+
 }
 
 #endif //PSICASHLIB_UTILS_H
