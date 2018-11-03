@@ -28,7 +28,7 @@ There are two categories of errors:
 
 ### Standard structure: JSON
 
-```json
+```no-highlight
 {
     // If not null or absent, an error resulted and "result" should not
     // be considered valid.
