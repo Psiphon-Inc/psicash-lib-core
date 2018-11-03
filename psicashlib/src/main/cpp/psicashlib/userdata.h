@@ -28,6 +28,7 @@
 #include "vendor/nlohmann/json.hpp"
 
 namespace psicash {
+
 extern const char* REQUEST_METADATA; // only for use in template method below
 
 using AuthTokens = std::map<std::string, std::string>;
@@ -50,7 +51,7 @@ public:
     public:
         WritePauser(UserData& user_data) : user_data_(
                 user_data) { user_data_.datastore_.PauseWrites(); };
-        ~WritePauser() { (void)Unpause(); }
+        ~WritePauser() { (void)Unpause(); } // TODO: Should dtor nuke changes (implying error)? Maybe param to ctor to indicate?
         error::Error Unpause() { return user_data_.datastore_.UnpauseWrites(); }
     private:
         UserData& user_data_;
@@ -101,6 +102,7 @@ protected:
 private:
     Datastore datastore_;
 };
+
 } // namespace psicash
 
 #endif //PSICASHLIB_USERDATA_H

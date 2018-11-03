@@ -57,6 +57,11 @@ namespace dev {
 static constexpr const char* kAPIServerScheme = "https";
 static constexpr const char* kAPIServerHostname = "dev-api.psi.cash";
 static constexpr int kAPIServerPort = 443;
+/*
+static constexpr const char* kAPIServerScheme = "http";
+static constexpr const char* kAPIServerHostname = "localhost";
+static constexpr int kAPIServerPort = 51337;
+*/
 }
 
 static constexpr const char* kAPIServerVersion = "v1";
@@ -75,8 +80,7 @@ PsiCash::PsiCash()
 PsiCash::~PsiCash() {
 }
 
-Error
-PsiCash::Init(const char* user_agent, const char* file_store_root,
+Error PsiCash::Init(const char* user_agent, const char* file_store_root,
               MakeHTTPRequestFn make_http_request_fn, bool test) {
     if (test) {
         server_scheme_ = dev::kAPIServerScheme;
@@ -96,12 +100,13 @@ PsiCash::Init(const char* user_agent, const char* file_store_root,
         return MakeError("file_store_root is required");
     }
 
+    // May still be null.
     make_http_request_fn_ = make_http_request_fn;
 
     user_data_ = std::make_unique<UserData>();
     auto err = user_data_->Init(file_store_root);
     if (err) {
-        // If UserData.Init fails, the only way to proceed to try to reset it and create a new one.
+        // If UserData.Init fails, the only way to proceed is to try to reset it and create a new one.
         user_data_->Clear();
         err = user_data_->Init(file_store_root);
         if (err) {
@@ -152,6 +157,7 @@ Purchases PsiCash::GetPurchases() const {
 }
 
 static bool IsExpired(const Purchase& p) {
+    // Note that "expired" is decided using local time.
     auto local_now = datetime::DateTime::Now();
     return (p.local_time_expiry && *p.local_time_expiry < local_now);
 }
@@ -169,7 +175,8 @@ Purchases PsiCash::ValidPurchases() const {
 optional<Purchase> PsiCash::NextExpiringPurchase() const {
     optional<Purchase> next;
     for (const auto& p : user_data_->GetPurchases()) {
-        // We're using server time, since we're not comparing to local now.
+        // We're using server time, since we're not comparing to local now (because we're
+        // not checking to see if the purchase is expired -- just which expires next).
         if (!p.server_time_expiry) {
             continue;
         }
@@ -321,12 +328,18 @@ Result<string> PsiCash::GetRewardedActivityData() const {
 }
 
 json PsiCash::GetDiagnosticInfo() const {
+    // NOTE: Do not put personal identifiers in this package.
+    // TODO: This is still enough info to uniquely identify the user (combined with the
+    // PsiCash DB). So maybe avoiding direct PII does not achieve anything, and we should
+    // instead either include less data or make sure our retention of this data is
+    // aggregated and/or short.
+
     json j = json::object();
 
     j["validTokenTypes"] = ValidTokenTypes();
     j["isAccount"] = IsAccount();
     j["balance"] = Balance();
-    j["serverTimeDiff"] = user_data_->GetServerTimeDiff().count();
+    j["serverTimeDiff"] = user_data_->GetServerTimeDiff().count(); // in milliseconds
     j["purchasePrices"] = GetPurchasePrices();
 
     // Include a sanitized version of the purchases
@@ -348,6 +361,8 @@ inline bool IsServerError(int code) {
     return code >= 500 && code <= 599;
 }
 
+// Makes an HTTP request (with possible retries).
+// HTTPResult.error will always be empty on a non-error return.
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params) {
@@ -364,15 +379,15 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             this_thread::sleep_for(chrono::seconds(i));
         }
 
-        auto req_params = BuildRequestParams(method, path, include_auth_tokens, query_params, i + 1,
-                                             {});
+        auto req_params = BuildRequestParams(
+            method, path, include_auth_tokens, query_params, i + 1, {});
         if (!req_params) {
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
 
         auto result_string = make_http_request_fn_(*req_params);
         if (result_string.empty()) {
-            // An error so catastrophic that we don't get any error info.
+            // An error so catastrophic that we didn't get any error info.
             return MakeError("HTTP request function returned no value");
         }
 
@@ -425,12 +440,12 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         return http_result;
     }
 
-    // We exceeded our retry limit. Return the last result received, which will be 500, 503, etc.
+    // We exceeded our retry limit. Return the last result received, which will be 500-ish.
     return http_result;
 }
 
-Result<string>
-PsiCash::BuildRequestParams(
+// Build the request paramters JSON appropriate for passing to make_http_request_fn_.
+Result<string> PsiCash::BuildRequestParams(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
         const std::map<std::string, std::string>& additional_headers) const {
@@ -478,6 +493,7 @@ PsiCash::BuildRequestParams(
     }
 }
 
+// Get new tracker tokens from the server. This effectively gives us a new identity.
 Result<Status> PsiCash::NewTracker() {
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
@@ -525,17 +541,18 @@ Result<Status> PsiCash::NewTracker() {
         return Status::ServerError;
     }
 
-    return MakeError(
-            utils::Stringer("request returned unexpected result code: ",
-                            result->code).c_str());
+    return MakeError(utils::Stringer(
+        "request returned unexpected result code: ", result->code).c_str());
 }
 
 Result<Status> PsiCash::RefreshState(const std::vector<std::string>& purchase_classes) {
     return RefreshState(purchase_classes, true);
 }
 
-Result<Status>
-PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool allow_recursion) {
+// RefreshState helper that makes recursive calls (to allow for NewTracker and then
+// RefreshState requests).
+Result<Status> PsiCash::RefreshState(
+    const std::vector<std::string>& purchase_classes, bool allow_recursion) {
     /*
      Logic flow overview:
 
@@ -687,9 +704,8 @@ PsiCash::RefreshState(const std::vector<std::string>& purchase_classes, bool all
         return Status::ServerError;
     }
 
-    return MakeError(
-            utils::Stringer("request returned unexpected result code: ",
-                            result->code).c_str());
+    return MakeError(utils::Stringer(
+        "request returned unexpected result code: ", result->code).c_str());
 }
 
 Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
@@ -827,9 +843,8 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         };
     }
 
-    return MakeError(
-            utils::Stringer("request returned unexpected result code: ",
-                            result->code).c_str());
+    return MakeError(utils::Stringer(
+        "request returned unexpected result code: ", result->code).c_str());
 }
 
 

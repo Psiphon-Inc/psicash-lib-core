@@ -22,6 +22,7 @@
 #include "http_status_codes.h"
 
 using namespace std;
+using namespace psicash;
 
 error::Error PsiCashTest::TestReward(const string& transaction_class, const string& distinguisher) {
     auto result = MakeHTTPRequestWithRetry(

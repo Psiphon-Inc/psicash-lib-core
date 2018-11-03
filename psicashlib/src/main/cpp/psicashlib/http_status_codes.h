@@ -20,6 +20,8 @@
 #ifndef PSICASHLIB_HTTP_STATUS_CODES_H
 #define PSICASHLIB_HTTP_STATUS_CODES_H
 
+namespace psicash {
+
 // Adapted from Golang's net/http/status.go
 
 constexpr const unsigned int kHTTPStatusContinue           = 100; // RFC 7231, 6.2.1
@@ -86,5 +88,7 @@ constexpr const unsigned int kHTTPStatusInsufficientStorage           = 507; // 
 constexpr const unsigned int kHTTPStatusLoopDetected                  = 508; // RFC 5842, 7.2
 constexpr const unsigned int kHTTPStatusNotExtended                   = 510; // RFC 2774, 7
 constexpr const unsigned int kHTTPStatusNetworkAuthenticationRequired = 511; // RFC 6585, 6
+
+} // namespace psicash
 
 #endif //PSICASHLIB_HTTP_STATUS_CODES_H
