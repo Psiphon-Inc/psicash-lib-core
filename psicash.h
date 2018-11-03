@@ -247,6 +247,52 @@ public:
     */
     error::Result<Status> RefreshState(const std::vector<std::string>& purchase_classes);
 
+    /**
+    Makes a new transaction for an "expiring-purchase" class, such as "speed-boost".
+
+    Input parameters:
+
+    • transaction_class: The class name of the desired purchase. (Like
+      "speed-boost".)
+
+    • distinguisher: The distinguisher for the desired purchase. (Like "1hr".)
+
+    • expected_price: The expected price of the purchase (previously obtained by RefreshState).
+      The transaction will fail if the expected_price does not match the actual price.
+
+    Result fields:
+
+    • error: If set, the request failed utterly and no other params are valid.
+
+    • status: Request success indicator. See below for possible values.
+
+    • purchase: The resulting purchase. Null if purchase was not successful (i.e., if
+      the `status` is anything except `Status.Success`).
+
+    Possible status codes:
+
+    • Success: The purchase transaction was successful. The `purchase` field will be non-null.
+
+    • ExistingTransaction: There is already a non-expired purchase that prevents this
+      purchase from proceeding.
+
+    • InsufficientBalance: The user does not have sufficient credit to make the requested
+      purchase. Stored balance will be updated and UI should be refreshed.
+
+    • TransactionAmountMismatch: The actual purchase price does not match expectedPrice,
+      so the purchase cannot proceed. The price list should be updated immediately.
+
+    • TransactionTypeNotFound: A transaction type with the given class and distinguisher
+      could not be found. The price list should be updated immediately, but it might also
+      indicate an out-of-date app.
+
+    • InvalidTokens: The current auth tokens are invalid.
+      TODO: Figure out how to handle this. It shouldn't be a factor for Trackers or MVP.
+
+    • ServerError: An error occurred on the server. Probably report to the user and try
+      again later. Note that the request has already been retried internally and any
+      further retry should not be immediate.
+    */
     struct NewExpiringPurchaseResponse {
         Status status;
         nonstd::optional<Purchase> purchase;
@@ -258,13 +304,12 @@ public:
             const int64_t expected_price);
 
 protected:
-    // HTTPResult.error will always be empty on a non-error return.
+    // See implementation for descriptions of non-public methods.
+
     error::Result<HTTPResult> MakeHTTPRequestWithRetry(
             const std::string& method, const std::string& path, bool include_auth_tokens,
             const std::vector<std::pair<std::string, std::string>>& query_params);
 
-    // query_params can be a map, or it can be an array of pairs of name-value. (The latter form
-    // is necessary for providing multiple query params with the same name, which is valid.)
     virtual error::Result<std::string> BuildRequestParams(
             const std::string& method, const std::string& path, bool include_auth_tokens,
             const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
@@ -280,6 +325,7 @@ protected:
     std::string server_scheme_;
     std::string server_hostname_;
     int server_port_;
+    // This is a pointer rather than an instance to avoid including userdata.h (TODO: worthwhile?)
     std::unique_ptr<UserData> user_data_;
     MakeHTTPRequestFn make_http_request_fn_;
 };
