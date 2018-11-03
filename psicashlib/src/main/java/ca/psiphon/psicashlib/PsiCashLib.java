@@ -201,15 +201,6 @@ public class PsiCashLib {
         public long price;
     }
 
-    public static class PurchasePrices extends ArrayList<PurchasePrice> {
-        public PurchasePrices() {
-        }
-
-        public PurchasePrices(List<PurchasePrice> src) {
-            super(src);
-        }
-    }
-
     public static class Purchase {
         public String id;
         public String transactionClass;
@@ -380,7 +371,7 @@ public class PsiCashLib {
         @Nullable // and expected to always be null; indicates glue problem
         public Error error;
         @Nullable // but never expected to be null
-        public PurchasePrices purchasePrices;
+        public List<PurchasePrice> purchasePrices;
 
         GetPurchasePricesResult(JNI.Result.GetPurchasePrices res) {
             this.error = res.error;
@@ -819,7 +810,7 @@ public class PsiCashLib {
             }
 
             private static class GetPurchasePrices extends Base {
-                PsiCashLib.PurchasePrices purchasePrices;
+                List<PurchasePrice> purchasePrices;
 
                 public GetPurchasePrices(String jsonStr) {
                     super(jsonStr);
@@ -827,7 +818,7 @@ public class PsiCashLib {
 
                 @Override
                 public void fromJSON(JSONObject json, String key) throws JSONException {
-                    this.purchasePrices = new PsiCashLib.PurchasePrices();
+                    this.purchasePrices = new ArrayList<>();
 
                     // We'll allow a null value to indicate no available purchase prices
                     JSONArray jsonArray = JSON.nullableArray(json, key);
