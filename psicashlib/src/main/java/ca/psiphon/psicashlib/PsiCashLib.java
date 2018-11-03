@@ -214,7 +214,6 @@ public class PsiCashLib {
             if (json == null) {
                 return null;
             }
-
             PurchasePrice pp = new PurchasePrice();
             pp.transactionClass = JSON.nonnullString(json, "class");
             pp.distinguisher = JSON.nonnullString(json, "distinguisher");
@@ -226,7 +225,7 @@ public class PsiCashLib {
     /**
      * Purchase information.
      */
-    public static class Purchase extends Object {
+    public static class Purchase {
         public String id;
         public String transactionClass;
         public String distinguisher;
@@ -237,7 +236,6 @@ public class PsiCashLib {
             if (json == null) {
                 return null;
             }
-
             Purchase p = new Purchase();
             p.id = JSON.nonnullString(json, "id");
             p.transactionClass = JSON.nonnullString(json, "class");
