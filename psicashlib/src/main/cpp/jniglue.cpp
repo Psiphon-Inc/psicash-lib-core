@@ -45,10 +45,10 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeStaticInit(JNIEnv* env, jclass type)
     g_makeHTTPRequestMID = env->GetMethodID(g_jGlueClass, HTTP_REQUEST_FN_NAME, HTTP_REQUEST_FN_SIG);
     if (!g_makeHTTPRequestMID) {
         CheckJNIException(env);
-        return false;
+        return static_cast<jboolean>(false);
     }
 
-    return true;
+    return static_cast<jboolean>(true);
 }
 
 // Returns null on success or an error message on failure.
