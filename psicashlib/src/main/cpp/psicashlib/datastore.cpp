@@ -20,8 +20,8 @@
 #include <iostream>
 #include <fstream>
 
-#include "datastore.h"
-#include "utils.h"
+#include "datastore.hpp"
+#include "utils.hpp"
 
 #include "vendor/nlohmann/json.hpp"
 

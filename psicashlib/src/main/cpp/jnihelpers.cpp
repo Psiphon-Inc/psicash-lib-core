@@ -20,7 +20,7 @@
 #include <memory>
 #include <functional>
 #include "vendor/nlohmann/json.hpp"
-#include "jnihelpers.h"
+#include "jnihelpers.hpp"
 
 using namespace std;
 using json = nlohmann::json;

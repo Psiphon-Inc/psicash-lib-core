@@ -20,10 +20,10 @@
 #include <jni.h>
 #include <string>
 #include <stdio.h>
-#include "jnihelpers.h"
-#include "psicashlib/psicash_tester.h"
-#include "psicashlib/error.h"
-#include "psicashlib/psicash.h"
+#include "jnihelpers.hpp"
+#include "psicash_tester.hpp"
+#include "error.hpp"
+#include "psicash.hpp"
 #include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;

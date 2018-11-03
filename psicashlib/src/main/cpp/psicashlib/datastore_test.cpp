@@ -21,8 +21,8 @@
 #include <ctime>
 
 #include "gtest/gtest.h"
-#include "test_helpers.h"
-#include "datastore.h"
+#include "test_helpers.hpp"
+#include "datastore.hpp"
 
 using namespace std;
 using namespace psicash;

@@ -19,7 +19,7 @@
 
 #include <sstream>
 #include <memory>
-#include "error.h"
+#include "error.hpp"
 
 using namespace std;
 

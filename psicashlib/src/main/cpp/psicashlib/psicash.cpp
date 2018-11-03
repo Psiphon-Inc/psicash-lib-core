@@ -22,12 +22,12 @@
 #include <sstream>
 #include <chrono>
 #include <thread>
-#include "psicash.h"
-#include "userdata.h"
-#include "datetime.h"
-#include "error.h"
-#include "url.h"
-#include "base64.h"
+#include "psicash.hpp"
+#include "userdata.hpp"
+#include "datetime.hpp"
+#include "error.hpp"
+#include "url.hpp"
+#include "base64.hpp"
 #include "http_status_codes.h"
 
 #include "vendor/nlohmann/json.hpp"

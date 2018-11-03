@@ -20,7 +20,7 @@
 #ifndef PSICASHLIB_JNITEST_H
 #define PSICASHLIB_JNITEST_H
 
-#include "psicash.h"
+#include "psicash.hpp"
 
 class PsiCashTest : public psicash::PsiCash {
 public:

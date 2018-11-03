@@ -20,7 +20,7 @@
 #ifndef PSICASHLIB_URL_H
 #define PSICASHLIB_URL_H
 
-#include "error.h"
+#include "error.hpp"
 
 namespace psicash {
 

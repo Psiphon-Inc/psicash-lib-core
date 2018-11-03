@@ -1,12 +1,12 @@
 #include "SecretTestValues.h" // This file is in CipherShare
-#include "base64.h"
+#include "base64.hpp"
 #include "http_status_codes.h"
 #include "vendor/nlohmann/json.hpp"
-#include "psicash.h"
-#include "test_helpers.h"
-#include "url.h"
-#include "userdata.h"
-#include "psicash_tester.h"
+#include "psicash.hpp"
+#include "test_helpers.hpp"
+#include "url.hpp"
+#include "userdata.hpp"
+#include "psicash_tester.hpp"
 #include "gtest/gtest.h"
 #include <regex>
 #include <thread>

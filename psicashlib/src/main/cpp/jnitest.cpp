@@ -18,8 +18,8 @@
  */
 
 #include <string>
-#include "jnitest.h"
-#include "jnihelpers.h"
+#include "jnitest.hpp"
+#include "jnihelpers.hpp"
 #include "http_status_codes.h"
 
 using namespace std;
