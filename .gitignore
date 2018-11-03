@@ -5,6 +5,9 @@
 testtemp/
 Secret*
 *.profraw
+.settings/
+.project
+.classpath
 
 ##############################################################################
 # https://github.com/github/gitignore/blob/master/Android.gitignore

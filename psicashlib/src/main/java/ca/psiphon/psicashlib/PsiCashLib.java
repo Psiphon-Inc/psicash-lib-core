@@ -37,22 +37,30 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * The PsiCash library interface. It provides a wrapper around the C++ core.
+ */
 public class PsiCashLib {
     /**
-     * The library user must implement this interface. It provides HTTP request functionality to the
-     * library.
-     * It is up to the implementer to decide which thread the request should be executed on, and
-     * whether the request should be proxied, etc.
+     * The library user must implement this interface. It provides HTTP request
+     * functionality to the library.
+     * It is up to the implementer to decide which thread the request should be executed
+     * on, and whether the request should be proxied, etc.
      */
     public interface HTTPRequester {
+        /** The HTTP requester. Must take care of TLS, proxying, etc. */
+        Result httpRequest(ReqParams reqParams);
+
+        /** The input to the HTTP requseter. */
         class ReqParams {
             public String method;
             public Uri uri;
             public Map<String, String> headers;
         }
 
+        /** The output from the HTTP requester. */
         class Result {
-            public int code = -1; // Negative indicates error trying to make the request
+            public int code = -1; // -1 indicates error trying to make the request
             public String body;
             public String date;
             public String error;
@@ -73,12 +81,21 @@ public class PsiCashLib {
                 return null;
             }
         }
-
-        Result httpRequest(ReqParams reqParams);
     }
 
     private HTTPRequester httpRequester;
 
+    // Common fields in the JNI glue messages.
+    private static final String kErrorKey = "error";
+    private static final String kErrorMessageKey = "message";
+    private static final String kErrorInternalKey = "internal";
+    private static final String kResultKey = "result";
+    private static final String kStatusKey = "status";
+
+    /**
+     * Possible status values for many of the API methods. Specific meanings will be
+     * described in the method comments.
+     */
     public enum Status {
         INVALID(-1),
         SUCCESS(0),
@@ -107,13 +124,11 @@ public class PsiCashLib {
         }
     }
 
-    private static final String kErrorKey = "error";
-    private static final String kErrorMessageKey = "message";
-    private static final String kErrorInternalKey = "internal";
-    private static final String kResultKey = "result";
-    private static final String kStatusKey = "status";
-
+    /**
+     * Error structure returned by many API methods.
+     */
     public static class Error {
+        @NonNull // If Error is set, it must have a message
         public String message;
         public boolean internal;
 
@@ -129,7 +144,7 @@ public class PsiCashLib {
             this(message, false);
         }
 
-        @Nullable
+        @Nullable // if null, there's no error in json
         static Error fromJSON(JSONObject json) {
             // We don't know for sure that the JSON contains an Error at this point.
 
@@ -153,9 +168,30 @@ public class PsiCashLib {
         }
     }
 
-    public static class ValidTokenTypes extends ArrayList<String> {
-        public ValidTokenTypes(List<String> src) {
-            super(src);
+    /**
+     * The possible token types.
+     */
+    public enum TokenType {
+        EARNER("earner"),
+        SPENDER("spender"),
+        INDICATOR("indicator"),
+        ACCOUNT("account");
+
+        private final String name;
+
+        TokenType(String name) {
+            this.name = name;
+        }
+
+        public static TokenType fromName(String name) {
+            for (TokenType tt : TokenType.values()) {
+                if (tt.name.equals(name)) return tt;
+            }
+            throw new IllegalArgumentException("TokenType not found");
+        }
+
+        public boolean equals(String name) {
+            return this.name.equals(name);
         }
     }
 
@@ -292,15 +328,15 @@ public class PsiCashLib {
         @Nullable // and expected to always be null; indicates glue problem
         public Error error;
 
-        @Nullable // but never expected to be null
-        public ValidTokenTypes validTokenTypes;
+        @Nullable // but only in case of error (which is not expected)
+        public List<TokenType> validTokenTypes;
 
         ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
             this.error = res.error;
             if (this.error != null) {
                 return;
             }
-            this.validTokenTypes = new ValidTokenTypes(res.validTokenTypes);
+            this.validTokenTypes = new ArrayList<>(res.validTokenTypes);
         }
     }
 
@@ -756,7 +792,7 @@ public class PsiCashLib {
             }
 
             private static class ValidTokenTypes extends Base {
-                List<String> validTokenTypes;
+                List<TokenType> validTokenTypes;
 
                 public ValidTokenTypes(String jsonStr) {
                     super(jsonStr);
@@ -765,7 +801,7 @@ public class PsiCashLib {
                 @Override
                 public void fromJSON(JSONObject json, String key) {
                     // Allow for an null list (probably won't happen, but could represent no valid token types)
-                    this.validTokenTypes = JSON.nullableList(String.class, json, key);
+                    this.validTokenTypes = JSON.nullableList(TokenType.class, json, key);
                 }
             }
 

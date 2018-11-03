@@ -1,6 +1,9 @@
 package ca.psiphon.psicashlib;
 
+import ca.psiphon.psicashlib.PsiCashLib.TokenType;
 import org.junit.*;
+
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -23,7 +26,7 @@ public class ValidTokenTypesTest extends TestBase {
         vttr = pcl.validTokenTypes();
         assertNull(vttr.error);
         assertEquals(3, vttr.validTokenTypes.size());
-        PsiCashLib.ValidTokenTypes firstVTT = vttr.validTokenTypes;
+        List<TokenType> firstVTT = vttr.validTokenTypes;
 
         // Second RefreshState, which just refreshes
         res = pcl.refreshState(null);
