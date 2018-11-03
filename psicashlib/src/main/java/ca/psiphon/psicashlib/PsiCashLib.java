@@ -49,17 +49,23 @@ public class PsiCashLib {
      * on, and whether the request should be proxied, etc.
      */
     public interface HTTPRequester {
-        /** The HTTP requester. Must take care of TLS, proxying, etc. */
+        /**
+         * The HTTP requester. Must take care of TLS, proxying, etc.
+         */
         Result httpRequest(ReqParams reqParams);
 
-        /** The input to the HTTP requseter. */
+        /**
+         * The input to the HTTP requseter.
+         */
         class ReqParams {
             public String method;
             public Uri uri;
             public Map<String, String> headers;
         }
 
-        /** The output from the HTTP requester. */
+        /**
+         * The output from the HTTP requester.
+         */
         class Result {
             public int code = -1; // -1 indicates error trying to make the request
             public String body;
@@ -242,51 +248,94 @@ public class PsiCashLib {
         }
     }
 
+    /*
+     * Begin methods
+     */
+
     public PsiCashLib() {
     }
 
-    /*
-     * Init
-     */
-
     /**
-     * @return null if no error; Error otherwise
+     * Initializes the library. Must be called before any other methods are invoked.
+     * @param fileStoreRoot The directory where the library will store its data. Must exist.
+     * @param httpRequester Helper used to make HTTP requests.
+     * @return null if no error; Error otherwise.
      */
     @Nullable
     synchronized public Error init(String fileStoreRoot, HTTPRequester httpRequester) {
         return init(fileStoreRoot, httpRequester, false);
     }
 
+    /**
+     * Used internally for testing.
+     * @param test Should be true if testing mode (and server) is to be used.
+     * @return null if no error; Error otherwise.
+     */
     @Nullable
     synchronized protected Error init(String fileStoreRoot, HTTPRequester httpRequester, boolean test) {
         this.httpRequester = httpRequester;
-
         String jsonStr = this.NativeObjectInit(fileStoreRoot, test);
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
         return res.error;
     }
 
-    /*
-     * SetRequestMetadataItem
-     */
-
     /**
-     * @return null if no error; Error otherwise
+     * Set values that will be included in the request metadata. This includes
+     * client_version, client_region, sponsor_id, and propagation_channel_id.
+     * @return null if no error; Error otherwise.
      */
     @Nullable
     synchronized public Error setRequestMetadataItem(String key, String value) {
         String jsonStr = this.SetRequestMetadataItem(key, value);
-
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
         return res.error;
     }
 
     /*
-     * IsAccount
+     * ValidTokenTypes
      */
 
+    /**
+     * Returns the stored valid token types. Like ["spender", "indicator"].
+     * @return List will be empty if no tokens are available.
+     */
+    @NonNull
+    synchronized public ValidTokenTypesResult validTokenTypes() {
+        String jsonStr = this.NativeValidTokenTypes();
+        JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
+        return new ValidTokenTypesResult(res);
+    }
+
+    public static class ValidTokenTypesResult {
+        // Expected to be null; indicates glue problem.
+        public Error error;
+
+        // Null iff error (which is not expected).
+        // Will be empty if no tokens are available.
+        public List<TokenType> validTokenTypes;
+
+        ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
+            this.error = res.error;
+            if (this.error != null) {
+                return;
+            }
+            this.validTokenTypes = res.validTokenTypes;
+        }
+    }
+
+    /**
+     * Retrieve the stored info about whether the user is a Tracker or an Account.
+     */
+    @NonNull
+    synchronized public IsAccountResult isAccount() {
+        String jsonStr = this.NativeIsAccount();
+        JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
+        return new IsAccountResult(res);
+    }
+
     public static class IsAccountResult {
-        public Error error; // should never happen
+        // Expected to be null; indicates glue problem.
+        public Error error;
         public boolean isAccount;
 
         IsAccountResult(JNI.Result.IsAccount res) {
@@ -298,46 +347,18 @@ public class PsiCashLib {
         }
     }
 
-    @NonNull
-    synchronized public IsAccountResult isAccount() {
-        String jsonStr = this.NativeIsAccount();
-        JNI.Result.IsAccount res = new JNI.Result.IsAccount(jsonStr);
-        return new IsAccountResult(res);
-    }
-
-    /*
-     * ValidTokenTypes
+    /**
+     * Retrieve the stored user balance.
      */
-
-    public static class ValidTokenTypesResult {
-        @Nullable // and expected to always be null; indicates glue problem
-        public Error error;
-
-        @Nullable // but only in case of error (which is not expected)
-        public List<TokenType> validTokenTypes;
-
-        ValidTokenTypesResult(JNI.Result.ValidTokenTypes res) {
-            this.error = res.error;
-            if (this.error != null) {
-                return;
-            }
-            this.validTokenTypes = new ArrayList<>(res.validTokenTypes);
-        }
-    }
-
     @NonNull
-    synchronized public ValidTokenTypesResult validTokenTypes() {
-        String jsonStr = this.NativeValidTokenTypes();
-        JNI.Result.ValidTokenTypes res = new JNI.Result.ValidTokenTypes(jsonStr);
-        return new ValidTokenTypesResult(res);
+    synchronized public BalanceResult balance() {
+        String jsonStr = this.NativeBalance();
+        JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
+        return new BalanceResult(res);
     }
-
-    /*
-     * Balance
-     */
 
     public static class BalanceResult {
-        @Nullable // and expected to always be null; indicates glue problem
+        // Expected to be null; indicates glue problem.
         public Error error;
         public long balance;
 
@@ -350,21 +371,21 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Retrieves the stored purchase prices.
+     * @return List will be empty if there are no available purchase prices.
+     */
     @NonNull
-    synchronized public BalanceResult balance() {
-        String jsonStr = this.NativeBalance();
-        JNI.Result.Balance res = new JNI.Result.Balance(jsonStr);
-        return new BalanceResult(res);
+    synchronized public GetPurchasePricesResult getPurchasePrices() {
+        String jsonStr = this.NativeGetPurchasePrices();
+        JNI.Result.GetPurchasePrices res = new JNI.Result.GetPurchasePrices(jsonStr);
+        return new GetPurchasePricesResult(res);
     }
 
-    /*
-     * GetPurchasePrices
-     */
-
     public static class GetPurchasePricesResult {
-        @Nullable // and expected to always be null; indicates glue problem
+        // Expected to be null; indicates glue problem.
         public Error error;
-        @Nullable // but never expected to be null
+        // Null iff error (which is not expected).
         public List<PurchasePrice> purchasePrices;
 
         GetPurchasePricesResult(JNI.Result.GetPurchasePrices res) {
@@ -376,21 +397,21 @@ public class PsiCashLib {
         }
     }
 
-    @Nullable
-    synchronized public GetPurchasePricesResult getPurchasePrices() {
-        String jsonStr = this.NativeGetPurchasePrices();
-        JNI.Result.GetPurchasePrices res = new JNI.Result.GetPurchasePrices(jsonStr);
-        return new GetPurchasePricesResult(res);
+    /**
+     * Retrieves the set of active purchases, if any.
+     * @return List will be empty if there are no purchases.
+     */
+    @NonNull
+    synchronized public GetPurchasesResult getPurchases() {
+        String jsonStr = this.NativeGetPurchases();
+        JNI.Result.GetPurchases res = new JNI.Result.GetPurchases(jsonStr);
+        return new GetPurchasesResult(res);
     }
 
-    /*
-     * GetPurchases
-     */
-
     public static class GetPurchasesResult {
-        @Nullable // and expected to always be null; indicates glue problem
+        // Expected to be null; indicates glue problem.
         public Error error;
-        @Nullable // but never expected to be null
+        // Null iff error (which is not expected).
         public List<Purchase> purchases;
 
         GetPurchasesResult(JNI.Result.GetPurchases res) {
@@ -402,21 +423,21 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Retrieves the set of active purchases that are not expired, if any.
+     * @return List will be empty if there are no valid purchases.
+     */
     @NonNull
-    synchronized public GetPurchasesResult getPurchases() {
-        String jsonStr = this.NativeGetPurchases();
-        JNI.Result.GetPurchases res = new JNI.Result.GetPurchases(jsonStr);
-        return new GetPurchasesResult(res);
+    synchronized public ValidPurchasesResult validPurchases() {
+        String jsonStr = this.NativeValidPurchases();
+        JNI.Result.ValidPurchases res = new JNI.Result.ValidPurchases(jsonStr);
+        return new ValidPurchasesResult(res);
     }
 
-    /*
-     * ValidPurchases
-     */
-
     public static class ValidPurchasesResult {
-        @Nullable // and expected to always be null; indicates glue problem
+        // Expected to be null; indicates glue problem.
         public Error error;
-        @Nullable // but never expected to be null
+        // Null iff error (which is not expected).
         public List<Purchase> purchases;
 
         ValidPurchasesResult(JNI.Result.ValidPurchases res) {
@@ -428,21 +449,22 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Get the next expiring purchase (with local_time_expiry populated).
+     * @return If there is no expiring purchase, the returned purchase will be null.
+     * The returned purchase may already be expired.
+     */
     @NonNull
-    synchronized public ValidPurchasesResult validPurchases() {
-        String jsonStr = this.NativeValidPurchases();
-        JNI.Result.ValidPurchases res = new JNI.Result.ValidPurchases(jsonStr);
-        return new ValidPurchasesResult(res);
+    synchronized public NextExpiringPurchaseResult nextExpiringPurchase() {
+        String jsonStr = this.NativeNextExpiringPurchase();
+        JNI.Result.NextExpiringPurchase res = new JNI.Result.NextExpiringPurchase(jsonStr);
+        return new NextExpiringPurchaseResult(res);
     }
 
-    /*
-     * NextExpiringPurchase
-     */
-
     public static class NextExpiringPurchaseResult {
-        @Nullable // and expected to always be null; indicates glue problem
+        // Expected to be null; indicates glue problem.
         public Error error;
-        @Nullable // will be null if no such purchase
+        // Null if error, or if there is no such purchase.
         public Purchase purchase;
 
         NextExpiringPurchaseResult(JNI.Result.NextExpiringPurchase res) {
@@ -454,21 +476,21 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Clear out expired purchases. Return the ones that were expired, if any.
+     * @return List will be empty if there are no expired purchases.
+     */
     @NonNull
-    synchronized public NextExpiringPurchaseResult nextExpiringPurchase() {
-        String jsonStr = this.NativeNextExpiringPurchase();
-        JNI.Result.NextExpiringPurchase res = new JNI.Result.NextExpiringPurchase(jsonStr);
-        return new NextExpiringPurchaseResult(res);
+    synchronized public ExpirePurchasesResult expirePurchases() {
+        String jsonStr = this.NativeExpirePurchases();
+        JNI.Result.ExpirePurchases res = new JNI.Result.ExpirePurchases(jsonStr);
+        return new ExpirePurchasesResult(res);
     }
 
-    /*
-     * ExpirePurchases
-     */
-
     public static class ExpirePurchasesResult {
-        @Nullable
+        // Null if storage writing problem or glue problem.
         public Error error;
-        @Nullable // may be null if no purchases were expired
+        // Null iff error (which is not expected). Empty if there were no expired purchases.
         public List<Purchase> purchases;
 
         ExpirePurchasesResult(JNI.Result.ExpirePurchases res) {
@@ -480,19 +502,13 @@ public class PsiCashLib {
         }
     }
 
-    @NonNull
-    synchronized public ExpirePurchasesResult expirePurchases() {
-        String jsonStr = this.NativeExpirePurchases();
-        JNI.Result.ExpirePurchases res = new JNI.Result.ExpirePurchases(jsonStr);
-        return new ExpirePurchasesResult(res);
-    }
-
-    /*
-     * RemovePurchases
-     */
-
     /**
-     * @returns null if no error; Error otherwise
+     * Force removal of purchases with the given transaction IDs.
+     * This is to be called when the Psiphon server indicates that a purchase has
+     * expired (even if the local clock hasn't yet indicated it).
+     * @param transactionIDs List of transaction IDs of purchases to remove. IDs not being
+     *                       found does _not_ result in an error.
+     * @return null if success; Error otherwise.
      */
     @Nullable
     synchronized public Error removePurchases(List<String> transactionIDs) {
@@ -500,20 +516,28 @@ public class PsiCashLib {
             return null;
         }
         String[] idsArray = transactionIDs.toArray(new String[0]);
-
         String jsonStr = this.NativeRemovePurchases(idsArray);
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
         return res.error;
     }
 
-    /*
-     * ModifyLandingPage
+    /**
+     * Utilizes stored tokens and metadata to craft a landing page URL.
+     * @param url URL of landing page to modify.
+     * @return Error if modification is impossible. (In that case the error should be
+     * logged -- and added to feedback -- and home page opening should proceed
+     * with the original URL.)
      */
+    @NonNull
+    synchronized public ModifyLandingPageResult modifyLandingPage(String url) {
+        String jsonStr = this.NativeModifyLandingPage(url);
+        JNI.Result.ModifyLandingPage res = new JNI.Result.ModifyLandingPage(jsonStr);
+        return new ModifyLandingPageResult(res);
+    }
 
     public static class ModifyLandingPageResult {
-        @Nullable
         public Error error;
-        @Nullable // null iff error
+        // Null iff error.
         public String url;
 
         ModifyLandingPageResult(JNI.Result.ModifyLandingPage res) {
@@ -525,21 +549,29 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Creates a data package that should be included with a webhook for a user
+     * action that should be rewarded (such as watching a rewarded video).
+     * NOTE: The resulting string will still need to be encoded for use in a URL.
+     * Returns an error if there is no earner token available and therefore the
+     * reward cannot possibly succeed. (Error may also result from a JSON
+     * serialization problem, but that's very improbable.)
+     * So, the library user may want to call this _before_ showing the rewarded
+     * activity, to perhaps decide _not_ to show that activity. An exception may be
+     * if the Psiphon connection attempt and subsequent RefreshClientState may
+     * occur _during_ the rewarded activity, so an earner token may be obtained
+     * before it's complete.
+     */
     @NonNull
-    synchronized public ModifyLandingPageResult modifyLandingPage(String url) {
-        String jsonStr = this.NativeModifyLandingPage(url);
-        JNI.Result.ModifyLandingPage res = new JNI.Result.ModifyLandingPage(jsonStr);
-        return new ModifyLandingPageResult(res);
+    synchronized public GetRewardedActivityDataResult getRewardedActivityData() {
+        String jsonStr = this.NativeGetRewardedActivityData();
+        JNI.Result.GetRewardedActivityData res = new JNI.Result.GetRewardedActivityData(jsonStr);
+        return new GetRewardedActivityDataResult(res);
     }
 
-    /*
-     * GetRewardedActivityData
-     */
-
     public static class GetRewardedActivityDataResult {
-        @Nullable
         public Error error;
-        @Nullable // can be null even on success, if there is no data
+        // Can be null even on success (error==null), if there is no data.
         public String data;
 
         GetRewardedActivityDataResult(JNI.Result.GetRewardedActivityData res) {
@@ -551,22 +583,20 @@ public class PsiCashLib {
         }
     }
 
-    // Returns error if no earner token present
+    /**
+     * Returns a JSON object suitable for serializing that can be included in a feedback
+     * diagnostic data package.
+     */
     @NonNull
-    synchronized public GetRewardedActivityDataResult getRewardedActivityData() {
-        String jsonStr = this.NativeGetRewardedActivityData();
-        JNI.Result.GetRewardedActivityData res = new JNI.Result.GetRewardedActivityData(jsonStr);
-        return new GetRewardedActivityDataResult(res);
+    synchronized public GetDiagnosticInfoResult getDiagnosticInfo() {
+        String jsonStr = this.NativeGetDiagnosticInfo();
+        JNI.Result.GetDiagnosticInfo res = new JNI.Result.GetDiagnosticInfo(jsonStr);
+        return new GetDiagnosticInfoResult(res);
     }
 
-    /*
-     * GetDiagnosticInfo
-     */
-
     public static class GetDiagnosticInfoResult {
-        @Nullable
         public Error error;
-        @Nullable // null iff error not null
+        // Null iff error.
         public String jsonString;
 
         GetDiagnosticInfoResult(JNI.Result.GetDiagnosticInfo res) {
@@ -578,21 +608,29 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Refresh the local state (and obtain tokens, if necessary).
+     * See psicash.hpp for full description.
+     * @param purchaseClasses The purchase class names for which prices should be
+     *                        retrieved, like `{"speed-boost"}`. If null or empty, no
+     *                        purchase prices will be retrieved.
+     * @return Error or request status. Even if error isn't set, request may have failed
+     * for the reason indicated by the status.
+     */
     @NonNull
-    synchronized public GetDiagnosticInfoResult getDiagnosticInfo() {
-        String jsonStr = this.NativeGetDiagnosticInfo();
-        JNI.Result.GetDiagnosticInfo res = new JNI.Result.GetDiagnosticInfo(jsonStr);
-        return new GetDiagnosticInfoResult(res);
+    synchronized public RefreshStateResult refreshState(List<String> purchaseClasses) {
+        if (purchaseClasses == null) {
+            purchaseClasses = new ArrayList<>();
+        }
+        String jsonStr = this.NativeRefreshState(purchaseClasses.toArray(new String[0]));
+        JNI.Result.RefreshState res = new JNI.Result.RefreshState(jsonStr);
+        return new RefreshStateResult(res);
     }
 
-    /*
-     * RefreshState
-     */
-
     public static class RefreshStateResult {
-        @Nullable
+        // Indicates catastrophic inability to make request.
         public Error error;
-        @Nullable // null iff error is non-null
+        // Null iff error.
         public Status status;
 
         RefreshStateResult(JNI.Result.RefreshState res) {
@@ -604,28 +642,31 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Makes a new transaction for an "expiring-purchase" class, such as "speed-boost".
+     * See psicash.hpp for full description.
+     * @param transactionClass The class name of the desired purchase. (Like "speed-boost".)
+     * @param distinguisher    The distinguisher for the desired purchase. (Like "1hr".)
+     * @param expectedPrice    The expected price of the purchase (previously obtained by
+     *                         RefreshState). The transaction will fail if the
+     *                         expectedPrice does not match the actual price.
+     * @return Error or request status. Even if error isn't set, request may have failed
+     * for the reason indicated by the status.
+     */
     @NonNull
-    synchronized public RefreshStateResult refreshState(List<String> purchaseClasses) {
-        if (purchaseClasses == null) {
-            purchaseClasses = new ArrayList<>();
-        }
-
-        String jsonStr = this.NativeRefreshState(purchaseClasses.toArray(new String[0]));
-
-        JNI.Result.RefreshState res = new JNI.Result.RefreshState(jsonStr);
-        return new RefreshStateResult(res);
+    synchronized public NewExpiringPurchaseResult newExpiringPurchase(
+            String transactionClass, String distinguisher, long expectedPrice) {
+        String jsonStr = this.NativeNewExpiringPurchase(transactionClass, distinguisher, expectedPrice);
+        JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
+        return new NewExpiringPurchaseResult(res);
     }
 
-    /*
-     * NewExpiringPurchase
-     */
-
     public static class NewExpiringPurchaseResult {
-        @Nullable
+        // Indicates catastrophic inability to make request.
         public Error error;
-        @Nullable
+        // Null iff error.
         public Status status;
-        @Nullable
+        // Will be non-null on status==SUCCESS, but null for all other statuses.
         public Purchase purchase;
 
         NewExpiringPurchaseResult(JNI.Result.NewExpiringPurchase res) {
@@ -638,13 +679,9 @@ public class PsiCashLib {
         }
     }
 
-    @NonNull
-    synchronized public NewExpiringPurchaseResult newExpiringPurchase(
-            String transactionClass, String distinguisher, long expectedPrice) {
-        String jsonStr = this.NativeNewExpiringPurchase(transactionClass, distinguisher, expectedPrice);
-        JNI.Result.NewExpiringPurchase res = new JNI.Result.NewExpiringPurchase(jsonStr);
-        return new NewExpiringPurchaseResult(res);
-    }
+    //
+    // END API ////////////////////////////////////////////////////////////////
+    ///
 
     @SuppressWarnings("unused") // used as a native callback
     public String makeHTTPRequest(String jsonReqParams) {
@@ -1168,6 +1205,7 @@ public class PsiCashLib {
             return v;
         }
 
+        // To be used for JSON-primitive types (String, boolean, etc.).
         @Nullable
         private static <T> List<T> nullableList(Class<T> clazz, JSONObject json, String key) {
             JSONArray jsonArray = nullableArray(json, key);
@@ -1189,7 +1227,7 @@ public class PsiCashLib {
         }
 
         // Deserialize a list using an object deserializer method. If supplyDefault is
-        // try, an empty list will be returned rather than null.
+        // true, an empty list will be returned rather than null.
         @Nullable
         private static <T> List<T> nullableList(Class<T> clazz, JSONObject json, String key, Deserializer deserializer, boolean supplyDefault) {
             JSONArray jsonArray = nullableArray(json, key);
@@ -1239,7 +1277,8 @@ public class PsiCashLib {
 
     /*
      * Expose native (C++) functions.
-     * NOTE: Full descriptions of what these methods do are in psicash.h and will not be repeated here.
+     * NOTE: Full descriptions of what these methods do are in psicash.hpp
+     * and will not be repeated here.
      */
 
     /*

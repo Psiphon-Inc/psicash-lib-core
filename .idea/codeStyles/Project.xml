@@ -1,5 +1,9 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
+    <option name="RIGHT_MARGIN" value="90" />
+    <JavaCodeStyleSettings>
+      <option name="JD_ADD_BLANK_AFTER_DESCRIPTION" value="false" />
+    </JavaCodeStyleSettings>
     <MarkdownNavigatorCodeStyleSettings>
       <option name="RIGHT_MARGIN" value="80" />
     </MarkdownNavigatorCodeStyleSettings>
