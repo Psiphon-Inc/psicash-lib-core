@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -98,11 +99,11 @@ public class TestBase {
         }
     }
 
-    Matcher<PsiCashLib.Purchases> containsPurchase(String transactionClass, String distinguisher) {
-        return new BaseMatcher<PsiCashLib.Purchases>() {
+    Matcher<List<PsiCashLib.Purchase>> containsPurchase(String transactionClass, String distinguisher) {
+        return new BaseMatcher<List<PsiCashLib.Purchase>>() {
             @Override
             public boolean matches(final Object item) {
-                final PsiCashLib.Purchases purchases = (PsiCashLib.Purchases)item;
+                final List<PsiCashLib.Purchase> purchases = (List<PsiCashLib.Purchase>)item;
                 for (PsiCashLib.Purchase p : purchases) {
                     if (p.transactionClass.equals(transactionClass) && p.distinguisher.equals(distinguisher)) {
                         return true;

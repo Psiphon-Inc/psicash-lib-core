@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+
 /**
  * The PsiCash library interface. It provides a wrapper around the C++ core.
  */
@@ -195,13 +196,31 @@ public class PsiCashLib {
         }
     }
 
+    /**
+     * Purchase price information.
+     */
     public static class PurchasePrice {
         public String transactionClass;
         public String distinguisher;
         public long price;
+
+        static PurchasePrice fromJSON(JSONObject json) throws JSONException {
+            if (json == null) {
+                return null;
+            }
+
+            PurchasePrice pp = new PurchasePrice();
+            pp.transactionClass = JSON.nonnullString(json, "class");
+            pp.distinguisher = JSON.nonnullString(json, "distinguisher");
+            pp.price = JSON.nonnullLong(json, "price");
+            return pp;
+        }
     }
 
-    public static class Purchase {
+    /**
+     * Purchase information.
+     */
+    public static class Purchase extends Object {
         public String id;
         public String transactionClass;
         public String distinguisher;
@@ -219,32 +238,7 @@ public class PsiCashLib {
             p.distinguisher = JSON.nonnullString(json, "distinguisher");
             p.expiry = JSON.nullableDate(json, "serverTimeExpiry");
             p.authorization = JSON.nullableString(json, "authorization");
-
             return p;
-        }
-    }
-
-    public static class Purchases extends ArrayList<Purchase> {
-        public Purchases() {
-        }
-
-        public Purchases(List<Purchase> src) {
-            super(src);
-        }
-
-        static Purchases fromJSON(JSONArray jsonArray) throws JSONException {
-            if (jsonArray == null) {
-                return null;
-            }
-
-            Purchases purchases = new Purchases();
-
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject j = JSON.nonnullObject(jsonArray, i);
-                purchases.add(Purchase.fromJSON(j));
-            }
-
-            return purchases;
         }
     }
 
@@ -397,7 +391,7 @@ public class PsiCashLib {
         @Nullable // and expected to always be null; indicates glue problem
         public Error error;
         @Nullable // but never expected to be null
-        public Purchases purchases;
+        public List<Purchase> purchases;
 
         GetPurchasesResult(JNI.Result.GetPurchases res) {
             this.error = res.error;
@@ -423,7 +417,7 @@ public class PsiCashLib {
         @Nullable // and expected to always be null; indicates glue problem
         public Error error;
         @Nullable // but never expected to be null
-        public Purchases purchases;
+        public List<Purchase> purchases;
 
         ValidPurchasesResult(JNI.Result.ValidPurchases res) {
             this.error = res.error;
@@ -475,7 +469,7 @@ public class PsiCashLib {
         @Nullable
         public Error error;
         @Nullable // may be null if no purchases were expired
-        public Purchases purchases;
+        public List<Purchase> purchases;
 
         ExpirePurchasesResult(JNI.Result.ExpirePurchases res) {
             this.error = res.error;
@@ -817,65 +811,37 @@ public class PsiCashLib {
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) throws JSONException {
-                    this.purchasePrices = new ArrayList<>();
-
-                    // We'll allow a null value to indicate no available purchase prices
-                    JSONArray jsonArray = JSON.nullableArray(json, key);
-                    if (jsonArray == null) {
-                        return;
-                    }
-
-                    for (int i = 0; i < jsonArray.length(); i++) {
-                        JSONObject ppJSON = JSON.nonnullObject(jsonArray, i);
-
-                        PurchasePrice pp = new PurchasePrice();
-                        pp.transactionClass = JSON.nonnullString(ppJSON, "class");
-                        pp.distinguisher = JSON.nonnullString(ppJSON, "distinguisher");
-                        pp.price = JSON.nonnullLong(ppJSON, "price");
-
-                        this.purchasePrices.add(pp);
-                    }
+                public void fromJSON(JSONObject json, String key) {
+                    this.purchasePrices = JSON.nullableList(
+                            PsiCashLib.PurchasePrice.class, json, key, PsiCashLib.PurchasePrice::fromJSON, true);
                 }
             }
 
             private static class GetPurchases extends Base {
-                PsiCashLib.Purchases purchases;
+                List<Purchase> purchases;
 
                 public GetPurchases(String jsonStr) {
                     super(jsonStr);
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) throws JSONException {
-                    // We'll allow a null value to indicate no purchases
-                    JSONArray jsonArray = JSON.nullableArray(json, key);
-                    if (jsonArray == null) {
-                        this.purchases = new PsiCashLib.Purchases();
-                        return;
-                    }
-
-                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                public void fromJSON(JSONObject json, String key) {
+                    this.purchases = JSON.nullableList(
+                            PsiCashLib.Purchase.class, json, key, PsiCashLib.Purchase::fromJSON, true);
                 }
             }
 
             private static class ValidPurchases extends Base {
-                PsiCashLib.Purchases purchases;
+                List<Purchase> purchases;
 
                 public ValidPurchases(String jsonStr) {
                     super(jsonStr);
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) throws JSONException {
-                    // We'll allow a null value to indicate no purchases
-                    JSONArray jsonArray = JSON.nullableArray(json, key);
-                    if (jsonArray == null) {
-                        this.purchases = new PsiCashLib.Purchases();
-                        return;
-                    }
-
-                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                public void fromJSON(JSONObject json, String key) {
+                    this.purchases = JSON.nullableList(
+                            PsiCashLib.Purchase.class, json, key, PsiCashLib.Purchase::fromJSON, true);
                 }
             }
 
@@ -893,28 +859,21 @@ public class PsiCashLib {
                     if (json == null) {
                         return;
                     }
-
                     this.purchase = PsiCashLib.Purchase.fromJSON(json);
                 }
             }
 
             private static class ExpirePurchases extends Base {
-                PsiCashLib.Purchases purchases;
+                List<Purchase> purchases;
 
                 public ExpirePurchases(String jsonStr) {
                     super(jsonStr);
                 }
 
                 @Override
-                public void fromJSON(JSONObject json, String key) throws JSONException {
-                    // Null is allowable, as no purchases may have expired
-                    JSONArray jsonArray = JSON.nullableArray(json, key);
-                    if (jsonArray == null) {
-                        this.purchases = new PsiCashLib.Purchases();
-                        return;
-                    }
-
-                    this.purchases = PsiCashLib.Purchases.fromJSON(jsonArray);
+                public void fromJSON(JSONObject json, String key) {
+                    this.purchases = JSON.nullableList(
+                            PsiCashLib.Purchase.class, json, key, PsiCashLib.Purchase::fromJSON, true);
                 }
             }
 
@@ -1220,6 +1179,36 @@ public class PsiCashLib {
 
             for (int i = 0; i < jsonArray.length(); i++) {
                 result.add(nullable(clazz, jsonArray, i));
+            }
+
+            return result;
+        }
+
+        interface Deserializer {
+            Object fromJSON(JSONObject json) throws JSONException;
+        }
+
+        // Deserialize a list using an object deserializer method. If supplyDefault is
+        // try, an empty list will be returned rather than null.
+        @Nullable
+        private static <T> List<T> nullableList(Class<T> clazz, JSONObject json, String key, Deserializer deserializer, boolean supplyDefault) {
+            JSONArray jsonArray = nullableArray(json, key);
+            if (jsonArray == null) {
+                return supplyDefault ? new ArrayList<>() : null;
+            }
+
+            ArrayList<T> result = new ArrayList<>();
+
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject j = JSON.nullableObject(jsonArray, i);
+                if (j == null) {
+                    continue;
+                }
+                try {
+                    result.add(cast(clazz, deserializer.fromJSON(j)));
+                } catch (JSONException e) {
+                    continue;
+                }
             }
 
             return result;
