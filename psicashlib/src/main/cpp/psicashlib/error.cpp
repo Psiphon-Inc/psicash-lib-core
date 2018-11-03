@@ -61,10 +61,6 @@ Error& Error::Wrap(const std::string& filename, const std::string& function, int
     return Wrap("", filename, function, line);
 }
 
-Error::operator bool() const {
-    return is_error_;
-}
-
 string Error::ToString() const {
     if (!is_error_) {
         return "(nonerror)";

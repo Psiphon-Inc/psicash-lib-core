@@ -33,20 +33,22 @@ extern const char* REQUEST_METADATA; // only for use in template method below
 
 using AuthTokens = std::map<std::string, std::string>;
 
-// UserData operations are NOT THREADSAFE.
+/// Storage and retrieval (and some processing) of PsiCash user data/state.
+/// UserData operations are threadsafe (via Datastore).
 class UserData {
 public:
     UserData();
 
     virtual ~UserData();
 
-    // Must be called once.
-    // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
+    /// Must be called once.
+    /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
     error::Error Init(const char* file_store_root);
 
-    // Clears data and datastore file.
+    /// Clears data and datastore file.
     void Clear();
 
+    /// Used to pause and result datastore file writing.
     class WritePauser {
     public:
         WritePauser(UserData& user_data) : user_data_(
@@ -60,12 +62,12 @@ public:
 public:
     datetime::Duration GetServerTimeDiff() const;
     error::Error SetServerTimeDiff(const datetime::DateTime& serverTimeNow);
-    // Modifies the argument purchase.
+    /// Modifies the argument purchase.
     void UpdatePurchaseLocalTimeExpiry(Purchase& purchase) const;
 
     AuthTokens GetAuthTokens() const;
     error::Error SetAuthTokens(const AuthTokens& v, bool is_account);
-    // valid_token_types is of the form {"tokenvalueABCD0123": true, etc.}
+    /// valid_token_types is of the form {"tokenvalueABCD0123": true, ...}
     error::Error CullAuthTokens(const std::map<std::string, bool>& valid_tokens);
 
     bool GetIsAccount() const;
@@ -96,7 +98,7 @@ public:
     }
 
 protected:
-    // Modifies the purchases in the argument.
+    /// Modifies the purchases in the argument.
     void UpdatePurchasesLocalTimeExpiry(Purchases& purchases) const;
 
 private:

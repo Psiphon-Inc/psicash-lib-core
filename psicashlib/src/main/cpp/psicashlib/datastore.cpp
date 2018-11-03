@@ -37,21 +37,24 @@ Datastore::Datastore()
 }
 
 Error Datastore::Init(const char* file_root) {
+    SYNCHRONIZE(mutex_);
     file_path_ = string(file_root) + "/datastore";
-
     return PassError(FileLoad());
 }
 
 void Datastore::Clear() {
+    SYNCHRONIZE(mutex_);
     json_ = json::object();
     FileStore();
 }
 
 void Datastore::PauseWrites() {
+    SYNCHRONIZE(mutex_);
     paused_ = true;
 }
 
 error::Error Datastore::UnpauseWrites() {
+    SYNCHRONIZE(mutex_);
     if (!paused_) {
         return nullerr;
     }
@@ -60,11 +63,14 @@ error::Error Datastore::UnpauseWrites() {
 }
 
 Error Datastore::Set(const json& in) {
+    SYNCHRONIZE(mutex_);
     json_.update(in);
     return PassError(FileStore());
 }
 
 Error Datastore::FileLoad() {
+    SYNCHRONIZE(mutex_);
+
     json_ = json::object();
 
     ifstream f;
@@ -92,6 +98,8 @@ Error Datastore::FileLoad() {
 }
 
 Error Datastore::FileStore() {
+    SYNCHRONIZE(mutex_);
+
     if (paused_) {
         return nullerr;
     }

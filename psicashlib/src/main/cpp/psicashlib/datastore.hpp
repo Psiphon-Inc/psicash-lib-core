@@ -21,14 +21,15 @@
 #define PSICASHLIB_DATASTORE_H
 
 #include <string>
+#include <mutex>
 #include "error.hpp"
 #include "vendor/nonstd/expected.hpp"
 #include "vendor/nlohmann/json.hpp"
 
 namespace psicash {
 
-// Datastore operations are NOT THREADSAFE.
-//
+/// Extremely simplistic key-value store.
+/// Datastore operations are threadsafe.
 class Datastore {
     using json = nlohmann::json;
 
@@ -41,19 +42,21 @@ public:
 public:
     Datastore();
 
-    // Must be called exactly once.
-    // The fileRoot directory must already exist.
-    // Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
+    /// Must be called exactly once.
+    /// The fileRoot directory must already exist.
+    /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
     error::Error Init(const char* file_root);
 
-    // Clears the in-memory structure and the persistent file.
-    // Primarily intended for debugging purposes.
+    /// Clears the in-memory structure and the persistent file.
+    /// Primarily intended for debugging purposes.
     void Clear();
 
+    /// Stops writing of updates to disk until UnpauseWrites is called.
     void PauseWrites();
+    /// Unpauses writing and causes an immediate write.
     error::Error UnpauseWrites();
 
-    // Returns the value, or an error indicating the failure reason.
+    /// Returns the value, or an error indicating the failure reason.
     template<typename T>
     nonstd::expected<T, DatastoreGetError> Get(const char* key) const {
         try {
@@ -72,20 +75,20 @@ public:
         }
     }
 
-    // To set a single key-value: `set({{"k1", "v1"}})`.
-    // To set multiple key-values: `set({{"k1", "v1"}, {"k2", "v2"}})`.
-    // NOTE: If you use too few curly braces, you'll accidentally create arrays instead of objects.
-    // NOTE: Set is not atomic. If the file operation fails, the intermediate object will still be
-    // updated. We may want this to be otherwise in the future, but for now I think that it's preferable.
-    // Returns false if the file operation failed.
+    /// To set a single key-value: `set({{"k1", "v1"}})`.
+    /// To set multiple key-values: `set({{"k1", "v1"}, {"k2", "v2"}})`.
+    /// NOTE: If you use too few curly braces, you'll accidentally create arrays instead of objects.
+    /// NOTE: Set is not atomic. If the file operation fails, the intermediate object will still be
+    /// updated. We may want this to be otherwise in the future, but for now I think that it's preferable.
+    /// Returns false if the file operation failed.
     error::Error Set(const json& in);
 
 protected:
     error::Error FileLoad();
-
     error::Error FileStore();
 
 private:
+    std::recursive_mutex mutex_;
     std::string file_path_;
     json json_;
     bool paused_;
