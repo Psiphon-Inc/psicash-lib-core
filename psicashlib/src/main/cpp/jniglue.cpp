@@ -36,139 +36,13 @@ static constexpr const char* kPsiCashUserAgent = "Psiphon-PsiCash-iOS"; // TODO:
 using namespace std;
 using namespace psicash;
 
-static bool g_test = false;
-static jclass g_jClass;
-static jmethodID g_makeHTTPRequestMID;
-
-static PsiCash& GetPsiCash() {
-    static PsiCash psi_cash;
-    static testing::PsiCashTester psi_cash_test;
-    if (g_test) {
-        return psi_cash_test;
-    }
-    return psi_cash;
-}
-
-static testing::PsiCashTester& GetPsiCashTester() {
-    return static_cast<testing::PsiCashTester&>(GetPsiCash());
-}
-
-
-/// Used to return a JSON error without any potential marshaling exceptions.
-string ErrorResponseFallback(const string& message) {
-    return "{\"error\":{\"message\":\""s + message + "\", \"internal\":true}}";
-}
-
-/// Creates a JSON error string appropriate for a JNI response.
-/// If `message` is empty, the result will be a non-error.
-string ErrorResponse(const string& message,
-                     const string& filename, const string& function, int line,
-                     bool internal = false) {
-    try {
-        json j({{"error", nullptr}});
-        if (!message.empty()) {
-            j["error"]["message"] = error::Error(message, filename, function, line).ToString();
-            j["error"]["internal"] = internal;
-        }
-        return j.dump(-1, ' ', true);
-    }
-    catch (json::exception& e) {
-        return ErrorResponseFallback(
-                utils::Stringer("ErrorResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
-    }
-}
-
-/// Creates a JSON error string appropriate for a JNI response. `error` is wrapped.
-/// If `error` is a non-error, the result will be a non-error.
-string ErrorResponse(const error::Error& error, const string& message,
-                     const string& filename, const string& function, int line,
-                     bool internal = false) {
-    try {
-        json j({{"error", nullptr}});
-        if (error) {
-            j["error"]["message"] = error::Error(error).Wrap(message, filename, function, line).ToString();
-            j["error"]["internal"] = internal;
-        }
-        return j.dump(-1, ' ', true);
-    }
-    catch (json::exception& e) {
-        return ErrorResponseFallback(
-                utils::Stringer("ErrorResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
-    }
-}
-
-#define ERROR(msg)                      (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
-#define ERROR_INTERNAL(msg)             (ErrorResponse(msg, __FILE__, __PRETTY_FUNCTION__, __LINE__, true).c_str())
-#define WRAP_ERROR1(err, msg)           (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__).c_str())
-#define WRAP_ERROR(err)                 WRAP_ERROR1(err, "")
-#define WRAP_ERROR1_INTERNAL(err, msg)  (ErrorResponse(err, msg, __FILE__, __PRETTY_FUNCTION__, __LINE__, true).c_str())
-#define WRAP_ERROR_INTERNAL(err)        WRAP_ERROR1_INTERNAL(err, "")
-#define JNI_(str)                       (str ? env->NewStringUTF(str) : nullptr)
-#define JNI_s(str)                      (!str.empty() ? env->NewStringUTF(str.c_str()) : nullptr)
-
-template<typename T>
-string SuccessResponse(T res) {
-    try {
-        json j({{"result", res}});
-        return j.dump(-1, ' ', true);
-    }
-    catch (json::exception& e) {
-        return ERROR(
-                utils::Stringer("SuccessResponse json dump failed: ", e.what(), "; id:", e.id).c_str());
-    }
-}
-
-// To be used for successful responses that don't have a result payload.
-string SuccessResponse() {
-    return SuccessResponse(nullptr);
-}
-
-
-// Note that the function returned by this is only valid as long as these arguments are valid.
-// So, generally, it should only be used for the duration of a single JNI call.
-MakeHTTPRequestFn GetHTTPReqFn(JNIEnv* env, jobject& this_obj) {
-    MakeHTTPRequestFn http_req_fn = [env, &this_obj = this_obj](const string& params) -> string {
-        json stub_result = {{"status", -1},
-                            {"error",  nullptr},
-                            {"body",   nullptr},
-                            {"date",   nullptr}};
-
-        auto jParams = env->NewStringUTF(params.c_str());
-        if (!jParams) {
-            CheckJNIException(env);
-            stub_result["error"] = MakeError("NewStringUTF failed").ToString();
-            return stub_result.dump(-1, ' ', true);
-        }
-
-        auto jResult = (jstring)env->CallObjectMethod(this_obj, g_makeHTTPRequestMID, jParams);
-        if (!jResult) {
-            CheckJNIException(env);
-            stub_result["error"] = MakeError("CallObjectMethod failed").ToString();
-            return stub_result.dump(-1, ' ', true);
-        }
-
-        auto resultCString = env->GetStringUTFChars(jResult, NULL);
-        if (!resultCString) {
-            CheckJNIException(env);
-            stub_result["error"] = MakeError("GetStringUTFChars failed").ToString();
-            return stub_result.dump(-1, ' ', true);
-        }
-
-        auto result = string(resultCString);
-        env->ReleaseStringUTFChars(jResult, resultCString);
-
-        return result;
-    };
-
-    return http_req_fn;
-}
 
 extern "C" JNIEXPORT jboolean
 JNICALL
 Java_ca_psiphon_psicashlib_PsiCashLib_NativeStaticInit(JNIEnv* env, jclass type) {
-    g_jClass = reinterpret_cast<jclass>(env->NewGlobalRef(type));
+    g_jGlueClass = reinterpret_cast<jclass>(env->NewGlobalRef(type));
 
-    g_makeHTTPRequestMID = env->GetMethodID(g_jClass, HTTP_REQUEST_FN_NAME, HTTP_REQUEST_FN_SIG);
+    g_makeHTTPRequestMID = env->GetMethodID(g_jGlueClass, HTTP_REQUEST_FN_NAME, HTTP_REQUEST_FN_SIG);
     if (!g_makeHTTPRequestMID) {
         CheckJNIException(env);
         return false;
@@ -185,7 +59,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
         jobject /*this_obj*/,
         jstring j_file_store_root,
         jboolean test) {
-    g_test = test;
+    g_testing = test;
 
     if (!j_file_store_root) {
         return JNI_(ERROR("j_file_store_root is null"));
@@ -443,62 +317,4 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeNewExpiringPurchase(
     }
 
     return JNI_s(SuccessResponse(output));
-}
-
-/**************************************************************************
- * TEST HELPERS
- **************************************************************************/
-
-// Returns null on success, error message otherwise.
-extern "C" JNIEXPORT jstring
-JNICALL
-Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestReward(
-        JNIEnv* env,
-        jobject this_obj,
-        jstring j_transaction_class,
-        jstring j_distinguisher) {
-    auto transaction_class = JStringToString(env, j_transaction_class);
-    auto distinguisher = JStringToString(env, j_distinguisher);
-
-    if (!transaction_class || !distinguisher) {
-        return JNI_("transaction and distinguisher are required");
-    }
-
-    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
-
-    auto err = GetPsiCashTester().MakeRewardRequests(*transaction_class, *distinguisher);
-    if (err) {
-        return JNI_s(err.ToString());
-    }
-
-    return nullptr;
-}
-
-extern "C" JNIEXPORT jboolean
-JNICALL
-Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestSetRequestMutators(
-        JNIEnv* env,
-        jobject this_obj,
-        jobjectArray j_mutators) {
-    GetPsiCash().SetHTTPRequestFn(GetHTTPReqFn(env, this_obj));
-    if (!GetPsiCashTester().MutatorsEnabled()) {
-        return false;
-    }
-
-    int mutator_count = j_mutators ? env->GetArrayLength(j_mutators) : 0;
-    if (mutator_count == 0) {
-        return true;
-    }
-
-    vector<string> mutators;
-    for (int i = 0; i < mutator_count; ++i) {
-        auto m = JStringToString(env, (jstring)(env->GetObjectArrayElement(j_mutators, i)));
-        if (m) {
-            mutators.push_back(*m);
-        }
-    }
-
-    GetPsiCashTester().SetRequestMutators(mutators);
-
-    return true;
 }
