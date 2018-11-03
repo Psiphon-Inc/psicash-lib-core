@@ -5,7 +5,7 @@
 #include <string>
 #include <array>
 
-#include "test_helpers.h"
+#include "test_helpers.hpp"
 
 // Adapted from https://stackoverflow.com/a/478960
 int exec(const char* cmd, std::string& output) {

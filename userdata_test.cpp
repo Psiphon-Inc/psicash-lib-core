@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include "test_helpers.h"
-#include "userdata.h"
+#include "test_helpers.hpp"
+#include "userdata.hpp"
 #include "vendor/nlohmann/json.hpp"
 using json = nlohmann::json;
 

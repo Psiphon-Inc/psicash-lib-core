@@ -21,7 +21,7 @@
 #define PSICASHLIB_DATASTORE_H
 
 #include <string>
-#include "error.h"
+#include "error.hpp"
 #include "vendor/nonstd/expected.hpp"
 #include "vendor/nlohmann/json.hpp"
 

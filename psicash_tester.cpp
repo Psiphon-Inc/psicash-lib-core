@@ -1,6 +1,6 @@
 #include <string>
 #include <thread>
-#include "psicash_tester.h"
+#include "psicash_tester.hpp"
 #include "http_status_codes.h"
 
 using namespace std;

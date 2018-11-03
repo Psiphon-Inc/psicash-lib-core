@@ -21,10 +21,10 @@
 #define PSICASHLIB_USERDATA_H
 
 #include <cstdint>
-#include "datastore.h"
-#include "psicash.h"
-#include "datetime.h"
-#include "error.h"
+#include "datastore.hpp"
+#include "psicash.hpp"
+#include "datetime.hpp"
+#include "error.hpp"
 #include "vendor/nlohmann/json.hpp"
 
 namespace psicash {

@@ -2,7 +2,7 @@
 #include <thread>
 
 #include "gtest/gtest.h"
-#include "datetime.h"
+#include "datetime.hpp"
 #include "vendor/date/date.h"
 #include "vendor/nlohmann/json.hpp"
 using json = nlohmann::json;

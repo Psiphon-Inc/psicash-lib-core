@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "error.h"
+#include "error.hpp"
 
 using namespace std;
 using namespace error;

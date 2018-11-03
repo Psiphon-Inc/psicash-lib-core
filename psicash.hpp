@@ -26,8 +26,8 @@
 #include <memory>
 #include "vendor/nonstd/optional.hpp"
 #include "vendor/nlohmann/json.hpp"
-#include "datetime.h"
-#include "error.h"
+#include "datetime.hpp"
+#include "error.hpp"
 
 
 namespace psicash {
