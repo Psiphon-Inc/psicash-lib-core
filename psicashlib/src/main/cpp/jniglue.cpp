@@ -21,7 +21,6 @@
 #include <string>
 #include <stdio.h>
 #include "jnihelpers.hpp"
-#include "psicash_tester.hpp"
 #include "error.hpp"
 #include "psicash.hpp"
 #include "vendor/nlohmann/json.hpp"

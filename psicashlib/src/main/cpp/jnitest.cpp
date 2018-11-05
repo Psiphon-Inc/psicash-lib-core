@@ -17,6 +17,8 @@
  *
  */
 
+#ifndef NDEBUG
+
 #include <string>
 #include "jnitest.hpp"
 #include "jnihelpers.hpp"
@@ -93,3 +95,5 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeTestSetRequestMutators(
 
     return true;
 }
+
+#endif // NDEBUG

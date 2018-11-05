@@ -22,8 +22,7 @@
 
 #include <string>
 #include <jni.h>
-#include <vendor/nlohmann/json.hpp>
-#include <psicash_tester.hpp>
+#include "vendor/nlohmann/json.hpp"
 #include "vendor/nonstd/optional.hpp"
 #include "error.hpp"
 #include "psicash.hpp"
@@ -36,7 +35,10 @@ extern jmethodID g_makeHTTPRequestMID;
 
 /// Get PsiCash instance to use (might actually be PsiCashTester).
 psicash::PsiCash& GetPsiCash();
+#ifndef NDEBUG
+#include "psicash_tester.hpp"
 testing::PsiCashTester& GetPsiCashTester();
+#endif
 
 /// CheckJNIException returns false if there was no outstanding JNI exception, or returns true if
 /// there was, in addition to clearing it (allowing for further JNI operations).

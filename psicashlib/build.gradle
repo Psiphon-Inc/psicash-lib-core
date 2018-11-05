@@ -20,8 +20,15 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            externalNativeBuild {
+                cmake {
+                    // To keep the size small, do not include all ABIs in release build
+                    abiFilters "armeabi-v7a"
+                }
+            }
         }
 
         debug {

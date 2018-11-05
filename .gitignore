@@ -8,6 +8,7 @@ Secret*
 .settings/
 .project
 .classpath
+.vscode
 
 ##############################################################################
 # https://github.com/github/gitignore/blob/master/Android.gitignore

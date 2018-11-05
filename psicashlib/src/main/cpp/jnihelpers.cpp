@@ -33,16 +33,20 @@ jmethodID g_makeHTTPRequestMID;
 
 psicash::PsiCash& GetPsiCash() {
     static psicash::PsiCash psi_cash;
+#ifndef NDEBUG
     static testing::PsiCashTester psi_cash_test;
     if (g_testing) {
         return psi_cash_test;
     }
+#endif
     return psi_cash;
 }
 
+#ifndef NDEBUG
 testing::PsiCashTester& GetPsiCashTester() {
     return static_cast<testing::PsiCashTester&>(GetPsiCash());
 }
+#endif
 
 
 bool CheckJNIException(JNIEnv* env) {
