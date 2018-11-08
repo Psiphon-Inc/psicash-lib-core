@@ -103,6 +103,7 @@ public class TestBase {
         return new BaseMatcher<List<PsiCashLib.Purchase>>() {
             @Override
             public boolean matches(final Object item) {
+                @SuppressWarnings("unchecked")
                 final List<PsiCashLib.Purchase> purchases = (List<PsiCashLib.Purchase>)item;
                 for (PsiCashLib.Purchase p : purchases) {
                     if (p.transactionClass.equals(transactionClass) && p.distinguisher.equals(distinguisher)) {

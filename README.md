@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/Psiphon-Inc/psicash-lib-android.png)](https://travis-ci.org/Psiphon-Inc/psicash-lib-android)
+
 # Android PsiCash Library
 
 This is a C++ core library wrapped in Java/JNI glue for Android. Eventually the C++ will

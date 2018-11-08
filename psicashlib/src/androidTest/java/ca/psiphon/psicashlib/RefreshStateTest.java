@@ -120,7 +120,7 @@ public class RefreshStateTest extends TestBase {
         pcl.setRequestMutator("Timeout:11");
         res = pcl.refreshState(null);
         assertNotNull(res.error);
-        assertThat(res.error.message, containsString("timeout"));
+        assertThat(res.error.message, either(containsString("timeout")).or(containsString("Timeout")));
 
         pcl.setRequestMutator("Response:code=666");
         res = pcl.refreshState(null);
