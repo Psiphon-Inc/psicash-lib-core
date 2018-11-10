@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/Psiphon-Inc/psicash-lib-android.png)](https://travis-ci.org/Psiphon-Inc/psicash-lib-android)
+[![Build Status](https://travis-ci.org/Psiphon-Inc/psicash-lib-android.svg?branch=master)](https://travis-ci.org/Psiphon-Inc/psicash-lib-android)
 
 # Android PsiCash Library
 
