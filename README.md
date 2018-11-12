@@ -7,6 +7,14 @@ be split out into its own repository (and become a git subtree in this repo).
 
 ## Usage
 
+The main API entry point is [`psicashlib/.../PsiCashLib.java`](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/psicashlib/src/main/java/ca/psiphon/psicashlib/PsiCashLib.java). An example usage of it can be found in the included [sample app](https://github.com/Psiphon-Inc/psicash-lib-android/tree/master/app/src/main/java/ca/psiphon/psicash).
+
+The trickiest part is the implementation of the [`HTTPRequester` interface](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/psicashlib/src/main/java/ca/psiphon/psicashlib/PsiCashLib.java#L51). The sample app has [an implementation](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/app/src/main/java/ca/psiphon/psicash/PsiCashLibHelper.java#L16) of it, but that should only be viewed as a rough guide -- it is not intended to be used as-is.
+
+**NOTE**: If in-app PsiCash functionality is to coexist with browser-only mode, then the `HTTPRequester` implementation will need to support proxying when the tunnel is connected.
+
+**NOTE**: The PsiCash rule about no automatic untunneled requests remains in effect.
+
 ### Thread considerations
 
 All library methods are `synchronized`. All methods are synchronous/blocking.
