@@ -80,7 +80,7 @@ Java_ca_psiphon_psicashlib_PsiCashLib_NativeObjectInit(
 
 extern "C" JNIEXPORT jstring
 JNICALL
-Java_ca_psiphon_psicashlib_PsiCashLib_SetRequestMetadataItem(
+Java_ca_psiphon_psicashlib_PsiCashLib_NativeSetRequestMetadataItem(
         JNIEnv* env,
         jobject /*this_obj*/,
         jstring j_key,

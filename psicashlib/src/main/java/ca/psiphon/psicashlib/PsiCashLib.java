@@ -284,7 +284,7 @@ public class PsiCashLib {
      */
     @Nullable
     synchronized public Error setRequestMetadataItem(String key, String value) {
-        String jsonStr = this.SetRequestMetadataItem(key, value);
+        String jsonStr = this.NativeSetRequestMetadataItem(key, value);
         JNI.Result.ErrorOnly res = new JNI.Result.ErrorOnly(jsonStr);
         return res.error;
     }
@@ -1310,7 +1310,7 @@ public class PsiCashLib {
     /**
      * @return { "error": {...} }
      */
-    private native String SetRequestMetadataItem(String key, String value);
+    private native String NativeSetRequestMetadataItem(String key, String value);
 
     /**
      * @return {
