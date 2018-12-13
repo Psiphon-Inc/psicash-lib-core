@@ -41,10 +41,10 @@ using namespace error;
 
 namespace psicash {
 
-constexpr const char* const kEarnerTokenType = "earner";
-constexpr const char* const kSpenderTokenType = "spender";
-constexpr const char* const kIndicatorTokenType = "indicator";
-constexpr const char* const kAccountTokenType = "account";
+const char* const kEarnerTokenType = "earner";
+const char* const kSpenderTokenType = "spender";
+const char* const kIndicatorTokenType = "indicator";
+const char* const kAccountTokenType = "account";
 
 const char* const kTransactionIDZero = "";
 
@@ -657,12 +657,12 @@ Result<Status> PsiCash::RefreshState(
                 // The from_json for the PurchasePrice struct is for our internal (datastore and library API)
                 // representation of PurchasePrice. We won't assume that the representation used by the
                 // server is the same (nor that it won't change independent of our representation).
-                for (int i = 0; i < j["PurchasePrices"].size(); i++) {
+                for (size_t i = 0; i < j["PurchasePrices"].size(); i++) {
                     const auto& pp = j["PurchasePrices"][i];
                     purchase_prices.push_back(PurchasePrice{
-                            .transaction_class = pp["Class"].get<string>(),
-                            .distinguisher = pp["Distinguisher"].get<string>(),
-                            .price = pp["Price"].get<int64_t>()
+                            pp["Class"].get<string>(),
+                            pp["Distinguisher"].get<string>(),
+                            pp["Price"].get<int64_t>()
                     });
                 }
 
@@ -797,14 +797,14 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         // Not checking authorization, as it doesn't apply to all expiring purchases
 
         Purchase purchase = {
-                .id = transaction_id,
-                .transaction_class = transaction_class,
-                .distinguisher = distinguisher,
-                .server_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(
+                transaction_id,
+                transaction_class,
+                distinguisher,
+                server_expiry.IsZero() ? nullopt : make_optional(
                         server_expiry),
-                .local_time_expiry = server_expiry.IsZero() ? nullopt : make_optional(
+                server_expiry.IsZero() ? nullopt : make_optional(
                         server_expiry),
-                .authorization = authorization.empty() ? nullopt : make_optional(authorization)
+                authorization.empty() ? nullopt : make_optional(authorization)
         };
 
         user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
@@ -814,32 +814,32 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
 
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::Success,
-                .purchase = purchase
+                Status::Success,
+                purchase
         };
     } else if (result->code == kHTTPStatusTooManyRequests) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::ExistingTransaction
+                Status::ExistingTransaction
         };
     } else if (result->code == kHTTPStatusPaymentRequired) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::InsufficientBalance
+                Status::InsufficientBalance
         };
     } else if (result->code == kHTTPStatusConflict) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::TransactionAmountMismatch
+                Status::TransactionAmountMismatch
         };
     } else if (result->code == kHTTPStatusNotFound) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::TransactionTypeNotFound
+                Status::TransactionTypeNotFound
         };
     } else if (result->code == kHTTPStatusUnauthorized) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::InvalidTokens
+                Status::InvalidTokens
         };
     } else if (IsServerError(result->code)) {
         return PsiCash::NewExpiringPurchaseResponse{
-                .status = Status::ServerError
+                Status::ServerError
         };
     }
 
