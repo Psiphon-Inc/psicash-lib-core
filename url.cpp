@@ -20,6 +20,7 @@
 #include <string>
 #include <regex>
 #include <iomanip>
+#include <sstream>
 #include "url.hpp"
 
 

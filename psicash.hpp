@@ -125,6 +125,9 @@ public:
     PsiCash();
     virtual ~PsiCash();
 
+    PsiCash(const PsiCash&) = delete;
+    PsiCash& operator=(PsiCash const&) = delete;
+
     /// Must be called once, before any other methods (or behaviour is undefined).
     /// `make_http_request_fn` may be null and set later with SetHTTPRequestFn.
     /// Returns false if there's an unrecoverable error (such as an inability to use the

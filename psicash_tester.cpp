@@ -22,6 +22,7 @@
 #include <string>
 #include <thread>
 #include "psicash_tester.hpp"
+#include "utils.hpp"
 #include "http_status_codes.h"
 
 using namespace std;

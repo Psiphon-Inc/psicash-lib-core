@@ -28,6 +28,7 @@
 #include "error.hpp"
 #include "url.hpp"
 #include "base64.hpp"
+#include "utils.hpp"
 #include "http_status_codes.h"
 
 #include "vendor/nlohmann/json.hpp"
