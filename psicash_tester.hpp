@@ -41,7 +41,7 @@ class PsiCashTester : public psicash::PsiCash {
                                     const std::string& distinguisher,
                                     int repeat=1);
 
-    virtual error::Result<std::string>
+    virtual error::Result<psicash::HTTPParams>
     BuildRequestParams(const std::string& method, const std::string& path, bool include_auth_tokens,
                        const std::vector<std::pair<std::string, std::string>>& query_params,
                        int attempt,

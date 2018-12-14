@@ -72,12 +72,12 @@ error::Error PsiCashTester::MakeRewardRequests(const std::string& transaction_cl
     return error::nullerr;
 }
 
-error::Result<string>
-PsiCashTester::BuildRequestParams(const std::string& method, const std::string& path,
-                                  bool include_auth_tokens,
-                                  const std::vector<std::pair<std::string, std::string>>& query_params,
-                                  int attempt,
-                                  const std::map<std::string, std::string>& additional_headers) const {
+error::Result<HTTPParams>
+PsiCashTester::BuildRequestParams(
+    const std::string& method, const std::string& path, bool include_auth_tokens,
+    const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
+    const std::map<std::string, std::string>& additional_headers) const {
+
     auto bonus_headers = additional_headers;
     if (!g_request_mutators.empty()) {
         auto mutator = g_request_mutators.back();
@@ -87,8 +87,8 @@ PsiCashTester::BuildRequestParams(const std::string& method, const std::string& 
         g_request_mutators.pop_back();
     }
 
-    return PsiCash::BuildRequestParams(method, path, include_auth_tokens, query_params, attempt,
-                                       bonus_headers);
+    return PsiCash::BuildRequestParams(
+        method, path, include_auth_tokens, query_params, attempt, bonus_headers);
 }
 
 bool PsiCashTester::MutatorsEnabled() {

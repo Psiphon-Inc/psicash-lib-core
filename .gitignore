@@ -7,3 +7,4 @@ dist-*/
 testtemp/
 Secret*
 *.profraw
+.vscode

@@ -21,56 +21,46 @@ class TestPsiCash : public ::testing::Test, public TempDir {
     TestPsiCash() : user_agent_("Psiphon-PsiCash-iOS") {
     }
 
-    static string HTTPRequester(const string& params) {
-        auto p = json::parse(params);
-
+    static HTTPResult HTTPRequester(const HTTPParams& params) {
         stringstream curl;
         curl << "curl -s -i --max-time 5";
-        curl << " -X " << p["method"].get<string>();
+        curl << " -X " << params.method;
 
-        auto headers = p["headers"];
-        for (json::iterator it = headers.begin(); it != headers.end(); ++it) {
-            curl << " -H \"" << it.key() << ":" << it.value().get<string>() << "\"";
+        for (auto it = params.headers.begin(); it != params.headers.end(); ++it) {
+            curl << " -H \"" << it->first << ":" << it->second << "\"";
         }
 
         curl << ' ';
-        curl << '"' << p["scheme"].get<string>() << "://";
-        curl << p["hostname"].get<string>() << ":" << p["port"].get<int>();
-        curl << p["path"].get<string>();
+        curl << '"' << params.scheme << "://";
+        curl << params.hostname << ":" << params.port;
+        curl << params.path;
 
         // query is an array of 2-tuple name-value arrays
-        auto query = p["query"];
-        for (int i = 0; i < query.size(); ++i) {
-            if (i == 0) {
+        for (auto it = params.query.begin(); it != params.query.end(); ++it) {
+            if (it == params.query.begin()) {
                 curl << "?";
             } else {
                 curl << "&";
             }
 
-            curl << query[i][0].get<string>() << "=";
-            if (query[i][1].is_string())
-                curl << query[i][1].get<string>();
-            else if (query[i][1].is_number_integer())
-                curl << query[i][1].get<int64_t>();
-            else if (query[i][1].is_boolean())
-                curl << query[i][1].get<bool>();
+            curl << it->first << "=" << it->second;
         }
         curl << '"';
+
+        HTTPResult result;
+        result.code = -1;
 
         auto command = curl.str();
         string output;
         auto code = exec(command.c_str(), output);
         if (code != 0) {
-            return json({
-              {"code", -1},
-              {"error", output}
-            }).dump();
+            result.error = output;
+            return result;
         }
 
         std::stringstream ss(output);
         std::string line;
 
-        json result = {{"code", -1}};
         string body;
         bool done_headers = false;
         while (std::getline(ss, line, '\n')) {
@@ -86,14 +76,14 @@ class TestPsiCash : public ::testing::Test, public TempDir {
                 regex status_regex("^HTTP\\/\\d\\S* (\\d\\d\\d).*$",
                                    regex_constants::ECMAScript | regex_constants::icase);
                 if (regex_match(line, match_pieces, status_regex)) {
-                    result["code"] = stoi(match_pieces[1].str());
+                    result.code = stoi(match_pieces[1].str());
                 }
 
                 // Look for the Date header
                 regex date_regex("^Date: (.+)$",
                                  regex_constants::ECMAScript | regex_constants::icase);
                 if (regex_match(line, match_pieces, date_regex)) {
-                    result["date"] = match_pieces[1].str();
+                    result.date = match_pieces[1].str();
                 }
             }
 
@@ -102,16 +92,15 @@ class TestPsiCash : public ::testing::Test, public TempDir {
             }
         }
 
-        result["body"] = body;
+        result.body = body;
 
-        auto result_string = result.dump();
-        return result_string;
+        return result;
     }
 
     // Return a specific result for a HTTP request
-    static psicash::MakeHTTPRequestFn FakeHTTPRequester(const string& result_json) {
-        return [=](const string& params) -> string {
-            return result_json;
+    static psicash::MakeHTTPRequestFn FakeHTTPRequester(const HTTPResult& result) {
+        return [=](const HTTPParams& params) -> HTTPResult {
+            return result;
         };
     }
 
@@ -1293,27 +1282,13 @@ TEST_F(TestPsiCash, HTTPRequestBadResult) {
     auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
     ASSERT_FALSE(err);
 
-    // Test the code path where the HTTP request helper returns an empty string (rather
-    // than a proper error structure). Hopefully this never happens, but...
-    pc.SetHTTPRequestFn(FakeHTTPRequester(""));
-    auto refresh_result = pc.RefreshState({});
-    ASSERT_FALSE(refresh_result);
-
-    // The helper should never return bad JSON, but we'll test that code path with a
-    // special helper.
-    pc.SetHTTPRequestFn(FakeHTTPRequester("bad json"));
-    refresh_result = pc.RefreshState({});
-    ASSERT_FALSE(refresh_result);
-
     // This isn't a "bad" result, exactly, but we'll force an error code and message.
     auto want_error_message = "my error message"s;
-    pc.SetHTTPRequestFn(FakeHTTPRequester(json({
-        {"code", -1},
-        {"error", want_error_message},
-        {"body", nullptr},
-        {"date", nullptr}
-    }).dump()));
-    refresh_result = pc.RefreshState({});
+    HTTPResult errResult;
+    errResult.code = -1;
+    errResult.error = want_error_message;
+    pc.SetHTTPRequestFn(FakeHTTPRequester(errResult));
+    auto refresh_result = pc.RefreshState({});
     ASSERT_FALSE(refresh_result);
     ASSERT_NE(refresh_result.error().ToString().find(want_error_message), string::npos);
 }

@@ -39,17 +39,31 @@ class UserData;
 //
 // HTTP Requester-related types
 //
-// The string param that MakeHTTPRequestFn takes is a JSON-encoding of this structure:
-// {
-//    "scheme": "https",
-//    "hostname": "api.psi.cash",
-//    "port": 443,
-//    "method": "POST", // or "GET", etc.
-//    "path": "/v1/tracker",
-//    "headers": { "User-Agent": "value", ...etc. },
-//    "query": [ ["class", "speed-boost"], ["expectedAmount", "-10000"], ... ] // name-value pairs
-// }
-// The string param that it returns is a JSON-encoding of this structure:
+// The parameters provided to MakeHTTPRequestFn:
+struct HTTPParams {
+    // "https"
+    std::string scheme;
+
+    // "api.psi.cash"
+    std::string hostname;
+
+    // 443
+    int port;
+
+    // "POST", "GET", etc.
+    std::string method;
+
+    // "/v1/tracker"
+    std::string path;
+
+    // { "User-Agent": "value", ...etc. }
+    std::map<std::string, std::string> headers;
+
+    // name-value pairs: [ ["class", "speed-boost"], ["expectedAmount", "-10000"], ... ]
+    std::vector<std::pair<std::string, std::string>> query;
+
+};
+// The result from MakeHTTPRequestFn:
 struct HTTPResult {
     // 200, 404, etc. -1 if unable to talk to server (or other catastrophe).
     int code;
@@ -67,7 +81,7 @@ struct HTTPResult {
     HTTPResult() : code(-1) {}
 };
 // This is the signature for the HTTP Requester callback provided by the native consumer.
-using MakeHTTPRequestFn = std::function<std::string(const std::string&)>;
+using MakeHTTPRequestFn = std::function<HTTPResult(const HTTPParams&)>;
 
 // These are the possible token types.
 extern const char* const kEarnerTokenType;
@@ -313,7 +327,7 @@ protected:
             const std::string& method, const std::string& path, bool include_auth_tokens,
             const std::vector<std::pair<std::string, std::string>>& query_params);
 
-    virtual error::Result<std::string> BuildRequestParams(
+    virtual error::Result<HTTPParams> BuildRequestParams(
             const std::string& method, const std::string& path, bool include_auth_tokens,
             const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
             const std::map<std::string, std::string>& additional_headers) const;
