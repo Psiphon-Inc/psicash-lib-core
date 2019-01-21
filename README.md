@@ -1,87 +1,34 @@
-[![Build Status](https://travis-ci.org/Psiphon-Inc/psicash-lib-android.svg?branch=master)](https://travis-ci.org/Psiphon-Inc/psicash-lib-android)
+# PsiCash Client Library
 
-# Android PsiCash Library
+This is the C++ core of the library. It can be used directly or wrapped with native-language glue. For example, for Android there is a Java (JNI) glue wrapper.
 
-This is a C++ core library wrapped in Java/JNI glue for Android. Eventually the C++ will
-be split out into its own repository (and become a git subtree in this repo).
+## TODO
 
-## Usage
+* UserAgent string:
+  - Add "Psiphon-PsiCash-Android" to server config
 
-The main API entry point is [`psicashlib/.../PsiCashLib.java`](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/psicashlib/src/main/java/ca/psiphon/psicashlib/PsiCashLib.java). An example usage of it can be found in the included [sample app](https://github.com/Psiphon-Inc/psicash-lib-android/tree/master/app/src/main/java/ca/psiphon/psicash).
+## Using the library
 
-The trickiest part is the implementation of the [`HTTPRequester` interface](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/psicashlib/src/main/java/ca/psiphon/psicashlib/PsiCashLib.java#L51). The sample app has [an implementation](https://github.com/Psiphon-Inc/psicash-lib-android/blob/master/app/src/main/java/ca/psiphon/psicash/PsiCashLibHelper.java#L16) of it, but that should only be viewed as a rough guide -- it is not intended to be used as-is.
+### Supplying the HTTP Requester
 
-**NOTE**: If in-app PsiCash functionality is to coexist with browser-only mode, then the `HTTPRequester` implementation will need to support proxying when the tunnel is connected.
+This library relies on the native environment to provide an HTTP request callback. Notes about its signature, inputs and outputs can be found in `psicash.hpp`.
 
-**NOTE**: The PsiCash rule about no automatic untunneled requests remains in effect.
+There is an _example_ implementation in the Android wrapper project. But note that it _does not support proxied requests_, which may be necessary depending on the environment. (E.g., it probably doesn't matter on iOS, since our app only supported full-device VPN. But on Windows the app mostly uses a local proxy, so the HTTP Requester must support proxying.)
 
-### Thread considerations
+## Code Style
 
-All library methods are `synchronized`. All methods are synchronous/blocking.
+### C++
 
-Network requests will be made on the same thread the method is called on.
+Mostly following [Google's Style Guide](https://google.github.io/styleguide/cppguide.html). Major alteration: 4-space indent instead of 2. THe `.clang-format` file should be crafted as necessary to match what we want.
 
-## Glue exchange formats
+## Review notes
 
-### Consideration: Everything can be an error
+* I made no effort to be memory efficient (such as explicitly using move semantics, references, etc.). I tried to be clear and safe above efficiency. If there's a leak, that's a bug. If there's gross memory inefficiency, it can probably be improved. But we shouldn't bother with small efficiencies.
 
-Almost every JNI glue function has the potential to produce an error
-(JSON parsing or dumping, JNI string ops). So anything that isn't one of
-`jint, jbyte, jshort, jlong, jfloat, jdouble, jchar, jboolean` could
-produce an error while marshaling.
+## Troubleshooting
 
-There are two categories of errors:
-* External to the library. Bad input, unreachable server, etc. These will
-  typically be recoverable.
-* Internal to the library. Incorrect exchange format, JSON marshal
-  failure, storage write error, etc. These will typically be unrecoverable.
+If Android Studio is saying that a new `.cpp` file is not part of the project, go to the "Build" menu and click "Refresh Linked C++ Projects". Then rebuild.
 
-### Standard structure: JSON
+If you get a `SIGABRT` error in JNI code: You have probably triggered a JNI exception (that hasn't been cleared). It's possible that it's expected or acceptable and you just need to clear it, but it's more likely that it's a bug.
 
-```no-highlight
-{
-    // If not null or absent, an error resulted and "result" should not
-    // be considered valid.
-    "error": {
-        "message": string; nonempty (if error object present),
-
-        // If true, the error probably resulted from programmer error.
-        // Logging and reporting should be handled differently.
-        "internal": boolean; true iff error is 'internal' and probably unrecoverable
-    }
-
-    "result": type varies; actual result of the call
-}
-```
-
-The authoritative definition of the return format for each API call will
-above the call stub in `PsiCashLib.java`. Description of the arguments
-to the call will also be there.
-
-Future note: It may be that end up wanting `error` to have a `type` field
-that indicates "bad input" or "internal problem", etc. This could maybe
-help the library consumer. It's also probably not limited to this JNI glue.
-
-### Possibilities considered
-
-JSON is kind of a clunky choice for exchanging data across the JNI
-boundary. It also doesn't give compile-time checks for
-type/structure-matching, and therefore errors can be introduced that
-aren't discovered until too late.
-
-So here are some other things that were considered:
-
-We could have written [glue code](http://www.ntu.edu.sg/home/ehchua/programming/java/javanativeinterface.html#zz-6.)
-to exchange objects. But in addition to that being a lot of painful code,
-it _still_ doesn't provide compile-time assurances that the types match
-(because it relies on runtime lookup of thing -- check the sample code
-at that link).
-
-[SWIG](http://www.swig.org/) seems like the "best" JNI glue generator.
-But the interface definition is also kind of... incomprehensible. If we
-used it, when someone comes along a year later to update it, they won't
-know what they're looking at.
-
-So I decided that writing the glue in a language we can understand (and
-are already using, and using the support libraries for) was preferable.
-The runtime-error problem can be mitigated with a test suite.
+If you get a `SIGSEGV` error when hitting a breakpoint in JNI code: Yeah, beats me. I get it on MacOS but not Windows. Dunno.
