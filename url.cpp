@@ -31,18 +31,20 @@ namespace psicash {
 error::Error URL::Parse(const string& s) {
     regex url_regex("^(https?://[^?#]+)(\\?[^#]*)?(#.*)?$", regex_constants::ECMAScript);
 
-    constexpr const int required_groups = 4; // 1 for the whole string and 3 for the capture groups
-    constexpr const int scheme_host_path_group = 1;
-    constexpr const int query_group = 2;
-    constexpr const int fragment_group = 3;
+    constexpr int required_groups = 4; // 1 for the whole string and 3 for the capture groups
+    constexpr int scheme_host_path_group = 1;
+    constexpr int query_group = 2;
+    constexpr int fragment_group = 3;
 
     smatch match_pieces;
     if (!regex_match(s, match_pieces, url_regex)) {
-        return MakeError("regex_match failed");
+        // If this were a general-purpose URL class, this wouldn't be a critical error,
+        // but it's not, and we know that only valid URLs should be passed to it.
+        return MakeCriticalError("regex_match failed");
     }
 
     if (match_pieces.size() != required_groups) {
-        return MakeError("incorrect regex_match pieces count");
+        return MakeCriticalError("incorrect regex_match pieces count");
     }
 
     scheme_host_path_ = match_pieces[scheme_host_path_group].str();

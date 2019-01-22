@@ -51,7 +51,12 @@ class UserData;
 // }
 // The string param that it returns is a JSON-encoding of this structure:
 struct HTTPResult {
-    // 200, 404, etc. -1 if unable to talk to server (or other catastrophe).
+    static constexpr int CRITICAL_ERROR = -2;
+    static constexpr int RECOVERABLE_ERROR = -1;
+
+    // On successful request: 200, 404, etc.
+    // If unable to reach server (or some other probably-recoverable error): RECOVERABLE_ERROR
+    // On critical error (e.g., programming fault or out-of-memory): CRITICAL_ERROR
     int code;
 
     // The contents of the response body, if any.
@@ -64,7 +69,7 @@ struct HTTPResult {
     // must be empty if the request succeeded (regardless of status code).
     std::string error;
 
-    HTTPResult() : code(-1) {}
+    HTTPResult() : code(CRITICAL_ERROR) {}
 };
 // This is the signature for the HTTP Requester callback provided by the native consumer.
 using MakeHTTPRequestFn = std::function<std::string(const std::string&)>;

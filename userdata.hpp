@@ -90,7 +90,7 @@ public:
     template<typename T>
     error::Error SetRequestMetadataItem(const std::string& key, const T& val) {
         if (key.empty()) {
-            return MakeError("Metadata key cannot be empty");
+            return MakeCriticalError("Metadata key cannot be empty");
         }
         auto j = GetRequestMetadata();
         j[key] = val;

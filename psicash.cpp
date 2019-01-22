@@ -74,6 +74,10 @@ static constexpr const char* kMethodPOST = "POST";
 // PsiCash class implementation
 //
 
+// Definitions of static member variables
+constexpr int HTTPResult::CRITICAL_ERROR;
+constexpr int HTTPResult::RECOVERABLE_ERROR;
+
 PsiCash::PsiCash()
         : server_port_(0), make_http_request_fn_(nullptr) {
 }
@@ -94,11 +98,11 @@ Error PsiCash::Init(const char* user_agent, const char* file_store_root,
     }
 
     if (!user_agent || (user_agent_ = user_agent).empty()) {
-        return MakeError("user_agent is required");
+        return MakeCriticalError("user_agent is required");
     }
 
     if (!file_store_root) {
-        return MakeError("file_store_root is required");
+        return MakeCriticalError("file_store_root is required");
     }
 
     // May still be null.
@@ -262,7 +266,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
         json_data = psicash_data.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
-        return MakeError(
+        return MakeCriticalError(
                 utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
@@ -306,7 +310,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
     // Get the earner token. If we don't have one, the webhook can't succeed.
     auto auth_tokens = user_data_->GetAuthTokens();
     if (auth_tokens.size() == 0) {
-        return MakeError("earner token missing; can't create webhoook data");
+        return MakeCriticalError("earner token missing; can't create webhoook data");
     } else {
         psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
     }
@@ -319,7 +323,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
         json_data = psicash_data.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
-        return MakeError(
+        return MakeCriticalError(
                 utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
@@ -366,7 +370,8 @@ inline bool IsServerError(int code) {
 // HTTPResult.error will always be empty on a non-error return.
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         const std::string& method, const std::string& path, bool include_auth_tokens,
-        const std::vector<std::pair<std::string, std::string>>& query_params) {
+        const std::vector<std::pair<std::string, std::string>>& query_params)
+{
     if (!make_http_request_fn_) {
         throw std::runtime_error("make_http_request_fn_ must be set before requests are attempted");
     }
@@ -389,7 +394,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         auto result_string = make_http_request_fn_(*req_params);
         if (result_string.empty()) {
             // An error so catastrophic that we didn't get any error info.
-            return MakeError("HTTP request function returned no value");
+            return MakeCriticalError("HTTP request function returned no value");
         }
 
         try {
@@ -409,12 +414,12 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             }
         }
         catch (json::exception& e) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
 
-        if (http_result.code == -1 && http_result.error.empty()) {
-            return MakeError("HTTP result code is -1 but no error message provided");
+        if (http_result.code < 0 && http_result.error.empty()) {
+            return MakeCriticalError("HTTP result code is negative but no error message provided");
         }
 
         // We just got a fresh server timestamp, so set the server time diff
@@ -427,9 +432,12 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             // else: we're not going to raise the error
         }
 
-        if (!http_result.error.empty()) {
+        if (http_result.code < 0) {
             // Something happened that prevented the request from nominally succeeding. Don't retry.
-            return MakeError(("Request resulted in error: "s + http_result.error).c_str());
+            if (http_result.code == HTTPResult::RECOVERABLE_ERROR) {
+                return MakeNoncriticalError(("Request resulted in noncritical error: "s + http_result.error).c_str());
+            }
+            return MakeCriticalError(("Request resulted in critical error: "s + http_result.error).c_str());
         }
 
         if (IsServerError(http_result.code)) {
@@ -471,7 +479,7 @@ Result<string> PsiCash::BuildRequestParams(
         headers["X-PsiCash-Metadata"] = metadata.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
-        return MakeError(
+        return MakeCriticalError(
                 utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
@@ -489,7 +497,7 @@ Result<string> PsiCash::BuildRequestParams(
         return j.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
-        return MakeError(
+        return MakeCriticalError(
                 utils::Stringer("params json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 }
@@ -508,7 +516,7 @@ Result<Status> PsiCash::NewTracker() {
 
     if (result->code == kHTTPStatusOK) {
         if (result->body.empty()) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
@@ -519,13 +527,13 @@ Result<Status> PsiCash::NewTracker() {
             auth_tokens = j.get<AuthTokens>();
         }
         catch (json::exception& e) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
 
         // Sanity check
         if (auth_tokens.size() < 3) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("bad number of tokens received: ", auth_tokens.size()).c_str());
         }
 
@@ -542,7 +550,7 @@ Result<Status> PsiCash::NewTracker() {
         return Status::ServerError;
     }
 
-    return MakeError(utils::Stringer(
+    return MakeCriticalError(utils::Stringer(
         "request returned unexpected result code: ", result->code).c_str());
 }
 
@@ -581,7 +589,7 @@ Result<Status> PsiCash::RefreshState(
             // We have already recursed and can't do it again. This is an error condition.
             // This is impossible-ish. It requires us to start out with no tokens, make a NewTracker
             // call that appears to succeed, but then _still_ have no tokens.
-            return MakeError("failed to obtain valid tracker tokens (a)");
+            return MakeCriticalError("failed to obtain valid tracker tokens (a)");
         }
 
         // Get new tracker tokens. (Which is effectively getting a new identity.)
@@ -619,7 +627,7 @@ Result<Status> PsiCash::RefreshState(
 
     if (result->code == kHTTPStatusOK) {
         if (result->body.empty()) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
@@ -641,7 +649,7 @@ Result<Status> PsiCash::RefreshState(
                 auto prev_is_account = IsAccount();
                 auto is_account = j["IsAccount"].get<bool>();
                 if (prev_is_account && !is_account) {
-                    return MakeError("invalid is-account state");
+                    return MakeCriticalError("invalid is-account state");
                 }
 
                 user_data_->SetIsAccount(is_account);
@@ -675,7 +683,7 @@ Result<Status> PsiCash::RefreshState(
             }
         }
         catch (json::exception& e) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
 
@@ -692,7 +700,7 @@ Result<Status> PsiCash::RefreshState(
         // We started out with tracker tokens, but they're all invalid.
 
         if (!allow_recursion) {
-            return MakeError("failed to obtain valid tracker tokens (b)");
+            return MakeCriticalError("failed to obtain valid tracker tokens (b)");
         }
 
         return RefreshState(purchase_classes, true);
@@ -705,7 +713,7 @@ Result<Status> PsiCash::RefreshState(
         return Status::ServerError;
     }
 
-    return MakeError(utils::Stringer(
+    return MakeCriticalError(utils::Stringer(
         "request returned unexpected result code: ", result->code).c_str());
 }
 
@@ -737,7 +745,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         result->code == kHTTPStatusPaymentRequired ||
         result->code == kHTTPStatusConflict) {
         if (result->body.empty()) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("result has no body; code: ", result->code).c_str());
         }
 
@@ -766,7 +774,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
             if (j["TransactionResponse"]["Values"]["Expires"].is_string()) {
                 string expiry_string = j["TransactionResponse"]["Values"]["Expires"].get<string>();
                 if (!server_expiry.FromISO8601(expiry_string)) {
-                    return MakeError(
+                    return MakeCriticalError(
                             ("failed to parse TransactionResponse.Values.Expires; got "s +
                              expiry_string).c_str());
                 }
@@ -776,23 +784,23 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
             //auto transaction_amount = j.at("TransactionAmount").get<int64_t>();
         }
         catch (json::exception& e) {
-            return MakeError(
+            return MakeCriticalError(
                     utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
         }
     }
 
     if (result->code == kHTTPStatusOK) {
         if (transaction_type != "expiring-purchase") {
-            return MakeError(
+            return MakeCriticalError(
                     ("response contained incorrect TransactionResponse.Type; want 'expiring-purchase', got "s +
                      transaction_type).c_str());
         }
         if (transaction_id.empty()) {
-            return MakeError("response did not provide valid TransactionID");
+            return MakeCriticalError("response did not provide valid TransactionID");
         }
         if (server_expiry.IsZero()) {
             // Purchase expiry is optional, but we're specifically making a New**Expiring**Purchase
-            return MakeError(
+            return MakeCriticalError(
                     "response did not provide valid TransactionResponse.Values.Expires");
         }
         // Not checking authorization, as it doesn't apply to all expiring purchases
@@ -844,7 +852,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         };
     }
 
-    return MakeError(utils::Stringer(
+    return MakeCriticalError(utils::Stringer(
         "request returned unexpected result code: ", result->code).c_str());
 }
 

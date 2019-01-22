@@ -84,14 +84,14 @@ Error Datastore::FileLoad() {
         // File probably doesn't exist. Check that we can write here.
         return WrapError(FileStore(), "f.fail and FileStore failed");
     } else if (!f.good()) {
-        return MakeError(utils::Stringer("not f.good; errno=", errno).c_str());
+        return MakeCriticalError(utils::Stringer("not f.good; errno=", errno).c_str());
     }
 
     try {
         f >> json_;
     }
     catch (json::exception& e) {
-        return MakeError(utils::Stringer("json load failed: ", e.what(), "; id:", e.id).c_str());
+        return MakeCriticalError(utils::Stringer("json load failed: ", e.what(), "; id:", e.id).c_str());
     }
 
     return nullerr;
@@ -107,14 +107,14 @@ Error Datastore::FileStore() {
     ofstream f;
     f.open(file_path_, ios::trunc | ios::binary);
     if (!f.is_open()) {
-        return MakeError(utils::Stringer("not f.is_open; errno=", errno).c_str());
+        return MakeCriticalError(utils::Stringer("not f.is_open; errno=", errno).c_str());
     }
 
     try {
         f << json_;
     }
     catch (json::exception& e) {
-        return MakeError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
+        return MakeCriticalError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
     return nullerr;
