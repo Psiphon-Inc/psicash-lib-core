@@ -38,7 +38,7 @@ Datastore::Datastore()
 
 Error Datastore::Init(const char* file_root) {
     SYNCHRONIZE(mutex_);
-    file_path_ = string(file_root) + "/datastore";
+    file_path_ = string(file_root) + "/psicashdatastore";
     return PassError(FileLoad());
 }
 

@@ -44,21 +44,21 @@ public:
           const std::string& filename, const std::string& function, int line);
     Error& operator=(const Error&) = default;
 
-    // Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
-    // unconditionally without introducing an error where there isn't one.
-    // Criticality isn't specified here -- only at the creation of the initial error.
-    // Returns *this.
+    /// Wrapping a non-error results in a non-error (i.e., is a no-op). This allows it to be done
+    /// unconditionally without introducing an error where there isn't one.
+    /// Criticality isn't specified here -- only at the creation of the initial error.
+    /// Returns *this.
     Error& Wrap(const std::string& message,
                 const std::string& filename, const std::string& function, int line);
 
     Error& Wrap(const std::string& filename, const std::string& function, int line);
 
-    constexpr bool Critical() const { return critical_; }
+    bool Critical() const { return critical_; }
 
     /// Used to check if the current instance is an error or not.
-    constexpr bool HasValue() const { return is_error_; }
+    bool HasValue() const { return is_error_; }
     /// Used to check if the current instance is an error or not.
-    constexpr operator bool() const { return HasValue(); }
+    operator bool() const { return HasValue(); }
 
     std::string ToString() const;
     friend std::ostream& operator<<(std::ostream& os, const Error& err);
@@ -96,7 +96,9 @@ const Error nullerr;
  * Result
  */
 
-/// Result holds an error-or-value. For usage, see nonstd::expected or actual current usage.
+/// Result holds an error-or-value. For usage, see nonstd::expected at
+/// https://github.com/martinmoene/expected-lite
+/// or actual current usage.
 template<typename T>
 class Result : public nonstd::expected<T, Error> {
 public:

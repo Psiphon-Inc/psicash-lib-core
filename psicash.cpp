@@ -391,33 +391,10 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
 
-        auto result_string = make_http_request_fn_(*req_params);
-        if (result_string.empty()) {
-            // An error so catastrophic that we didn't get any error info.
-            return MakeCriticalError("HTTP request function returned no value");
-        }
 
-        try {
-            auto j = json::parse(result_string);
-            http_result.code = j["code"].get<int>();
+        http_result = make_http_request_fn_(*req_params);
 
-            if (j["body"].is_string()) {
-                http_result.body = j["body"].get<string>();
-            }
-
-            if (j["date"].is_string()) {
-                http_result.date = j["date"].get<string>();
-            }
-
-            if (j["error"].is_string()) {
-                http_result.error = j["error"].get<string>();
-            }
-        }
-        catch (json::exception& e) {
-            return MakeCriticalError(
-                    utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
-        }
-
+        // Error state sanity check
         if (http_result.code < 0 && http_result.error.empty()) {
             return MakeCriticalError("HTTP result code is negative but no error message provided");
         }
@@ -454,12 +431,22 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
 }
 
 // Build the request paramters JSON appropriate for passing to make_http_request_fn_.
-Result<string> PsiCash::BuildRequestParams(
+Result<HTTPParams> PsiCash::BuildRequestParams(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
         const std::map<std::string, std::string>& additional_headers) const {
-    json headers(additional_headers);
-    headers["User-Agent"] = user_agent_;
+
+    HTTPParams params;
+
+    params.scheme = server_scheme_;
+    params.hostname = server_hostname_;
+    params.port = server_port_;
+    params.method = method;
+    params.path = "/"s + kAPIServerVersion + path;
+    params.query = query_params;
+
+    params.headers = additional_headers;
+    params.headers["User-Agent"] = user_agent_;
 
     if (include_auth_tokens) {
         string s;
@@ -469,37 +456,21 @@ Result<string> PsiCash::BuildRequestParams(
             }
             s += at.second;
         }
-        headers["X-PsiCash-Auth"] = s;
+        params.headers["X-PsiCash-Auth"] = s;
     }
 
     auto metadata = user_data_->GetRequestMetadata();
     metadata["attempt"] = attempt;
 
     try {
-        headers["X-PsiCash-Metadata"] = metadata.dump(-1, ' ', true);
+        params.headers["X-PsiCash-Metadata"] = metadata.dump(-1, ' ', true);
     }
     catch (json::exception& e) {
         return MakeCriticalError(
                 utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
 
-    json j = {
-            {"scheme",   server_scheme_},
-            {"hostname", server_hostname_},
-            {"port",     server_port_},
-            {"method",   method},
-            {"path",     "/"s + kAPIServerVersion + path},
-            {"query",    query_params},
-            {"headers",  headers},
-    };
-
-    try {
-        return j.dump(-1, ' ', true);
-    }
-    catch (json::exception& e) {
-        return MakeCriticalError(
-                utils::Stringer("params json dump failed: ", e.what(), "; id:", e.id).c_str());
-    }
+    return params;
 }
 
 // Get new tracker tokens from the server. This effectively gives us a new identity.
