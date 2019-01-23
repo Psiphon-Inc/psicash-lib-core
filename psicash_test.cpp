@@ -48,7 +48,6 @@ class TestPsiCash : public ::testing::Test, public TempDir {
         curl << '"';
 
         HTTPResult result;
-        result.code = -1;
 
         auto command = curl.str();
         string output;
@@ -1285,7 +1284,7 @@ TEST_F(TestPsiCash, HTTPRequestBadResult) {
     // This isn't a "bad" result, exactly, but we'll force an error code and message.
     auto want_error_message = "my error message"s;
     HTTPResult errResult;
-    errResult.code = -1;
+    errResult.code = HTTPResult::RECOVERABLE_ERROR;
     errResult.error = want_error_message;
     pc.SetHTTPRequestFn(FakeHTTPRequester(errResult));
     auto refresh_result = pc.RefreshState({});
