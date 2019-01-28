@@ -23,6 +23,7 @@
 
 using namespace std;
 
+namespace psicash {
 namespace error {
 
 Error::Error()
@@ -91,3 +92,4 @@ std::ostream& operator<<(std::ostream& os, const Error& err) {
 }
 
 } // namespace error
+} // namespace psicash

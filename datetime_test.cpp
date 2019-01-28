@@ -8,7 +8,7 @@
 using json = nlohmann::json;
 
 using namespace std;
-using namespace datetime;
+using namespace psicash::datetime;
 
 TEST(TestDatetime, Construction)
 {
@@ -42,7 +42,7 @@ TEST(TestDatetime, Now)
   auto now2 = DateTime::Now();
 
   auto diff_dur = now2.Diff(now1);
-  auto diff_ms = datetime::DurationToInt64(diff_dur);
+  auto diff_ms = DurationToInt64(diff_dur);
 
   ASSERT_GT(diff_ms, 0);
   ASSERT_LT(diff_ms, 100);
@@ -141,19 +141,19 @@ TEST(TestDatetime, Diff)
 
   // now2 - now1
   auto diff_dur1 = now2.Diff(now1);
-  auto diff_ms1 = datetime::DurationToInt64(diff_dur1);
+  auto diff_ms1 = DurationToInt64(diff_dur1);
   ASSERT_GT(diff_ms1, 0);
   ASSERT_LT(diff_ms1, 100);
 
   // now1 - now2
   auto diff_dur2 = now1.Diff(now2);
-  auto diff_ms2 = datetime::DurationToInt64(diff_dur2);
+  auto diff_ms2 = DurationToInt64(diff_dur2);
   ASSERT_LT(diff_ms2, 0);
   ASSERT_GT(diff_ms2, -100);
 
   // x - x
   auto diff_dur3 = now1.Diff(now1);
-  auto diff_ms3 = datetime::DurationToInt64(diff_dur3);
+  auto diff_ms3 = DurationToInt64(diff_dur3);
   ASSERT_EQ(diff_ms3, 0);
 }
 
@@ -166,7 +166,7 @@ TEST(TestDatetime, Add)
   auto now2 = DateTime::Now();
 
   auto diff_dur = now2.Diff(now1);
-  auto diff_ms = datetime::DurationToInt64(diff_dur);
+  auto diff_ms = DurationToInt64(diff_dur);
   ASSERT_GT(diff_ms, 0);
   ASSERT_LT(diff_ms, 100);
 
@@ -186,7 +186,7 @@ TEST(TestDatetime, Sub)
   auto now2 = DateTime::Now();
 
   auto diff_dur = now2.Diff(now1);
-  auto diff_ms = datetime::DurationToInt64(diff_dur);
+  auto diff_ms = DurationToInt64(diff_dur);
   ASSERT_GT(diff_ms, 0);
   ASSERT_LT(diff_ms, 100);
 
@@ -202,22 +202,22 @@ TEST(TestDatetime, MillisSinceEpoch)
   auto now = DateTime::Now();
   ASSERT_GT(now.MillisSinceEpoch(), 1261440000000LL);
 
-  auto later = now.Add(datetime::Duration(12345));
+  auto later = now.Add(Duration(12345));
   ASSERT_EQ(later.MillisSinceEpoch(), now.MillisSinceEpoch()+12345);
 }
 
 TEST(TestDatetime, DurationToInt64)
 {
   int64_t ms = 123456;
-  auto d = datetime::Duration(ms);
-  ASSERT_EQ(datetime::DurationToInt64(d), ms);
+  auto d = Duration(ms);
+  ASSERT_EQ(DurationToInt64(d), ms);
 }
 
 TEST(TestDatetime, DurationFromInt64)
 {
   int64_t ms = 123456;
-  auto exp = datetime::Duration(ms);
-  auto got = datetime::DurationFromInt64(ms);
+  auto exp = Duration(ms);
+  auto got = DurationFromInt64(ms);
   ASSERT_EQ(exp, got);
 }
 

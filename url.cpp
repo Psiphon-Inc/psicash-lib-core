@@ -40,11 +40,11 @@ error::Error URL::Parse(const string& s) {
     if (!regex_match(s, match_pieces, url_regex)) {
         // If this were a general-purpose URL class, this wouldn't be a critical error,
         // but it's not, and we know that only valid URLs should be passed to it.
-        return MakeCriticalError("regex_match failed");
+        return error::MakeCriticalError("regex_match failed");
     }
 
     if (match_pieces.size() != required_groups) {
-        return MakeCriticalError("incorrect regex_match pieces count");
+        return error::MakeCriticalError("incorrect regex_match pieces count");
     }
 
     scheme_host_path_ = match_pieces[scheme_host_path_group].str();

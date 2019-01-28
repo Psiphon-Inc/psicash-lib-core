@@ -37,11 +37,11 @@ class PsiCashTester : public psicash::PsiCash {
 
     psicash::UserData& user_data();
 
-    error::Error MakeRewardRequests(const std::string& transaction_class,
-                                    const std::string& distinguisher,
-                                    int repeat=1);
+    psicash::error::Error MakeRewardRequests(const std::string& transaction_class,
+                                             const std::string& distinguisher,
+                                             int repeat=1);
 
-    virtual error::Result<psicash::HTTPParams>
+    virtual psicash::error::Result<psicash::HTTPParams>
     BuildRequestParams(const std::string& method, const std::string& path, bool include_auth_tokens,
                        const std::vector<std::pair<std::string, std::string>>& query_params,
                        int attempt,

@@ -25,9 +25,9 @@
 using json = nlohmann::json;
 
 using namespace std;
-using namespace error;
 
 namespace psicash {
+
 // Datastore keys
 static constexpr const char* VERSION = "v"; // Preliminary version key; not yet used for anything
 static constexpr const char* SERVER_TIME_DIFF = "serverTimeDiff";
@@ -45,7 +45,7 @@ UserData::UserData() {
 UserData::~UserData() {
 }
 
-Error UserData::Init(const char* file_store_root) {
+error::Error UserData::Init(const char* file_store_root) {
     auto err = datastore_.Init(file_store_root);
     if (err) {
         return PassError(err);
@@ -56,7 +56,7 @@ Error UserData::Init(const char* file_store_root) {
         return PassError(err);
     }
 
-    return nullerr;
+    return error::nullerr;
 }
 
 void UserData::Clear() {
@@ -71,7 +71,7 @@ datetime::Duration UserData::GetServerTimeDiff() const {
     return datetime::DurationFromInt64(*v);
 }
 
-Error UserData::SetServerTimeDiff(const datetime::DateTime& serverTimeNow) {
+error::Error UserData::SetServerTimeDiff(const datetime::DateTime& serverTimeNow) {
     auto localTimeNow = datetime::DateTime::Now();
     auto diff = serverTimeNow.Diff(localTimeNow);
     return PassError(datastore_.Set({{SERVER_TIME_DIFF, datetime::DurationToInt64(diff)}}));
@@ -85,7 +85,7 @@ AuthTokens UserData::GetAuthTokens() const {
     return *v;
 }
 
-Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account) {
+error::Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account) {
     return PassError(datastore_.Set({{AUTH_TOKENS, v},
                                      {IS_ACCOUNT,  is_account}}));
 }
@@ -115,7 +115,7 @@ bool UserData::GetIsAccount() const {
     return *v;
 }
 
-Error UserData::SetIsAccount(bool v) {
+error::Error UserData::SetIsAccount(bool v) {
     return PassError(datastore_.Set({{IS_ACCOUNT, v}}));
 }
 
@@ -127,7 +127,7 @@ int64_t UserData::GetBalance() const {
     return *v;
 }
 
-Error UserData::SetBalance(int64_t v) {
+error::Error UserData::SetBalance(int64_t v) {
     return PassError(datastore_.Set({{BALANCE, v}}));
 }
 
@@ -139,7 +139,7 @@ PurchasePrices UserData::GetPurchasePrices() const {
     return *v;
 }
 
-Error UserData::SetPurchasePrices(const PurchasePrices& v) {
+error::Error UserData::SetPurchasePrices(const PurchasePrices& v) {
     return PassError(datastore_.Set({{PURCHASE_PRICES, v}}));
 }
 
@@ -153,16 +153,16 @@ Purchases UserData::GetPurchases() const {
     return *v;
 }
 
-Error UserData::SetPurchases(const Purchases& v) {
+error::Error UserData::SetPurchases(const Purchases& v) {
     return PassError(datastore_.Set({{PURCHASES, v}}));
 }
 
-Error UserData::AddPurchase(const Purchase& v) {
+error::Error UserData::AddPurchase(const Purchase& v) {
     auto purchases = GetPurchases();
     // Prevent duplicate insertion
     for (const auto& p : purchases) {
         if (p.id == v.id) {
-            return nullerr;
+            return error::nullerr;
         }
     }
 
@@ -202,7 +202,7 @@ TransactionID UserData::GetLastTransactionID() const {
     return *v;
 }
 
-Error UserData::SetLastTransactionID(const TransactionID& v) {
+error::Error UserData::SetLastTransactionID(const TransactionID& v) {
     return PassError(datastore_.Set({{LAST_TRANSACTION_ID, v}}));
 }
 

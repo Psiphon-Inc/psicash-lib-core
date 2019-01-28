@@ -30,7 +30,9 @@
 using json = nlohmann::json;
 
 using namespace std;
-using namespace datetime;
+
+namespace psicash {
+namespace datetime {
 
 const TimePoint kTimePointZero = TimePoint();
 
@@ -146,7 +148,6 @@ bool DateTime::operator>(const DateTime& rhs) const {
     return time_point_ > rhs.time_point_;
 }
 
-namespace datetime {
 bool operator==(const DateTime& lhs, const DateTime& rhs) {
     return lhs.time_point_ == rhs.time_point_;
 }
@@ -166,4 +167,6 @@ int64_t DurationToInt64(const Duration& d) {
 Duration DurationFromInt64(const int64_t d) {
     return Duration(d);
 }
+
 } // namespace datetime
+} // namespace psicash

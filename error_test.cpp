@@ -2,7 +2,7 @@
 #include "error.hpp"
 
 using namespace std;
-using namespace error;
+using namespace psicash::error;
 
 TEST(TestError, Construction)
 {

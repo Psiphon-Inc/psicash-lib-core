@@ -65,7 +65,7 @@ error::Error PsiCashTester::MakeRewardRequests(const std::string& transaction_cl
         if (!result) {
             return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
         } else if (result->code != kHTTPStatusOK) {
-            return MakeNoncriticalError(utils::Stringer(
+            return error::MakeNoncriticalError(utils::Stringer(
                 "1T reward request failed: ", result->code, "; ", result->error, "; ", result->body));
         }
     }

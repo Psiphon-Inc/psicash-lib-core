@@ -26,6 +26,7 @@
 #include "vendor/nonstd/expected.hpp"
 
 
+namespace psicash {
 namespace error {
 
 /*
@@ -86,8 +87,8 @@ const Error nullerr;
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
 #endif
-#define MakeNoncriticalError(message)   (error::Error(false, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
-#define MakeCriticalError(message)      (error::Error(true, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
+#define MakeNoncriticalError(message)   Error(false, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
+#define MakeCriticalError(message)      Error(true, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
 #define WrapError(err, message)         (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
 #define PassError(err)                  (err.Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
 
@@ -110,6 +111,7 @@ public:
             (nonstd::unexpected_type<Error>)err) {}
 };
 
-}
+} // namespace error
+} // namespace psicash
 
 #endif //PSICASHLIB_ERROR_H
