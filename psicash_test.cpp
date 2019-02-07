@@ -463,7 +463,7 @@ TEST_F(TestPsiCash, RemovePurchases) {
                     {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
                     {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
                     {"id4", "tc4", "d4", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
-    vector<TransactionID> removeIDs = {ps[1].id, ps[3].id};
+    vector<TransactionID> remove_ids = {ps[1].id, ps[3].id};
     Purchases remaining = {ps[0], ps[2]};
 
     err = pc.user_data().SetPurchases(ps);
@@ -473,32 +473,38 @@ TEST_F(TestPsiCash, RemovePurchases) {
     ASSERT_EQ(v.size(), ps.size());
     ASSERT_EQ(v, ps);
 
-    err = pc.RemovePurchases(removeIDs);
-    ASSERT_FALSE(err);
+    auto removed = pc.RemovePurchases(remove_ids);
+    ASSERT_TRUE(removed);
+    ASSERT_EQ(remove_ids.size(), removed->size());
+    ASSERT_TRUE((VectorSetsMatch<TransactionID, Purchase>(
+        remove_ids, *removed, [](const Purchase& p) -> TransactionID { return p.id; })));
 
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), remaining.size());
     ASSERT_EQ(v, remaining);
 
-    // removeIDs are not present now
-    err = pc.RemovePurchases(removeIDs);
-    ASSERT_FALSE(err);
+    // remove_ids are not present now
+    removed = pc.RemovePurchases(remove_ids);
+    ASSERT_TRUE(removed);
+    ASSERT_EQ(0, removed->size());
 
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), remaining.size());
     ASSERT_EQ(v, remaining);
 
     // empty array
-    err = pc.RemovePurchases({});
-    ASSERT_FALSE(err);
+    removed = pc.RemovePurchases({});
+    ASSERT_TRUE(removed);
+    ASSERT_EQ(0, removed->size());
 
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), remaining.size());
     ASSERT_EQ(v, remaining);
 
     // totally fake IDs
-    err = pc.RemovePurchases({"invalid1", "invalid2"});
-    ASSERT_FALSE(err);
+    removed = pc.RemovePurchases({"invalid1", "invalid2"});
+    ASSERT_TRUE(removed);
+    ASSERT_EQ(0, removed->size());
 
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), remaining.size());

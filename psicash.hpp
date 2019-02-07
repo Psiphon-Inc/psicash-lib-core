@@ -198,7 +198,9 @@ public:
     /// Force removal of purchases with the given transaction IDs.
     /// This is to be called when the Psiphon server indicates that a purchase has
     /// expired (even if the local clock hasn't yet indicated it).
-    error::Error RemovePurchases(const std::vector<TransactionID>& ids);
+    /// Returns the removed purchases.
+    /// No error results if some or all of the transaction IDs are not found.
+    error::Result<Purchases> RemovePurchases(const std::vector<TransactionID>& ids);
 
     /// Utilizes stored tokens and metadata to craft a landing page URL.
     /// Returns an error if modification is impossible. (In that case the error
