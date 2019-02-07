@@ -219,9 +219,9 @@ Result<Purchases> PsiCash::ExpirePurchases() {
     return expired_purchases;
 }
 
-Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
+error::Result<Purchases> PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
     auto all_purchases = GetPurchases();
-    Purchases remaining_purchases;
+    Purchases remaining_purchases, removed_purchases;
     for (const auto& p : all_purchases) {
         bool match = false;
         for (const auto& id : ids) {
@@ -231,13 +231,20 @@ Error PsiCash::RemovePurchases(const vector<TransactionID>& ids) {
             }
         }
 
-        if (!match) {
+        if (match) {
+            removed_purchases.push_back(p);
+        }
+        else {
             remaining_purchases.push_back(p);
         }
     }
 
     auto err = user_data_->SetPurchases(remaining_purchases);
-    return WrapError(err, "SetPurchases failed");
+    if (err) {
+        return WrapError(err, "SetPurchases failed");
+    }
+
+    return removed_purchases;
 }
 
 Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
