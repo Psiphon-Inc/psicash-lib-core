@@ -284,8 +284,10 @@ TEST_F(TestPsiCash, GetPurchases) {
     auto v = pc.GetPurchases();
     ASSERT_EQ(v.size(), 0);
 
+    auto auth = DecodeAuthorization("eyJBdXRob3JpemF0aW9uIjp7IklEIjoiMFYzRXhUdmlBdFNxTGZOd2FpQXlHNHpaRUJJOGpIYnp5bFdNeU5FZ1JEZz0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDE3OjIyOjIzLjE2ODc2NDEyOVoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJQL2NrenloVUJoSk5RQ24zMnluM1VTdGpLencxU04xNW9MclVhTU9XaW9scXBOTTBzNVFSNURHVEVDT1FzQk13ODdQdTc1TGE1OGtJTHRIcW1BVzhDQT09In0=");
+
     Purchases ps = {
-            {"id1", "tc1", "d1", datetime::DateTime::Now(), datetime::DateTime::Now(), "a1"},
+            {"id1", "tc1", "d1", datetime::DateTime::Now(), datetime::DateTime::Now(), nonstd::make_optional(auth)},
             {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
@@ -302,7 +304,7 @@ TEST_F(TestPsiCash, GetPurchases) {
     ASSERT_EQ(v.size(), 0);
 }
 
-TEST_F(TestPsiCash, ValidPurchases) {
+TEST_F(TestPsiCash, ActivePurchases) {
     PsiCashTester pc;
     auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
     ASSERT_FALSE(err);
@@ -310,17 +312,17 @@ TEST_F(TestPsiCash, ValidPurchases) {
     auto v = pc.GetPurchases();
     ASSERT_EQ(v.size(), 0);
 
-    v = pc.ValidPurchases();
+    v = pc.ActivePurchases();
     ASSERT_EQ(v.size(), 0);
 
     auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
     auto after_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
 
-    Purchases ps = {{"id1", "tc1", "d1", before_now, nonstd::nullopt, "a1"},
-                    {"id2", "tc2", "d2", after_now, nonstd::nullopt, "a2"},
-                    {"id3", "tc3", "d3", before_now, nonstd::nullopt, "a3"},
-                    {"id4", "tc4", "d4", after_now, nonstd::nullopt, "a4"},
-                    {"id5", "tc5", "d5", nonstd::nullopt, nonstd::nullopt, "a5"}};
+    Purchases ps = {{"id1", "tc1", "d1", before_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id2", "tc2", "d2", after_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id3", "tc3", "d3", before_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id4", "tc4", "d4", after_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id5", "tc5", "d5", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
     ASSERT_FALSE(err);
@@ -329,7 +331,7 @@ TEST_F(TestPsiCash, ValidPurchases) {
     ASSERT_EQ(v.size(), ps.size());
     ASSERT_EQ(v, ps);
 
-    v = pc.ValidPurchases();
+    v = pc.ActivePurchases();
     ASSERT_EQ(v.size(), 3);
     // There's no guarantee that the order of purchases won't change, but we know they won't
     ASSERT_EQ(v[0].id, "id2");
@@ -339,6 +341,65 @@ TEST_F(TestPsiCash, ValidPurchases) {
     v = pc.GetPurchases();
     ASSERT_EQ(v.size(), ps.size());
     ASSERT_EQ(v, ps);
+}
+
+TEST_F(TestPsiCash, DecodeAuthorization) {
+    const auto encoded1 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoiMFYzRXhUdmlBdFNxTGZOd2FpQXlHNHpaRUJJOGpIYnp5bFdNeU5FZ1JEZz0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDE3OjIyOjIzLjE2ODc2NDEyOVoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJQL2NrenloVUJoSk5RQ24zMnluM1VTdGpLencxU04xNW9MclVhTU9XaW9scXBOTTBzNVFSNURHVEVDT1FzQk13ODdQdTc1TGE1OGtJTHRIcW1BVzhDQT09In0=";
+    const auto encoded2 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=";
+
+    auto auth1 = psicash::DecodeAuthorization(encoded1);
+    auto auth2 = psicash::DecodeAuthorization(encoded2);
+
+    ASSERT_TRUE(auth1 == auth1);
+    ASSERT_FALSE(auth1 == auth2);
+    ASSERT_EQ(auth1.id, "0V3ExTviAtSqLfNwaiAyG4zZEBI8jHbzylWMyNEgRDg=");
+    ASSERT_EQ(auth1.access_type, "speed-boost-test");
+
+    psicash::datetime::DateTime want_date;
+    ASSERT_TRUE(want_date.FromISO8601("2019-01-14T17:22:23.168764129Z"));
+    ASSERT_EQ(auth1.expires, want_date) << auth1.expires.ToISO8601();
+
+    auto invalid_base64 = "BAD-BASE64-$^#&*(@===============";
+    ASSERT_THROW(psicash::DecodeAuthorization(invalid_base64), json::exception);
+
+    auto invalid_json = "dGhpcyBpcyBub3QgdmFsaWQgSlNPTg==";
+    ASSERT_THROW(psicash::DecodeAuthorization(invalid_json), json::exception);
+
+    auto incorrect_json = "eyJ2YWxpZCI6ICJqc29uIiwgImJ1dCI6ICJub3QgYSB2YWxpZCBhdXRob3JpemF0aW9uIn0=";
+    ASSERT_THROW(psicash::DecodeAuthorization(incorrect_json), json::exception);
+}
+
+TEST_F(TestPsiCash, ActiveAuthorizations) {
+    PsiCashTester pc;
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    ASSERT_FALSE(err);
+
+    auto purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+
+    purchases = pc.ActivePurchases();
+    ASSERT_EQ(purchases.size(), 0);
+
+    auto v = pc.ActiveAuthorizations();
+    ASSERT_EQ(v.size(), 0);
+
+    auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
+    auto after_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
+
+    const auto encoded1 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoiMFYzRXhUdmlBdFNxTGZOd2FpQXlHNHpaRUJJOGpIYnp5bFdNeU5FZ1JEZz0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDE3OjIyOjIzLjE2ODc2NDEyOVoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJQL2NrenloVUJoSk5RQ24zMnluM1VTdGpLencxU04xNW9MclVhTU9XaW9scXBOTTBzNVFSNURHVEVDT1FzQk13ODdQdTc1TGE1OGtJTHRIcW1BVzhDQT09In0=";
+    const auto encoded2 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=";
+
+    purchases = {{"future_no_auth", "tc1", "d1", after_now, nonstd::nullopt, nonstd::nullopt},
+                 {"past_auth", "tc2", "d2", before_now, nonstd::nullopt, nonstd::make_optional(psicash::DecodeAuthorization(encoded1))},
+                 {"future_auth", "tc3", "d3", after_now, nonstd::nullopt, nonstd::make_optional(psicash::DecodeAuthorization(encoded2))}};
+
+    err = pc.user_data().SetPurchases(purchases);
+    ASSERT_FALSE(err);
+    ASSERT_EQ(pc.GetPurchases().size(), purchases.size());
+
+    v = pc.ActiveAuthorizations();
+    ASSERT_EQ(v.size(), 1);
+    ASSERT_EQ(v[0].encoded, encoded2);
 }
 
 TEST_F(TestPsiCash, NextExpiringPurchase) {
@@ -356,10 +417,10 @@ TEST_F(TestPsiCash, NextExpiringPurchase) {
     auto second = datetime::DateTime::Now().Sub(datetime::Duration(222));
     auto third = datetime::DateTime::Now().Sub(datetime::Duration(111));
 
-    Purchases ps = {{"id1", "tc1", "d1", second, nonstd::nullopt, "a1"},
-                    {"id2", "tc2", "d2", first, nonstd::nullopt, "a2"}, // first to expire
-                    {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, "a3"},
-                    {"id4", "tc4", "d4", third, nonstd::nullopt, "a4"}};
+    Purchases ps = {{"id1", "tc1", "d1", second, nonstd::nullopt, nonstd::nullopt},
+                    {"id2", "tc2", "d2", first, nonstd::nullopt, nonstd::nullopt}, // first to expire
+                    {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+                    {"id4", "tc4", "d4", third, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
     ASSERT_FALSE(err);
@@ -373,9 +434,9 @@ TEST_F(TestPsiCash, NextExpiringPurchase) {
     ASSERT_EQ(p->id, ps[1].id);
 
     auto later_than_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
-    ps = {{"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, "a1"},
-          {"id2", "tc2", "d2", later_than_now, nonstd::nullopt, "a2"}, // only expiring
-          {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, "a3"}};
+    ps = {{"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+          {"id2", "tc2", "d2", later_than_now, nonstd::nullopt, nonstd::nullopt}, // only expiring
+          {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
     ASSERT_FALSE(err);
@@ -389,8 +450,8 @@ TEST_F(TestPsiCash, NextExpiringPurchase) {
     ASSERT_EQ(p->id, ps[1].id);
 
     // None expiring
-    ps = {{"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, "a1"},
-          {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, "a3"}};
+    ps = {{"id1", "tc1", "d1", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+          {"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}};
 
     err = pc.user_data().SetPurchases(ps);
     ASSERT_FALSE(err);
@@ -418,10 +479,10 @@ TEST_F(TestPsiCash, ExpirePurchases) {
     auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
     auto after_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
 
-    Purchases ps = {{"id1", "tc1", "d1", after_now, nonstd::nullopt, "a1"},
-                    {"id2", "tc2", "d2", before_now, nonstd::nullopt, "a2"},
-                    {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, "a3"},
-                    {"id4", "tc4", "d4", before_now, nonstd::nullopt, "a4"}};
+    Purchases ps = {{"id1", "tc1", "d1", after_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id2", "tc2", "d2", before_now, nonstd::nullopt, nonstd::nullopt},
+                    {"id3", "tc3", "d3", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt},
+                    {"id4", "tc4", "d4", before_now, nonstd::nullopt, nonstd::nullopt}};
     Purchases expired = {ps[1], ps[3]};
     Purchases nonexpired = {ps[0], ps[2]};
 
@@ -1097,7 +1158,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     auto purchases = pc.GetPurchases();
     ASSERT_EQ(purchases.size(), 1);
     ASSERT_EQ(purchases[0], purchase_result->purchase);
-    purchases = pc.ValidPurchases();
+    purchases = pc.ActivePurchases();
     ASSERT_EQ(purchases.size(), 1);
     ASSERT_EQ(purchases[0], purchase_result->purchase);
     auto purchase_opt = pc.NextExpiringPurchase();
@@ -1113,7 +1174,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     purchases = pc.GetPurchases();
     ASSERT_EQ(purchases.size(), 1);
     ASSERT_EQ(purchases[0], purchase_result->purchase);
-    purchases = pc.ValidPurchases();
+    purchases = pc.ActivePurchases();
     ASSERT_EQ(purchases.size(), 0);
     purchase_opt = pc.NextExpiringPurchase();
     ASSERT_TRUE(purchase_opt);
@@ -1156,7 +1217,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_TRUE(purchase_opt);
     // This might be brittle due to server-client clock differences (if so, just remove it)
     ASSERT_EQ(purchase_opt->distinguisher, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER);
-    purchases = pc.ValidPurchases();
+    purchases = pc.ActivePurchases();
     ASSERT_EQ(purchases.size(), 1);
     ASSERT_EQ(purchases[0].distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
     expire_result = pc.ExpirePurchases();
@@ -1175,7 +1236,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     purchase_opt = pc.NextExpiringPurchase();
     ASSERT_TRUE(purchase_opt);
     ASSERT_EQ(purchase_opt->distinguisher, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER);
-    purchases = pc.ValidPurchases();
+    purchases = pc.ActivePurchases();
     ASSERT_EQ(purchases.size(), 0);
     expire_result = pc.ExpirePurchases();
     ASSERT_TRUE(expire_result);

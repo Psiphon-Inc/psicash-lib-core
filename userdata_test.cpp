@@ -37,8 +37,8 @@ TEST_F(TestUserData, Persistence)
     int64_t want_balance = 54321;
     PurchasePrices want_purchase_prices = {{"tc1", "d1", 123}, {"tc2", "d2", 321}};
     Purchases want_purchases = {
-        {"id1", "tc1", "d1", nullopt, nullopt, "a1"},
-        {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
+        {"id1", "tc1", "d1", nullopt, nullopt, nullopt},
+        {"id2", "tc2", "d2", nullopt, nullopt, nullopt}};
     string req_metadata_key = "req_metadata_key";
     string want_req_metadata_value = "want_req_metadata_value";
 
@@ -261,9 +261,10 @@ TEST_F(TestUserData, Purchases)
     // Set then get
     auto dt1 = datetime::DateTime::Now().Add(datetime::Duration(1));
     auto dt2 = datetime::DateTime::Now().Add(datetime::Duration(2));
+    auto auth1 = psicash::DecodeAuthorization("eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=");
     Purchases want = {
-        {"id1", "tc1", "d1", dt1, dt2, "a1"},
-        {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
+        {"id1", "tc1", "d1", dt1, dt2, auth1},
+        {"id2", "tc2", "d2", nullopt, nullopt, nullopt}};
 
     err = ud.SetPurchases(want);
     ASSERT_FALSE(err);
@@ -277,7 +278,7 @@ TEST_F(TestUserData, Purchases)
     err = ud.SetServerTimeDiff(server_now);
     ASSERT_FALSE(err);
     // Supply server time but not local time
-    want.push_back({"id3", "tc3", "d3", server_now, nullopt, "a3"});
+    want.push_back({"id3", "tc3", "d3", server_now, nullopt, nullopt});
     err = ud.SetPurchases(want);
     got = ud.GetPurchases();
     ASSERT_EQ(got.size(), 3);
@@ -297,8 +298,8 @@ TEST_F(TestUserData, AddPurchase)
 
     // Set then get
     Purchases want = {
-        {"id1", "tc1", "d1", nullopt, nullopt, "a1"},
-        {"id2", "tc2", "d2", nullopt, nullopt, "a2"}};
+        {"id1", "tc1", "d1", nullopt, nullopt, nullopt},
+        {"id2", "tc2", "d2", nullopt, nullopt, nullopt}};
 
     err = ud.SetPurchases(want);
     ASSERT_FALSE(err);

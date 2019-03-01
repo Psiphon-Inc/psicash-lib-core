@@ -108,6 +108,22 @@ struct PurchasePrice {
 
 using PurchasePrices = std::vector<PurchasePrice>;
 
+struct Authorization {
+  std::string id;
+  std::string access_type;
+  datetime::DateTime expires;
+  std::string encoded;
+
+  friend bool operator==(const Authorization& lhs, const Authorization& rhs);
+  friend void to_json(nlohmann::json& j, const Authorization& v);
+  friend void from_json(const nlohmann::json& j, Authorization& v);
+};
+
+using Authorizations = std::vector<Authorization>;
+
+// May be used for for decoding non-PsiCash authorizations.
+Authorization DecodeAuthorization(const std::string& encoded);
+
 using TransactionID = std::string;
 extern const char* const kTransactionIDZero; // The "zero value" for a TransactionID
 
@@ -117,7 +133,7 @@ struct Purchase {
     std::string distinguisher;
     nonstd::optional<datetime::DateTime> server_time_expiry;
     nonstd::optional<datetime::DateTime> local_time_expiry;
-    nonstd::optional<std::string> authorization;
+    nonstd::optional<Authorization> authorization;
 
     friend bool operator==(const Purchase& lhs, const Purchase& rhs);
     friend void to_json(nlohmann::json& j, const Purchase& p);
@@ -185,7 +201,10 @@ public:
     Purchases GetPurchases() const;
 
     /// Returns the set of active purchases that are not expired, if any.
-    Purchases ValidPurchases() const;
+    Purchases ActivePurchases() const;
+
+    /// Returns the set of active (non-expired) purchase authorizations, if any.
+    Authorizations ActiveAuthorizations() const;
 
     /// Get the next expiring purchase (with local_time_expiry populated).
     /// The returned optional will false if there is no outstanding expiring purchase (or

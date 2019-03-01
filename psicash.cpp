@@ -167,11 +167,21 @@ static bool IsExpired(const Purchase& p) {
     return (p.local_time_expiry && *p.local_time_expiry < local_now);
 }
 
-Purchases PsiCash::ValidPurchases() const {
+Purchases PsiCash::ActivePurchases() const {
     Purchases res;
     for (const auto& p : user_data_->GetPurchases()) {
         if (!IsExpired(p)) {
             res.push_back(p);
+        }
+    }
+    return res;
+}
+
+Authorizations PsiCash::ActiveAuthorizations() const {
+    Authorizations res;
+    for (const auto& p : user_data_->GetPurchases()) {
+        if (!IsExpired(p) && p.authorization) {
+            res.push_back(*p.authorization);
         }
     }
     return res;
@@ -714,7 +724,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
     }
 
-    string transaction_id, authorization, transaction_type;
+    string transaction_id, authorization_encoded, transaction_type;
     datetime::DateTime server_expiry;
 
     // These statuses require the response body to be parsed
@@ -742,7 +752,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
             }
 
             if (j["Authorization"].is_string()) {
-                authorization = j["Authorization"].get<string>();
+                authorization_encoded = j["Authorization"].get<string>();
             }
 
             if (j["TransactionResponse"]["Type"].is_string()) {
@@ -791,7 +801,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                         server_expiry),
                 server_expiry.IsZero() ? nullopt : make_optional(
                         server_expiry),
-                authorization.empty() ? nullopt : make_optional(authorization)
+                authorization_encoded.empty() ? nullopt : make_optional(DecodeAuthorization(authorization_encoded))
         };
 
         user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
@@ -899,7 +909,7 @@ void from_json(const json& j, Purchase& p) {
     if (j.at("authorization").is_null()) {
         p.authorization = nullopt;
     } else {
-        p.authorization = j.at("authorization").get<string>();
+        p.authorization = j.at("authorization").get<Authorization>();
     }
 
     if (j.at("serverTimeExpiry").is_null()) {
@@ -913,6 +923,39 @@ void from_json(const json& j, Purchase& p) {
     } else {
         p.local_time_expiry = j.at("localTimeExpiry").get<datetime::DateTime>();
     }
+}
+
+// Enable JSON de/serializing of Authorization.
+// See https://github.com/nlohmann/json#basic-usage
+bool operator==(const Authorization& lhs, const Authorization& rhs) {
+    return lhs.encoded == rhs.encoded;
+}
+
+void to_json(json& j, const Authorization& v) {
+    j = json{
+            {"ID",         v.id},
+            {"AccessType", v.access_type},
+            {"Expires",    v.expires},
+            {"Encoded",    v.encoded}};
+}
+
+void from_json(const json& j, Authorization& v) {
+    v.id = j.at("ID").get<string>();
+    v.access_type = j.at("AccessType").get<string>();
+    v.expires = j.at("Expires").get<datetime::DateTime>();
+
+    // When an Authorization comes from the server, it is itself encoded, but doesn't have
+    // and "Encoded" field. When we store the Authorization in the local datastore, the
+    // encoded value is present, and will therefore be present when we deserialize.
+    v.encoded = j.value("Encoded", ""s);
+}
+
+Authorization DecodeAuthorization(const string& encoded) {
+    auto decoded = base64::B64Decode(encoded);
+    auto json =json::parse(decoded);
+    auto auth = json.at("Authorization").get<Authorization>();
+    auth.encoded = encoded;
+    return auth;
 }
 
 } // namespace psicash
