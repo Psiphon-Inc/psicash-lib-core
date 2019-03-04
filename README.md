@@ -2,11 +2,6 @@
 
 This is the C++ core of the library. It can be used directly or wrapped with native-language glue. For example, for Android there is a Java (JNI) glue wrapper.
 
-## TODO
-
-* UserAgent string:
-  - Add "Psiphon-PsiCash-Android" to server config
-
 ## Using the library
 
 ### Supplying the HTTP Requester
