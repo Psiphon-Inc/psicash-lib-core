@@ -122,7 +122,7 @@ struct Authorization {
 using Authorizations = std::vector<Authorization>;
 
 // May be used for for decoding non-PsiCash authorizations.
-Authorization DecodeAuthorization(const std::string& encoded);
+error::Result<Authorization> DecodeAuthorization(const std::string& encoded);
 
 using TransactionID = std::string;
 extern const char* const kTransactionIDZero; // The "zero value" for a TransactionID

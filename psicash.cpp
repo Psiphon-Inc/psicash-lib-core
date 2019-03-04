@@ -793,6 +793,17 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
         // Not checking authorization, as it doesn't apply to all expiring purchases
 
+        optional<Authorization> authOptional = nullopt;
+        if (!authorization_encoded.empty()) {
+            auto decodeAuthResult = DecodeAuthorization(authorization_encoded);
+            if (!decodeAuthResult) {
+                // Authorization can be optional, but inability to decode suggests
+                // something is very wrong.
+                return WrapError(decodeAuthResult.error(), "failed to decode Purchase Authorization");
+            }
+            authOptional = *decodeAuthResult;
+        }
+
         Purchase purchase = {
                 transaction_id,
                 transaction_class,
@@ -801,7 +812,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                         server_expiry),
                 server_expiry.IsZero() ? nullopt : make_optional(
                         server_expiry),
-                authorization_encoded.empty() ? nullopt : make_optional(DecodeAuthorization(authorization_encoded))
+                authOptional
         };
 
         user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
@@ -950,12 +961,18 @@ void from_json(const json& j, Authorization& v) {
     v.encoded = j.value("Encoded", ""s);
 }
 
-Authorization DecodeAuthorization(const string& encoded) {
-    auto decoded = base64::B64Decode(encoded);
-    auto json =json::parse(decoded);
-    auto auth = json.at("Authorization").get<Authorization>();
-    auth.encoded = encoded;
-    return auth;
+Result<Authorization> DecodeAuthorization(const string& encoded) {
+    try {
+        auto decoded = base64::B64Decode(encoded);
+        auto json = json::parse(decoded);
+        auto auth = json.at("Authorization").get<Authorization>();
+        auth.encoded = encoded;
+        return auth;
+    }
+    catch (json::exception& e) {
+        return MakeCriticalError(
+                utils::Stringer("json parse failed: ", e.what(), "; id:", e.id).c_str());
+    }
 }
 
 } // namespace psicash

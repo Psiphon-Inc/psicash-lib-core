@@ -261,9 +261,11 @@ TEST_F(TestUserData, Purchases)
     // Set then get
     auto dt1 = datetime::DateTime::Now().Add(datetime::Duration(1));
     auto dt2 = datetime::DateTime::Now().Add(datetime::Duration(2));
-    auto auth1 = psicash::DecodeAuthorization("eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=");
+    auto auth_res1 = psicash::DecodeAuthorization("eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=");
+    ASSERT_TRUE(auth_res1);
+
     Purchases want = {
-        {"id1", "tc1", "d1", dt1, dt2, auth1},
+        {"id1", "tc1", "d1", dt1, dt2, *auth_res1},
         {"id2", "tc2", "d2", nullopt, nullopt, nullopt}};
 
     err = ud.SetPurchases(want);
