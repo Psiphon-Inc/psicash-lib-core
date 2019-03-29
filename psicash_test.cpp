@@ -8,6 +8,7 @@
 #include "userdata.hpp"
 #include "psicash_tester.hpp"
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include <regex>
 #include <thread>
 using json = nlohmann::json;
@@ -15,6 +16,8 @@ using json = nlohmann::json;
 using namespace std;
 using namespace psicash;
 using namespace testing;
+
+constexpr int64_t MAX_STARTING_BALANCE = 100000000000LL;
 
 class TestPsiCash : public ::testing::Test, public TempDir {
   public:
@@ -60,13 +63,15 @@ class TestPsiCash : public ::testing::Test, public TempDir {
         std::stringstream ss(output);
         std::string line;
 
-        string body;
+        string body, full_output;
         bool done_headers = false;
         while (std::getline(ss, line, '\n')) {
             line = trim(line);
             if (line.empty()) {
                 done_headers = true;
             }
+
+            full_output += line + "\n";
 
             if (!done_headers) {
                 smatch match_pieces;
@@ -92,6 +97,11 @@ class TestPsiCash : public ::testing::Test, public TempDir {
         }
 
         result.body = body;
+
+        if (result.code < 0) {
+            // Something went wrong during processing. Set the whole output as the error.
+            result.error = full_output;
+        }
 
         return result;
     }
@@ -785,7 +795,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     ASSERT_FALSE(pc.IsAccount());
     ASSERT_GE(pc.ValidTokenTypes().size(), 3);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     ASSERT_GE(pc.GetPurchasePrices().size(), 2);
 
     // Test with existing tracker
@@ -795,7 +805,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     ASSERT_FALSE(pc.IsAccount());
     ASSERT_GE(pc.ValidTokenTypes().size(), 3);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     auto speed_boost_purchase_prices = pc.GetPurchasePrices();
     ASSERT_GE(pc.GetPurchasePrices().size(), 2);
     ASSERT_EQ(want_tokens, pc.user_data().GetAuthTokens());
@@ -807,7 +817,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     ASSERT_FALSE(pc.IsAccount());
     ASSERT_GE(pc.ValidTokenTypes().size(), 3);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     ASSERT_GT(pc.GetPurchasePrices().size(), speed_boost_purchase_prices.size());
 
     // No purchase classes
@@ -817,7 +827,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     ASSERT_FALSE(pc.IsAccount());
     ASSERT_GE(pc.ValidTokenTypes().size(), 3);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     ASSERT_EQ(pc.GetPurchasePrices().size(), 0); // we didn't ask for any
 
     // Purchase classes, then none; verify that previous aren't lost
@@ -837,13 +847,13 @@ TEST_F(TestPsiCash, RefreshState) {
     res = pc.RefreshState({"speed-boost"}); // with class
     ASSERT_TRUE(res) << res.error();
     ASSERT_EQ(*res, Status::Success);
-    ASSERT_EQ(pc.Balance(), 0);
+    auto starting_balance = pc.Balance();
     err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     res = pc.RefreshState({"speed-boost"}); // with class
     ASSERT_TRUE(res) << res.error();
     ASSERT_EQ(*res, Status::Success);
-    ASSERT_EQ(pc.Balance(), ONE_TRILLION);
+    ASSERT_EQ(pc.Balance(), starting_balance + ONE_TRILLION);
 
     // Test bad is-account state. This is a local sanity check failure that will occur
     // after the request to the server sees an illegal is-account state.
@@ -864,7 +874,7 @@ TEST_F(TestPsiCash, RefreshState) {
     ASSERT_EQ(*res, Status::Success);
     ASSERT_TRUE(pc.IsAccount());               // should still be is-account
     ASSERT_EQ(pc.ValidTokenTypes().size(), 0); // but no tokens
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     ASSERT_EQ(pc.GetPurchasePrices().size(),
               0); // shouldn't get any, because no valid indicator token
 }
@@ -898,7 +908,7 @@ TEST_F(TestPsiCash, RefreshStateMutators) {
     ASSERT_GE(next_tokens.size(), 3);
     ASSERT_NE(prev_tokens, next_tokens);
     // And a reset balance
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
 
     // Account with invalid tokens
     pc.user_data().Clear();
@@ -1147,12 +1157,13 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     auto refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
+    auto initial_balance = pc.Balance();
     err = MAKE_1T_REWARD(pc, 1);
     ASSERT_FALSE(err) << err;
     refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
-    ASSERT_EQ(pc.Balance(), ONE_TRILLION);
+    ASSERT_EQ(pc.Balance(), initial_balance + ONE_TRILLION);
     // Note: this puchase will be valid for 1 second
     auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_SECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
@@ -1203,24 +1214,25 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_FALSE(purchase_opt);
 
     // Multiple purchases
+    initial_balance = pc.Balance();
     err = MAKE_1T_REWARD(pc, 3);
     ASSERT_FALSE(err) << err;
     refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
-    ASSERT_EQ(pc.Balance(), 3*ONE_TRILLION);
+    ASSERT_EQ(pc.Balance(), initial_balance + 3*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
-    ASSERT_EQ(pc.Balance(), 2*ONE_TRILLION);
+    ASSERT_EQ(pc.Balance(), initial_balance + 2*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success) << static_cast<int>(purchase_result->status);
-    ASSERT_EQ(pc.Balance(), 1*ONE_TRILLION);
+    ASSERT_EQ(pc.Balance(), initial_balance + 1*ONE_TRILLION);
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
     ASSERT_EQ(purchase_result->status, Status::Success);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_EQ(pc.Balance(), initial_balance);
     purchases = pc.GetPurchases();
     ASSERT_EQ(purchases.size(), 3);
     // Sleep long enough for the short purchases to expire (but not so long that the long one will)
@@ -1278,7 +1290,7 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     refresh_result = pc.RefreshState({});
     ASSERT_TRUE(refresh_result) << refresh_result.error();
     ASSERT_EQ(*refresh_result, Status::Success);
-    ASSERT_EQ(pc.Balance(), 0);
+    ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
     // We have no credit for this
     purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_ONE_MICROSECOND_DISTINGUISHER, ONE_TRILLION);
     ASSERT_TRUE(purchase_result);
