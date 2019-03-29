@@ -87,6 +87,7 @@ const Error nullerr;
 #ifndef __PRETTY_FUNCTION__
 #define __PRETTY_FUNCTION__ __func__
 #endif
+// Should be prefixed with namespaces: psicash::error::
 #define MakeNoncriticalError(message)   Error(false, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
 #define MakeCriticalError(message)      Error(true, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
 #define WrapError(err, message)         (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
