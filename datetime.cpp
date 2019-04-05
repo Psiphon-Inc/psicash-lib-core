@@ -34,7 +34,7 @@ using namespace std;
 namespace psicash {
 namespace datetime {
 
-const TimePoint kTimePointZero = TimePoint();
+static const TimePoint kTimePointZero = TimePoint();
 
 static constexpr const char* ISO8601_FORMAT_STRING = "%FT%TZ";
 
@@ -83,11 +83,11 @@ DateTime::DateTime(const TimePoint& src)
 }
 
 DateTime DateTime::Zero() {
-    return kTimePointZero;
+    return DateTime(kTimePointZero);
 }
 
 DateTime DateTime::Now() {
-    return NormalizeTimePoint(Clock::now());
+    return DateTime(NormalizeTimePoint(Clock::now()));
 }
 
 bool DateTime::IsZero() const {
@@ -129,11 +129,11 @@ Duration DateTime::Diff(const DateTime& other) const {
 }
 
 DateTime DateTime::Add(const Duration& d) const {
-    return NormalizeTimePoint(time_point_ + d);
+    return DateTime(NormalizeTimePoint(time_point_ + d));
 }
 
 DateTime DateTime::Sub(const Duration& d) const {
-    return NormalizeTimePoint(time_point_ - d);
+    return DateTime(NormalizeTimePoint(time_point_ - d));
 }
 
 int64_t DateTime::MillisSinceEpoch() const {
@@ -164,7 +164,7 @@ int64_t DurationToInt64(const Duration& d) {
     return d.count();
 }
 
-Duration DurationFromInt64(const int64_t d) {
+Duration DurationFromInt64(int64_t d) {
     return Duration(d);
 }
 

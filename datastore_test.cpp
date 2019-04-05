@@ -31,7 +31,7 @@ using json = nlohmann::json;
 class TestDatastore : public ::testing::Test, public TempDir
 {
   public:
-    TestDatastore() {}
+    TestDatastore() = default;
 };
 
 TEST_F(TestDatastore, InitSimple)

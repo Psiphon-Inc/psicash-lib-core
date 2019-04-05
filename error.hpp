@@ -40,7 +40,7 @@ namespace error {
 class Error {
 public:
     Error();
-    Error(const Error& src);
+    Error(const Error& src) = default;
     Error(bool critical, const std::string& message,
           const std::string& filename, const std::string& function, int line);
     Error& operator=(const Error&) = default;
@@ -90,8 +90,8 @@ const Error nullerr;
 // Should be prefixed with namespaces: psicash::error::
 #define MakeNoncriticalError(message)   Error(false, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
 #define MakeCriticalError(message)      Error(true, (message), __FILE__, __PRETTY_FUNCTION__, __LINE__)
-#define WrapError(err, message)         (err.Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
-#define PassError(err)                  (err.Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
+#define WrapError(err, message)         ((err).Wrap((message), __FILE__, __PRETTY_FUNCTION__, __LINE__))
+#define PassError(err)                  ((err).Wrap(__FILE__, __PRETTY_FUNCTION__, __LINE__))
 
 
 /*

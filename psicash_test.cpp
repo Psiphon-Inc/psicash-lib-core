@@ -388,7 +388,7 @@ TEST_F(TestPsiCash, DecodeAuthorization) {
     ASSERT_TRUE(auth_res_fail.error().Critical());
 }
 
-TEST_F(TestPsiCash, ActiveAuthorizations) {
+TEST_F(TestPsiCash, GetAuthorizations) {
     PsiCashTester pc;
     auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
     ASSERT_FALSE(err);
@@ -399,7 +399,10 @@ TEST_F(TestPsiCash, ActiveAuthorizations) {
     purchases = pc.ActivePurchases();
     ASSERT_EQ(purchases.size(), 0);
 
-    auto v = pc.ActiveAuthorizations();
+    auto v = pc.GetAuthorizations(false);
+    ASSERT_EQ(v.size(), 0);
+
+    v = pc.GetAuthorizations(true);
     ASSERT_EQ(v.size(), 0);
 
     auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
@@ -421,9 +424,51 @@ TEST_F(TestPsiCash, ActiveAuthorizations) {
     ASSERT_FALSE(err);
     ASSERT_EQ(pc.GetPurchases().size(), purchases.size());
 
-    v = pc.ActiveAuthorizations();
+    v = pc.GetAuthorizations(false);
+    ASSERT_EQ(v.size(), 2);
+    ASSERT_THAT(v, AnyOf(Contains(*auth_res1), Contains(*auth_res2)));
+
+    v = pc.GetAuthorizations(true);
     ASSERT_EQ(v.size(), 1);
-    ASSERT_EQ(v[0].encoded, encoded2);
+    ASSERT_THAT(v, Contains(*auth_res2));
+}
+
+TEST_F(TestPsiCash, GetPurchasesByAuthorizationID) {
+    PsiCashTester pc;
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    ASSERT_FALSE(err);
+
+    auto purchases = pc.GetPurchases();
+    ASSERT_EQ(purchases.size(), 0);
+
+    // Empty set of auth IDs
+    purchases = pc.GetPurchasesByAuthorizationID({});
+    ASSERT_EQ(purchases.size(), 0);
+
+    auto before_now = datetime::DateTime::Now().Sub(datetime::Duration(54321));
+    auto after_now = datetime::DateTime::Now().Add(datetime::Duration(54321));
+
+    const auto encoded1 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoiMFYzRXhUdmlBdFNxTGZOd2FpQXlHNHpaRUJJOGpIYnp5bFdNeU5FZ1JEZz0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDE3OjIyOjIzLjE2ODc2NDEyOVoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJQL2NrenloVUJoSk5RQ24zMnluM1VTdGpLencxU04xNW9MclVhTU9XaW9scXBOTTBzNVFSNURHVEVDT1FzQk13ODdQdTc1TGE1OGtJTHRIcW1BVzhDQT09In0=";
+    const auto encoded2 = "eyJBdXRob3JpemF0aW9uIjp7IklEIjoibFRSWnBXK1d3TFJqYkpzOGxBUFVaQS8zWnhmcGdwNDFQY0dkdlI5a0RVST0iLCJBY2Nlc3NUeXBlIjoic3BlZWQtYm9vc3QtdGVzdCIsIkV4cGlyZXMiOiIyMDE5LTAxLTE0VDIxOjQ2OjMwLjcxNzI2NTkyNFoifSwiU2lnbmluZ0tleUlEIjoiUUNZTzV2clIvZGhjRDZ6M2FMQlVNeWRuZlJyZFNRL1RWYW1IUFhYeTd0TT0iLCJTaWduYXR1cmUiOiJtV1Z5Tm9ZU0pFRDNXU3I3bG1OeEtReEZza1M5ZWlXWG1lcDVvVWZBSHkwVmYrSjZaQW9WajZrN3ZVTDNrakIreHZQSTZyaVhQc3FzWENRNkx0eFdBQT09In0=";
+
+    auto auth_res1 = psicash::DecodeAuthorization(encoded1);
+    auto auth_res2 = psicash::DecodeAuthorization(encoded2);
+    ASSERT_TRUE(auth_res1);
+    ASSERT_TRUE(auth_res2);
+
+    purchases = {{"future_no_auth", "tc1", "d1", after_now, nonstd::nullopt, nonstd::nullopt},
+                 {"past_auth", "tc2", "d2", before_now, nonstd::nullopt, *auth_res1},
+                 {"future_auth", "tc3", "d3", after_now, nonstd::nullopt, *auth_res2}};
+
+    err = pc.user_data().SetPurchases(purchases);
+    ASSERT_FALSE(err);
+    ASSERT_EQ(pc.GetPurchases().size(), purchases.size());
+
+    // One that matches and some that don't
+    vector<string> authIDs = {"badid", auth_res2->id, "anotherbadid"};
+    purchases = pc.GetPurchasesByAuthorizationID(authIDs);
+    ASSERT_THAT(purchases, SizeIs(1));
+    ASSERT_EQ(purchases[0].authorization->id, auth_res2->id);
 }
 
 TEST_F(TestPsiCash, NextExpiringPurchase) {

@@ -22,6 +22,7 @@
 #include <sstream>
 #include <chrono>
 #include <thread>
+#include <algorithm>
 #include "psicash.hpp"
 #include "userdata.hpp"
 #include "datetime.hpp"
@@ -177,14 +178,27 @@ Purchases PsiCash::ActivePurchases() const {
     return res;
 }
 
-Authorizations PsiCash::ActiveAuthorizations() const {
+Authorizations PsiCash::GetAuthorizations(bool activeOnly/*=false*/) const {
     Authorizations res;
     for (const auto& p : user_data_->GetPurchases()) {
-        if (!IsExpired(p) && p.authorization) {
+        if (p.authorization && (!activeOnly || !IsExpired(p))) {
             res.push_back(*p.authorization);
         }
     }
     return res;
+}
+
+Purchases PsiCash::GetPurchasesByAuthorizationID(std::vector<std::string> authorization_ids) const {
+    auto purchases = user_data_->GetPurchases();
+
+    auto new_end = std::remove_if(purchases.begin(), purchases.end(), [&authorization_ids](const Purchase& p){
+        return !p.authorization
+            || std::find(authorization_ids.begin(), authorization_ids.end(), p.authorization->id) == authorization_ids.end();
+    });
+
+    purchases.erase(new_end, purchases.end());
+
+    return purchases;
 }
 
 optional<Purchase> PsiCash::NextExpiringPurchase() const {

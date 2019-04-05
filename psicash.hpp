@@ -203,8 +203,12 @@ public:
     /// Returns the set of active purchases that are not expired, if any.
     Purchases ActivePurchases() const;
 
-    /// Returns the set of active (non-expired) purchase authorizations, if any.
-    Authorizations ActiveAuthorizations() const;
+    /// Returns all purchase authorizations. If activeOnly is true, only authorizations
+    /// for non-expired purchases will be returned.
+    Authorizations GetAuthorizations(bool activeOnly=false) const;
+
+    /// Returns all purchases that match the given set of Authorization IDs.
+    Purchases GetPurchasesByAuthorizationID(std::vector<std::string> authorization_ids) const;
 
     /// Get the next expiring purchase (with local_time_expiry populated).
     /// The returned optional will false if there is no outstanding expiring purchase (or

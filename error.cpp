@@ -30,10 +30,6 @@ Error::Error()
         : is_error_(false), critical_(false) {
 }
 
-Error::Error(const Error& src)
-        : is_error_(src.is_error_), critical_(src.critical_), stack_(src.stack_) {
-}
-
 Error::Error(bool critical, const std::string& message, const std::string& filename,
              const std::string& function, int line)
         : is_error_(true), critical_(critical) {
