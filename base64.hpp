@@ -33,6 +33,8 @@ std::string B64Encode(const BYTE* buf, unsigned int bufLen);
 
 std::vector<BYTE> B64Decode(const std::string& b64encoded);
 
+std::string TrimPadding(const std::string& s);
+
 } // namespace base64
 
 #endif //PSICASHLIB_BASE64_H

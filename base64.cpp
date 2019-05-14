@@ -130,4 +130,10 @@ std::vector<BYTE> B64Decode(const std::string& b64encoded) {
     return ret;
 }
 
+std::string TrimPadding(const std::string& s) {
+    auto trimmed = s;
+    trimmed.erase(s.find_last_not_of("=") + 1);
+    return trimmed;
+}
+
 } // namespace base64

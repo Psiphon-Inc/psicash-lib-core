@@ -368,6 +368,7 @@ protected:
     RefreshState(const std::vector<std::string>& purchase_classes, bool allow_recursion);
 
 protected:
+    bool test_;
     std::string user_agent_;
     std::string server_scheme_;
     std::string server_hostname_;

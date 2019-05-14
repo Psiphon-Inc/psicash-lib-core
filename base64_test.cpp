@@ -80,3 +80,11 @@ TEST(TestBase64, Decode)
   v = B64Decode("Zm9vYg");
   ASSERT_EQ(v, want);
 }
+
+TEST(TestBase64, TrimPadding)
+{
+  ASSERT_EQ(TrimPadding("abc"), "abc");
+  ASSERT_EQ(TrimPadding("abc="), "abc");
+  ASSERT_EQ(TrimPadding("abc=="), "abc");
+  ASSERT_EQ(TrimPadding("abc==="), "abc");
+}

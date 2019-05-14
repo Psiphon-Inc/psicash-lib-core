@@ -88,6 +88,7 @@ PsiCash::~PsiCash() {
 
 Error PsiCash::Init(const char* user_agent, const char* file_store_root,
               MakeHTTPRequestFn make_http_request_fn, bool test) {
+    test_ = test;
     if (test) {
         server_scheme_ = dev::kAPIServerScheme;
         server_hostname_ = dev::kAPIServerHostname;
@@ -288,18 +289,26 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
         psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
     }
 
+    if (test_) {
+        psicash_data["dev"] = 1;
+        psicash_data["debug"] = 1;
+    }
+
     // Get the metadata (sponsor ID, etc.)
     psicash_data["metadata"] = user_data_->GetRequestMetadata();
 
     string json_data;
     try {
-        // The third argument is "ensure ASCII"
-        json_data = psicash_data.dump(-1, ' ', true);
+        json_data = psicash_data.dump(-1, ' ',  // disable indent
+                                      true);    // ensure ASCII
     }
     catch (json::exception& e) {
         return MakeCriticalError(
                 utils::Stringer("json dump failed: ", e.what(), "; id:", e.id).c_str());
     }
+
+    // Base64-encode the JSON
+    auto b64 = base64::TrimPadding(base64::B64Encode(json_data));
 
     // Our preference is to put the our data into the URL's fragment/hash/anchor,
     // because we'd prefer the data not be sent to the server.
@@ -308,12 +317,15 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     // for the page than adding a query parameter that will be ignored.)
 
     if (url.fragment_.empty()) {
-        url.fragment_ = kLandingPageParamKey + "=" + URL::Encode(json_data, true);
+        // When setting in the fragment, we use "#!psicash=etc". The ! prevents the
+        // fragment from accidentally functioning as a jump-to anchor on a landing page
+        // (where we don't control element IDs, etc.).
+        url.fragment_ = "!" + kLandingPageParamKey + "=" + b64;
     } else {
         if (!url.query_.empty()) {
             url.query_ += "&";
         }
-        url.query_ += kLandingPageParamKey + "=" + URL::Encode(json_data, true);
+        url.query_ += kLandingPageParamKey + "=" + b64;
     }
 
     return url.ToString();
