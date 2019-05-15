@@ -45,8 +45,8 @@ UserData::UserData() {
 UserData::~UserData() {
 }
 
-error::Error UserData::Init(const char* file_store_root) {
-    auto err = datastore_.Init(file_store_root);
+error::Error UserData::Init(const char* file_store_root, bool dev) {
+    auto err = datastore_.Init(file_store_root, dev ? ".dev" : ".prod");
     if (err) {
         return PassError(err);
     }

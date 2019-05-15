@@ -8,6 +8,8 @@ using namespace std;
 using namespace nonstd;
 using namespace psicash;
 
+constexpr auto dev = true;
+
 class TestUserData : public ::testing::Test, public TempDir
 {
   public:
@@ -17,7 +19,7 @@ class TestUserData : public ::testing::Test, public TempDir
 TEST_F(TestUserData, InitSimple)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 }
 
@@ -25,7 +27,7 @@ TEST_F(TestUserData, InitFail)
 {
     auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
     UserData ud;
-    auto err = ud.Init(bad_dir.c_str());
+    auto err = ud.Init(bad_dir.c_str(), dev);
     ASSERT_TRUE(err);
 }
 
@@ -46,7 +48,7 @@ TEST_F(TestUserData, Persistence)
 
     {
         UserData ud;
-        auto err = ud.Init(temp_dir.c_str());
+        auto err = ud.Init(temp_dir.c_str(), dev);
         ASSERT_FALSE(err);
 
         auto shifted_now = datetime::DateTime::Now().Add(want_server_time_diff);
@@ -71,7 +73,7 @@ TEST_F(TestUserData, Persistence)
 
     {
         UserData ud;
-        auto err = ud.Init(temp_dir.c_str());
+        auto err = ud.Init(temp_dir.c_str(), dev);
         ASSERT_FALSE(err);
 
         auto got_server_time_diff = ud.GetServerTimeDiff();
@@ -100,7 +102,7 @@ TEST_F(TestUserData, Persistence)
 TEST_F(TestUserData, ServerTimeDiff)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -119,7 +121,7 @@ TEST_F(TestUserData, ServerTimeDiff)
 TEST_F(TestUserData, UpdatePurchaseLocalTimeExpiry)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     Purchase purchase_noexpiry{
@@ -157,7 +159,7 @@ TEST_F(TestUserData, UpdatePurchaseLocalTimeExpiry)
 TEST_F(TestUserData, AuthTokens)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -197,7 +199,7 @@ TEST_F(TestUserData, AuthTokens)
 TEST_F(TestUserData, IsAccount)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -215,7 +217,7 @@ TEST_F(TestUserData, IsAccount)
 TEST_F(TestUserData, Balance)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -233,7 +235,7 @@ TEST_F(TestUserData, Balance)
 TEST_F(TestUserData, PurchasePrices)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -251,7 +253,7 @@ TEST_F(TestUserData, PurchasePrices)
 TEST_F(TestUserData, Purchases)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -291,7 +293,7 @@ TEST_F(TestUserData, Purchases)
 TEST_F(TestUserData, AddPurchase)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -326,7 +328,7 @@ TEST_F(TestUserData, AddPurchase)
 TEST_F(TestUserData, LastTransactionID)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     // Check default value
@@ -344,7 +346,7 @@ TEST_F(TestUserData, LastTransactionID)
 TEST_F(TestUserData, Metadata)
 {
     UserData ud;
-    auto err = ud.Init(GetTempDir().c_str());
+    auto err = ud.Init(GetTempDir().c_str(), dev);
     ASSERT_FALSE(err);
 
     auto v = ud.GetRequestMetadata();

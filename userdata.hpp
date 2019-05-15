@@ -42,8 +42,9 @@ public:
     virtual ~UserData();
 
     /// Must be called once.
+    /// dev should be true if this instance is communicating with the dev server.
     /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
-    error::Error Init(const char* file_store_root);
+    error::Error Init(const char* file_store_root, bool dev);
 
     /// Clears data and datastore file.
     void Clear();

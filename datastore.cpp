@@ -36,9 +36,9 @@ Datastore::Datastore()
         : json_(json::object()) {
 }
 
-Error Datastore::Init(const char* file_root) {
+Error Datastore::Init(const char* file_root, const char* suffix) {
     SYNCHRONIZE(mutex_);
-    file_path_ = string(file_root) + "/psicashdatastore";
+    file_path_ = string(file_root) + "/psicashdatastore" + (suffix ? suffix : "");
     return PassError(FileLoad());
 }
 

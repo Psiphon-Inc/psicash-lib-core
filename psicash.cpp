@@ -111,11 +111,11 @@ Error PsiCash::Init(const char* user_agent, const char* file_store_root,
     make_http_request_fn_ = make_http_request_fn;
 
     user_data_ = std::make_unique<UserData>();
-    auto err = user_data_->Init(file_store_root);
+    auto err = user_data_->Init(file_store_root, test);
     if (err) {
         // If UserData.Init fails, the only way to proceed is to try to reset it and create a new one.
         user_data_->Clear();
-        err = user_data_->Init(file_store_root);
+        err = user_data_->Init(file_store_root, test);
         if (err) {
             return PassError(err);
         }

@@ -44,8 +44,9 @@ public:
 
     /// Must be called exactly once.
     /// The fileRoot directory must already exist.
+    /// suffix should be used to disambiguate different datastores. Optional (can be null).
     /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
-    error::Error Init(const char* file_root);
+    error::Error Init(const char* file_root, const char* suffix);
 
     /// Clears the in-memory structure and the persistent file.
     /// Primarily intended for debugging purposes.
