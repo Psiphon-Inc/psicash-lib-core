@@ -384,6 +384,7 @@ json PsiCash::GetDiagnosticInfo() const {
 
     json j = json::object();
 
+    j["test"] = test_;
     j["validTokenTypes"] = ValidTokenTypes();
     j["isAccount"] = IsAccount();
     j["balance"] = Balance();
