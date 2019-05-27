@@ -19,10 +19,7 @@
 
 #include <iostream>
 #include <fstream>
-
 #include "datastore.hpp"
-#include "utils.hpp"
-
 #include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;

@@ -23,6 +23,7 @@
 #include <string>
 #include <mutex>
 #include "error.hpp"
+#include "utils.hpp"
 #include "vendor/nonstd/expected.hpp"
 #include "vendor/nlohmann/json.hpp"
 
@@ -61,11 +62,17 @@ public:
     template<typename T>
     nonstd::expected<T, DatastoreGetError> Get(const char* key) const {
         try {
-            if (json_.find(key) == json_.end()) {
-                return nonstd::make_unexpected(kNotFound);
-            }
+            // Not returning inside the synchronize block to avoid compiler warning about
+            // "control reached end of non-void function without returning a value".
+            T val;
+            SYNCHRONIZE_BLOCK(mutex_) {
+                if (json_.find(key) == json_.end()) {
+                    return nonstd::make_unexpected(kNotFound);
+                }
 
-            return json_[key].get<T>();
+                val = json_[key].get<T>();
+            }
+            return val;
         }
         catch (json::type_error& e) {
             return nonstd::make_unexpected(kTypeMismatch);
@@ -89,7 +96,7 @@ protected:
     error::Error FileStore();
 
 private:
-    std::recursive_mutex mutex_;
+    mutable std::recursive_mutex mutex_;
     std::string file_path_;
     json json_;
     bool paused_;

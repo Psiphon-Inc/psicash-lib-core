@@ -10,6 +10,13 @@ This library relies on the native environment to provide an HTTP request callbac
 
 There is an _example_ implementation in the Android wrapper project. But note that it _does not support proxied requests_, which may be necessary depending on the environment. (E.g., it probably doesn't matter on iOS, since our app only supported full-device VPN. But on Windows the app mostly uses a local proxy, so the HTTP Requester must support proxying.)
 
+### Thread Safety
+
+All datastore reads and writes are mutexed. So, the only consistency guarantee is for individual data accesses. This means that multiple data accesses might get data from different states; for example, between getting the balance and getting the purchases list, there might have been a purchase, which would alter the balance. We will state this in positive terms as: "you will always get the very latest value". This is fine for our use cases at this time, but we might want to add "get a consistent set of data" in the future.
+
+Platform-specific wrapper library implementations should not need additional synchronization. If more is needed, it should probably be added to the core library.
+
+
 ## Code Style
 
 ### C++
@@ -26,4 +33,4 @@ If Android Studio is saying that a new `.cpp` file is not part of the project, g
 
 If you get a `SIGABRT` error in JNI code: You have probably triggered a JNI exception (that hasn't been cleared). It's possible that it's expected or acceptable and you just need to clear it, but it's more likely that it's a bug.
 
-If you get a `SIGSEGV` error when hitting a breakpoint in JNI code: Yeah, beats me. I get it on MacOS but not Windows. Dunno.
+If you get a `SIGSEGV` error when hitting a breakpoint in JNI code: Yeah, beats me. I get it on MacOS but not Windows.
