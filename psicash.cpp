@@ -754,6 +754,9 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
     string transaction_id, authorization_encoded, transaction_type;
     datetime::DateTime server_expiry;
 
+    // Set our new data in a single write.
+    UserData::WritePauser pauser(*user_data_);
+
     // These statuses require the response body to be parsed
     if (result->code == kHTTPStatusOK ||
         result->code == kHTTPStatusTooManyRequests ||
@@ -846,6 +849,10 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
 
         if (auto err = user_data_->AddPurchase(purchase)) {
             return WrapError(err, "AddPurchase failed");
+        }
+
+        if (auto err = pauser.Unpause()) {
+            return WrapError(err, "UserData write failed");
         }
 
         return PsiCash::NewExpiringPurchaseResponse{
