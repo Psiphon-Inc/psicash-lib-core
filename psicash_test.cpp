@@ -801,6 +801,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
     "purchasePrices":[],
     "purchases":[],
     "serverTimeDiff":0,
+    "test":true,
     "validTokenTypes":[]
     })|"_json;
     auto j = pc.GetDiagnosticInfo();
@@ -818,6 +819,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
     "purchasePrices":[{"distinguisher":"d1","price":123,"class":"tc1"},{"distinguisher":"d2","price":321,"class":"tc2"}],
     "purchases":[{"class":"tc2","distinguisher":"d2"}],
     "serverTimeDiff":0,
+    "test":true,
     "validTokenTypes":["a","b","c"]
     })|"_json;
     j = pc.GetDiagnosticInfo();
