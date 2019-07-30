@@ -231,6 +231,10 @@ public:
     /// proceed with the original URL.)
     error::Result<std::string> ModifyLandingPage(const std::string& url) const;
 
+    /// Utilizes stored tokens and metadata (and a configured base URL) to craft a URL
+    /// where the user can buy PsiCash for real money.
+    error::Result<std::string> GetBuyPsiURL() const;
+
     /// Creates a data package that should be included with a webhook for a user
     /// action that should be rewarded (such as watching a rewarded video).
     /// NOTE: The resulting string will still need to be encoded for use in a URL.
