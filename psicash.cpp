@@ -296,6 +296,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
 
     // Get the metadata (sponsor ID, etc.)
     psicash_data["metadata"] = user_data_->GetRequestMetadata();
+    psicash_data["metadata"]["user_agent"] = user_agent_;
 
     string json_data;
     try {
@@ -329,6 +330,16 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     }
 
     return url.ToString();
+}
+
+Result<string> PsiCash::GetBuyPsiURL() const {
+    // This is just a special case of the landing page format, EXCEPT that tokens MUST be
+    // present, or else it's an error.
+    auto auth_tokens = user_data_->GetAuthTokens();
+    if (auth_tokens.count(kEarnerTokenType) == 0) {
+        return MakeNoncriticalError("no earner token available");
+    }
+    return ModifyLandingPage("https://buy.psi.cash/");
 }
 
 Result<string> PsiCash::GetRewardedActivityData() const {
