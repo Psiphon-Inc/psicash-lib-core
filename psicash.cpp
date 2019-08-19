@@ -309,7 +309,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     }
 
     // Base64-encode the JSON
-    auto b64 = base64::TrimPadding(base64::B64Encode(json_data));
+    auto encoded_json = URL::Encode(base64::TrimPadding(base64::B64Encode(json_data)), false);
 
     // Our preference is to put the our data into the URL's fragment/hash/anchor,
     // because we'd prefer the data not be sent to the server.
@@ -321,12 +321,12 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
         // When setting in the fragment, we use "#!psicash=etc". The ! prevents the
         // fragment from accidentally functioning as a jump-to anchor on a landing page
         // (where we don't control element IDs, etc.).
-        url.fragment_ = "!"s + kLandingPageParamKey + "=" + b64;
+        url.fragment_ = "!"s + kLandingPageParamKey + "=" + encoded_json;
     } else {
         if (!url.query_.empty()) {
             url.query_ += "&";
         }
-        url.query_ += kLandingPageParamKey + "="s + b64;
+        url.query_ += kLandingPageParamKey + "="s + encoded_json;
     }
 
     return url.ToString();
