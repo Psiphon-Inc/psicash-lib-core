@@ -29,6 +29,6 @@ chdir ..
 robocopy /V build\MinSizeRel\ dist-windows\Release2015 /S
 robocopy /V build\Debug dist-windows\Debug2015 /S
 REM TODO: put exported include files into an "include" directory and modify build appropriately
-robocopy /V . dist-windows datetime.hpp error.hpp psicash.hpp
+robocopy /V . dist-windows datetime.hpp error.hpp url.hpp psicash.hpp
 robocopy /V vendor\ dist-windows\vendor /S
 git describe --always --long --dirty --tags > dist-windows/git.txt
