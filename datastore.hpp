@@ -37,7 +37,8 @@ class Datastore {
 public:
     enum DatastoreGetError {
         kNotFound = 1,
-        kTypeMismatch
+        kTypeMismatch,
+        kDatastoreUninitialized
     };
 
 public:
@@ -47,11 +48,17 @@ public:
     /// The fileRoot directory must already exist.
     /// suffix should be used to disambiguate different datastores. Optional (can be null).
     /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
-    error::Error Init(const char* file_root, const char* suffix);
+    error::Error Init(const std::string& file_root, const std::string& suffix);
 
     /// Clears the in-memory structure and the persistent file.
-    /// Primarily intended for debugging purposes.
-    void Clear();
+    /// Calling this does not change the initialized state. If the datastore was already
+    /// initialized with a different file_root+suffix, then the result is undefined.
+    error::Error Clear(const std::string& file_root, const std::string& suffix);
+
+    /// Clears the in-memory structure and the persistent file.
+    /// Calling this does not change the initialized state.
+    /// Init() must have already been called, successfully.
+    error::Error Clear();
 
     /// Stops writing of updates to disk until UnpauseWrites is called.
     void PauseWrites();
@@ -66,6 +73,9 @@ public:
             // "control reached end of non-void function without returning a value".
             T val;
             SYNCHRONIZE_BLOCK(mutex_) {
+                if (!initialized_) {
+                    return nonstd::make_unexpected(kDatastoreUninitialized);
+                }
                 if (json_.find(key) == json_.end()) {
                     return nonstd::make_unexpected(kNotFound);
                 }
@@ -92,11 +102,15 @@ public:
     error::Error Set(const json& in);
 
 protected:
-    error::Error FileLoad();
-    error::Error FileStore();
+    /// Helper for the public Clear methods
+    error::Error Clear(const std::string& file_path);
+
+    error::Error FileLoad(const std::string& file_path);
+    error::Error FileStore(const std::string& file_path);
 
 private:
     mutable std::recursive_mutex mutex_;
+    bool initialized_;
     std::string file_path_;
     json json_;
     bool paused_;

@@ -45,8 +45,12 @@ UserData::UserData() {
 UserData::~UserData() {
 }
 
-error::Error UserData::Init(const char* file_store_root, bool dev) {
-    auto err = datastore_.Init(file_store_root, dev ? ".dev" : ".prod");
+static string DataStoreSuffix(bool dev) {
+    return dev ? ".dev" : ".prod";
+}
+
+error::Error UserData::Init(const string& file_store_root, bool dev) {
+    auto err = datastore_.Init(file_store_root, DataStoreSuffix(dev));
     if (err) {
         return PassError(err);
     }
@@ -59,8 +63,12 @@ error::Error UserData::Init(const char* file_store_root, bool dev) {
     return error::nullerr;
 }
 
-void UserData::Clear() {
-    datastore_.Clear();
+error::Error UserData::Clear(const string& file_store_root, bool dev) {
+    return PassError(datastore_.Clear(file_store_root, DataStoreSuffix(dev)));
+}
+
+error::Error UserData::Clear() {
+    return PassError(datastore_.Clear());
 }
 
 datetime::Duration UserData::GetServerTimeDiff() const {

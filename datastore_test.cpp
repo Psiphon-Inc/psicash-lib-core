@@ -28,7 +28,7 @@ using namespace std;
 using namespace psicash;
 using json = nlohmann::json;
 
-constexpr auto dsSuffix = ".test";
+constexpr auto ds_suffix = ".test";
 
 class TestDatastore : public ::testing::Test, public TempDir
 {
@@ -39,17 +39,17 @@ class TestDatastore : public ::testing::Test, public TempDir
 TEST_F(TestDatastore, InitSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
-    ASSERT_FALSE(err);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    ASSERT_FALSE(err) << err.ToString();
 }
 
 TEST_F(TestDatastore, InitCorrupt)
 {
     auto temp_dir = GetTempDir();
-    WriteBadData(temp_dir.c_str());
+    WriteBadData(temp_dir.c_str(), ds_suffix);
 
     Datastore ds;
-    auto err = ds.Init(temp_dir.c_str(), dsSuffix);
+    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
     ASSERT_TRUE(err);
     ASSERT_GT(err.ToString().length(), 0);
 }
@@ -58,12 +58,12 @@ TEST_F(TestDatastore, InitBadDir)
 {
     auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
     Datastore ds1;
-    auto err = ds1.Init(bad_dir.c_str(), dsSuffix);
+    auto err = ds1.Init(bad_dir.c_str(), ds_suffix);
     ASSERT_TRUE(err);
 
     bad_dir = "/";
     Datastore ds2;
-    err = ds2.Init(bad_dir.c_str(), dsSuffix);
+    err = ds2.Init(bad_dir.c_str(), ds_suffix);
     ASSERT_TRUE(err);
 }
 
@@ -75,7 +75,7 @@ TEST_F(TestDatastore, CheckPersistence)
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), dsSuffix);
+    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -91,7 +91,7 @@ TEST_F(TestDatastore, CheckPersistence)
 
     // Create a new one and check that it has the same data.
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), dsSuffix);
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     got = ds->Get<string>("k");
@@ -101,12 +101,87 @@ TEST_F(TestDatastore, CheckPersistence)
     delete ds;
 }
 
+TEST_F(TestDatastore, Clear)
+{
+    auto temp_dir = GetTempDir();
+
+    auto ds = new Datastore();
+    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    string want = "v";
+    err = ds->Set({{"k", want}});
+    ASSERT_FALSE(err);
+
+    auto got = ds->Get<string>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, want);
+
+    // Destroy/close the datastore
+    delete ds;
+
+    // Create a new one and check that it has the same data.
+    ds = new Datastore();
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, want);
+
+    delete ds;
+
+    // Clear with arguments
+    ds = new Datastore();
+    err = ds->Clear(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    // First Get without calling Init; should get "not initialized" error
+    got = ds->Get<string>("k");
+    ASSERT_FALSE(got);
+    ASSERT_EQ(got.error(), psicash::Datastore::kDatastoreUninitialized);
+
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("k");
+    ASSERT_FALSE(got);
+    ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
+
+    err = ds->Set({{"k", want}});
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, want);
+
+    delete ds;
+
+    // Clear without arguments
+    ds = new Datastore();
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("k");
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, want);
+
+    err = ds->Clear();
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("k");
+    ASSERT_FALSE(got);
+    ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
+
+    delete ds;
+}
+
 TEST_F(TestDatastore, WritePause)
 {
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), dsSuffix);
+    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     // This should persist
@@ -133,7 +208,7 @@ TEST_F(TestDatastore, WritePause)
 
     // Reopen
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), dsSuffix);
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     auto got = ds->Get<string>(pause_want1.c_str());
@@ -153,7 +228,7 @@ TEST_F(TestDatastore, WritePause)
 TEST_F(TestDatastore, SetSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -168,7 +243,7 @@ TEST_F(TestDatastore, SetSimple)
 TEST_F(TestDatastore, SetMulti)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     const char *key1 = "key1", *key2 = "key2";
@@ -188,7 +263,7 @@ TEST_F(TestDatastore, SetMulti)
 TEST_F(TestDatastore, SetDeep)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     const char *key1 = "key1", *key2 = "key2";
@@ -206,7 +281,7 @@ TEST_F(TestDatastore, SetDeep)
 TEST_F(TestDatastore, SetAndClear)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     map<string, string> want = {{"a", "a"}, {"b", "b"}};
@@ -232,7 +307,7 @@ TEST_F(TestDatastore, SetTypes)
     // Test some types other than just string
 
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     // Start with string
@@ -269,7 +344,7 @@ TEST_F(TestDatastore, SetTypes)
 TEST_F(TestDatastore, TypeMismatch)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     // string
@@ -326,7 +401,7 @@ TEST_F(TestDatastore, TypeMismatch)
 TEST_F(TestDatastore, getSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -341,7 +416,7 @@ TEST_F(TestDatastore, getSimple)
 TEST_F(TestDatastore, getNotFound)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -361,7 +436,7 @@ TEST_F(TestDatastore, getNotFound)
 TEST_F(TestDatastore, clear)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), dsSuffix);
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";

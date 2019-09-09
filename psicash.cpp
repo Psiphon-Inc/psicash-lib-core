@@ -86,8 +86,8 @@ PsiCash::PsiCash()
 PsiCash::~PsiCash() {
 }
 
-Error PsiCash::Init(const char* user_agent, const char* file_store_root,
-              MakeHTTPRequestFn make_http_request_fn, bool test) {
+Error PsiCash::Init(const string& user_agent, const string& file_store_root,
+                    MakeHTTPRequestFn make_http_request_fn, bool test) {
     test_ = test;
     if (test) {
         server_scheme_ = dev::kAPIServerScheme;
@@ -99,11 +99,12 @@ Error PsiCash::Init(const char* user_agent, const char* file_store_root,
         server_port_ = prod::kAPIServerPort;
     }
 
-    if (!user_agent || (user_agent_ = user_agent).empty()) {
+    if (user_agent.empty()) {
         return MakeCriticalError("user_agent is required");
     }
+    user_agent_ = user_agent;
 
-    if (!file_store_root) {
+    if (file_store_root.empty()) {
         return MakeCriticalError("file_store_root is required");
     }
 
@@ -112,16 +113,12 @@ Error PsiCash::Init(const char* user_agent, const char* file_store_root,
 
     user_data_ = std::make_unique<UserData>();
     auto err = user_data_->Init(file_store_root, test);
-    if (err) {
-        // If UserData.Init fails, the only way to proceed is to try to reset it and create a new one.
-        user_data_->Clear();
-        err = user_data_->Init(file_store_root, test);
-        if (err) {
-            return PassError(err);
-        }
-    }
+    return PassError(err);
+}
 
-    return nullerr;
+Error PsiCash::Reset(const string& file_store_root, bool test) {
+    auto temp_user_data = std::make_unique<UserData>();
+    return PassError(temp_user_data->Clear(file_store_root, test));
 }
 
 void PsiCash::SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn) {

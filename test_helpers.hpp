@@ -61,9 +61,9 @@ class TempDir
         return res;
     }
 
-    void WriteBadData(const char *datastoreRoot)
+    void WriteBadData(const std::string& datastore_root, const std::string& suffix)
     {
-        auto ds_file = std::string(datastoreRoot) + "/datastore";
+        auto ds_file = datastore_root + "/psicashdatastore" + suffix;
         auto make_bad_file = "echo nonsense > " + ds_file;
         system(make_bad_file.c_str());
     }

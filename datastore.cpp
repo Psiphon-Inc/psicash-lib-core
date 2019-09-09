@@ -30,19 +30,39 @@ using namespace error;
 
 
 Datastore::Datastore()
-        : json_(json::object()) {
+        : initialized_(false), json_(json::object()), paused_(false) {
 }
 
-Error Datastore::Init(const char* file_root, const char* suffix) {
+static string FilePath(const string& file_root, const string& suffix) {
+    return file_root + "/psicashdatastore" + suffix;
+}
+
+Error Datastore::Init(const string& file_root, const string& suffix) {
     SYNCHRONIZE(mutex_);
-    file_path_ = string(file_root) + "/psicashdatastore" + (suffix ? suffix : "");
-    return PassError(FileLoad());
+    file_path_ = FilePath(file_root, suffix);
+    if (auto err = FileLoad(file_path_)) {
+        return PassError(err);
+    }
+    initialized_ = true;
+    return error::nullerr;
 }
 
-void Datastore::Clear() {
+#define MUST_BE_INITIALIZED     if (!initialized_) { return MakeCriticalError("must only be called on an initialized datastore"); }
+
+Error Datastore::Clear(const string& file_path) {
     SYNCHRONIZE(mutex_);
     json_ = json::object();
-    FileStore();
+    return PassError(FileStore(file_path));
+}
+
+Error Datastore::Clear(const string& file_root, const string& suffix) {
+    return PassError(Clear(FilePath(file_root, suffix)));
+}
+
+Error Datastore::Clear() {
+    SYNCHRONIZE(mutex_);
+    MUST_BE_INITIALIZED;
+    return PassError(Clear(file_path_));
 }
 
 void Datastore::PauseWrites() {
@@ -50,28 +70,30 @@ void Datastore::PauseWrites() {
     paused_ = true;
 }
 
-error::Error Datastore::UnpauseWrites() {
+Error Datastore::UnpauseWrites() {
     SYNCHRONIZE(mutex_);
+    MUST_BE_INITIALIZED;
     if (!paused_) {
         return nullerr;
     }
     paused_ = false;
-    return FileStore();
+    return FileStore(file_path_);
 }
 
 Error Datastore::Set(const json& in) {
     SYNCHRONIZE(mutex_);
+    MUST_BE_INITIALIZED;
     json_.update(in);
-    return PassError(FileStore());
+    return PassError(FileStore(file_path_));
 }
 
-Error Datastore::FileLoad() {
+Error Datastore::FileLoad(const string& file_path) {
     SYNCHRONIZE(mutex_);
 
     json_ = json::object();
 
     ifstream f;
-    f.open(file_path_, ios::binary);
+    f.open(file_path, ios::binary);
 
     // Figuring out the cause of an open-file problem (i.e., file doesn't exist vs. filesystem is
     // broken) is annoying difficult to do robustly and in a cross-platform manner.
@@ -79,7 +101,7 @@ Error Datastore::FileLoad() {
     // For details see: https://en.cppreference.com/w/cpp/io/ios_base/iostate
     if (f.fail()) {
         // File probably doesn't exist. Check that we can write here.
-        return WrapError(FileStore(), "f.fail and FileStore failed");
+        return WrapError(FileStore(file_path), "f.fail and FileStore failed");
     } else if (!f.good()) {
         return MakeCriticalError(utils::Stringer("not f.good; errno=", errno));
     }
@@ -94,7 +116,7 @@ Error Datastore::FileLoad() {
     return nullerr;
 }
 
-Error Datastore::FileStore() {
+Error Datastore::FileStore(const string& file_path) {
     SYNCHRONIZE(mutex_);
 
     if (paused_) {
@@ -102,7 +124,7 @@ Error Datastore::FileStore() {
     }
 
     ofstream f;
-    f.open(file_path_, ios::trunc | ios::binary);
+    f.open(file_path, ios::trunc | ios::binary);
     if (!f.is_open()) {
         return MakeCriticalError(utils::Stringer("not f.is_open; errno=", errno));
     }

@@ -33,10 +33,11 @@ TEST_F(TestUserData, InitFail)
 
 TEST_F(TestUserData, Persistence)
 {
-    auto want_server_time_diff = datetime::Duration(54321);
+    auto want_server_time_diff_ms = 54321;
+    auto want_server_time_diff = datetime::Duration(want_server_time_diff_ms);
     AuthTokens want_auth_tokens = {{"k1", "v1"}, {"k2", "v2"}};
     bool want_is_account = true;
-    int64_t want_balance = 54321;
+    int64_t want_balance = 12345;
     PurchasePrices want_purchase_prices = {{"tc1", "d1", 123}, {"tc2", "d2", 321}};
     Purchases want_purchases = {
         {"id1", "tc1", "d1", nullopt, nullopt, nullopt},
@@ -47,6 +48,7 @@ TEST_F(TestUserData, Persistence)
     auto temp_dir = GetTempDir();
 
     {
+        // Set a bunch of values to persist
         UserData ud;
         auto err = ud.Init(temp_dir.c_str(), dev);
         ASSERT_FALSE(err);
@@ -69,9 +71,10 @@ TEST_F(TestUserData, Persistence)
 
         err = ud.SetRequestMetadataItem(req_metadata_key, want_req_metadata_value);
         ASSERT_FALSE(err);
+        // close the datastore
     }
-
     {
+        // Re-open the datastore and check values
         UserData ud;
         auto err = ud.Init(temp_dir.c_str(), dev);
         ASSERT_FALSE(err);

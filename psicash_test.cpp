@@ -135,32 +135,63 @@ TEST_F(TestPsiCash, InitSimple) {
 }
 
 TEST_F(TestPsiCash, InitFail) {
-    /* This test is flaky, and I don't know why.
     {
         // Datastore directory that will not work
         auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
         PsiCashTester pc;
         auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
-        // This occasionally fails to fail, and I don't know why
-        // TEMP
-        if (!err) {
-          err = pc.user_data().SetIsAccount(false);
-          cout << "Did write work? " << err << endl;
-        }
         ASSERT_TRUE(err) << bad_dir;
     }
-    */
     {
-        // Null datastore directory
+        // Empty datastore directory
         PsiCash pc;
-        auto err = pc.Init(user_agent_, nullptr, nullptr, true);
+        auto err = pc.Init(user_agent_, "", nullptr, true);
         ASSERT_TRUE(err);
     }
     {
-        // Null user agent
+        // Empty user agent
         PsiCash pc;
-        auto err = pc.Init(nullptr, GetTempDir().c_str(), nullptr, true);
+        auto err = pc.Init("", GetTempDir().c_str(), nullptr, true);
         ASSERT_TRUE(err);
+    }
+}
+
+TEST_F(TestPsiCash, Clear) {
+    int64_t want_balance = 123;
+    auto temp_dir = GetTempDir();
+
+    {
+        // Set a value
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        ASSERT_FALSE(err);
+
+        err = pc.user_data().SetBalance(want_balance);
+        ASSERT_FALSE(err);
+
+        auto got_balance = pc.Balance();
+        ASSERT_EQ(got_balance, want_balance);
+    }
+    {
+        // Check the value's persistence
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        ASSERT_FALSE(err);
+
+        auto got_balance = pc.Balance();
+        ASSERT_EQ(got_balance, want_balance);
+    }
+    {
+        // Reset
+        PsiCashTester pc;
+        auto err = pc.Reset(temp_dir.c_str(), true);
+        ASSERT_FALSE(err);
+
+        err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        ASSERT_FALSE(err);
+
+        auto got_balance = pc.Balance();
+        ASSERT_EQ(got_balance, 0);
     }
 }
 

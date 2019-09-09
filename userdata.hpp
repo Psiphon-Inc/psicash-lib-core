@@ -44,10 +44,16 @@ public:
     /// Must be called once.
     /// dev should be true if this instance is communicating with the dev server.
     /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
-    error::Error Init(const char* file_store_root, bool dev);
+    error::Error Init(const std::string& file_store_root, bool dev);
 
-    /// Clears data and datastore file.
-    void Clear();
+    /// Clears data and datastore file. Calling this does not change the initialized
+    /// state. If the datastore was already initialized with a different file_root+suffix,
+    /// then the result is undefined.
+    error::Error Clear(const std::string& file_store_root, bool dev);
+
+    /// Clears data and datastore file. Calling this does not change the initialized state.
+    /// Init() must have already been called, successfully.
+    error::Error Clear();
 
     /// Used to pause and result datastore file writing.
     class WritePauser {
