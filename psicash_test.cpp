@@ -156,6 +156,33 @@ TEST_F(TestPsiCash, InitFail) {
     }
 }
 
+TEST_F(TestPsiCash, UninitializedBehaviour) {
+    {
+        // No Init
+        PsiCashTester pc;
+        ASSERT_FALSE(pc.Initialized());
+
+        ASSERT_EQ(pc.Balance(), 0);
+
+        auto res = pc.RefreshState({"speed-boost"});
+        ASSERT_FALSE(res);
+    }
+    {
+        // Failed Init
+        auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
+        ASSERT_TRUE(err) << bad_dir;
+
+        ASSERT_FALSE(pc.Initialized());
+
+        ASSERT_EQ(pc.Balance(), 0);
+
+        auto res = pc.RefreshState({"speed-boost"});
+        ASSERT_FALSE(res);
+    }
+}
+
 TEST_F(TestPsiCash, Clear) {
     int64_t want_balance = 123;
     auto temp_dir = GetTempDir();

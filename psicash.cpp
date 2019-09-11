@@ -80,7 +80,11 @@ constexpr int HTTPResult::CRITICAL_ERROR;
 constexpr int HTTPResult::RECOVERABLE_ERROR;
 
 PsiCash::PsiCash()
-        : server_port_(0), make_http_request_fn_(nullptr) {
+        : test_(false),
+          initialized_(false),
+          server_port_(0),
+          user_data_(std::make_unique<UserData>()),
+          make_http_request_fn_(nullptr) {
 }
 
 PsiCash::~PsiCash() {
@@ -111,9 +115,16 @@ Error PsiCash::Init(const string& user_agent, const string& file_store_root,
     // May still be null.
     make_http_request_fn_ = std::move(make_http_request_fn);
 
-    user_data_ = std::make_unique<UserData>();
-    auto err = user_data_->Init(file_store_root, test);
-    return PassError(err);
+    if (auto err = user_data_->Init(file_store_root, test)) {
+        return PassError(err);
+    }
+
+    initialized_ = true;
+    return error::nullerr;
+}
+
+bool PsiCash::Initialized() const {
+    return initialized_;
 }
 
 Error PsiCash::Reset(const string& file_store_root, bool test) {
@@ -598,6 +609,10 @@ Result<Status> PsiCash::RefreshState(
      6. If there are still no valid tokens, then things are horribly wrong. Return error.
     */
 
+    if (!initialized_) {
+        return MakeCriticalError("PsiCash is uninitialized");
+    }
+
     auto auth_tokens = user_data_->GetAuthTokens();
     if (auth_tokens.empty()) {
         // No tokens.
@@ -728,8 +743,9 @@ Result<Status> PsiCash::RefreshState(
         return RefreshState(purchase_classes, true);
     } else if (result->code == kHTTPStatusUnauthorized) {
         // This can only happen if the tokens we sent didn't all belong to same user.
-        // This really should never happen.
-        user_data_->Clear();
+        // This really should never happen. We're not checking the return value, as there
+        // isn't a sane response to a failure at this point.
+        (void)user_data_->Clear();
         return Status::InvalidTokens;
     } else if (IsServerError(result->code)) {
         return Status::ServerError;
@@ -743,6 +759,10 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         const string& transaction_class,
         const string& distinguisher,
         const int64_t expected_price) {
+    if (!initialized_) {
+        return MakeCriticalError("PsiCash is uninitialized");
+    }
+
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
             "/transaction",

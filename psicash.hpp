@@ -172,12 +172,17 @@ public:
     /// filesystem).
     /// If `test` is true, then the test server will be used, and other testing interfaces
     /// will be available. Should only be used for testing.
+    /// When uninitialized, data accessors will return zero values, and operations (e.g.,
+    /// RefreshState and NewExpiringPurchase) will return errors.
     error::Error Init(const std::string& user_agent, const std::string& file_store_root,
                       MakeHTTPRequestFn make_http_request_fn, bool test=false);
 
     /// Resets the PsiCash datastore. Init() must be called after this method is used.
     /// Returns an error if the reset failed, likely indicating a filesystem problem.
     error::Error Reset(const std::string& file_store_root, bool test=false);
+
+    /// Returns true if the library has been successfully initialized (i.e., Init called).
+    bool Initialized() const;
 
     /// Can be used for updating the HTTP requester function pointer.
     void SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn);
@@ -380,6 +385,7 @@ protected:
 
 protected:
     bool test_;
+    bool initialized_;
     std::string user_agent_;
     std::string server_scheme_;
     std::string server_hostname_;
