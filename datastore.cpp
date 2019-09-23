@@ -93,7 +93,7 @@ Error Datastore::FileLoad(const string& file_path) {
     json_ = json::object();
 
     ifstream f;
-    f.open(file_path, ios::binary);
+    f.open(file_path, ios::in | ios::binary);
 
     // Figuring out the cause of an open-file problem (i.e., file doesn't exist vs. filesystem is
     // broken) is annoying difficult to do robustly and in a cross-platform manner.
@@ -124,7 +124,7 @@ Error Datastore::FileStore(const string& file_path) {
     }
 
     ofstream f;
-    f.open(file_path, ios::trunc | ios::binary);
+    f.open(file_path, ios::out | ios::trunc | ios::binary);
     if (!f.is_open()) {
         return MakeCriticalError(utils::Stringer("not f.is_open; errno=", errno));
     }
