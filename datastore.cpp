@@ -133,24 +133,20 @@ static Result<json> FileLoad(const string& file_path) {
         }
     }
 
-    ifstream f;
-    f.open(file_path, ios::in | ios::binary);
-
-    // Figuring out the cause of an open-file problem (i.e., file doesn't exist vs. filesystem is
-    // broken) is annoying difficult to do robustly and in a cross-platform manner.
-    // It seems like these state achieve approximately what we want.
-    // For details see: https://en.cppreference.com/w/cpp/io/ios_base/iostate
-    if (f.fail()) {
-        // File probably doesn't exist. Check that we can write here by trying to store.
+    if (!utils::FileExists(file_path)) {
+        // Check that we can write here by trying to store.
         auto empty_object = json::object();
         if (auto err = FileStore(false, file_path, empty_object)) {
-            return WrapError(err, "f.fail and FileStore failed");
+            return WrapError(err, "file doesn't exist and FileStore failed");
         }
 
-        // File is okay and now has empty object.
-        return empty_object;
-    } else if (!f.good()) {
-        return MakeCriticalError(utils::Stringer("not f.good; errno=", errno));
+        // We'll continue on with the rest of the logic, which will read the new empty file.
+    }
+
+    ifstream f;
+    f.open(file_path, ios::in | ios::binary);
+    if (!f) {
+        return MakeCriticalError(utils::Stringer("file open failed; errno=", errno));
     }
 
     json json;
