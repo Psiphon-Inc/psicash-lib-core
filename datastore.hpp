@@ -105,9 +105,6 @@ protected:
     /// Helper for the public Clear methods
     error::Error Clear(const std::string& file_path);
 
-    error::Error FileLoad(const std::string& file_path);
-    error::Error FileStore(const std::string& file_path);
-
 private:
     mutable std::recursive_mutex mutex_;
     bool initialized_;

@@ -134,7 +134,7 @@ TEST_F(TestDatastore, Clear)
     // Clear with arguments
     ds = new Datastore();
     err = ds->Clear(temp_dir.c_str(), ds_suffix);
-    ASSERT_FALSE(err);
+    ASSERT_FALSE(err) << err.ToString();
 
     // First Get without calling Init; should get "not initialized" error
     got = ds->Get<string>("k");
@@ -398,7 +398,7 @@ TEST_F(TestDatastore, TypeMismatch)
     ASSERT_FALSE(err);
 }
 
-TEST_F(TestDatastore, getSimple)
+TEST_F(TestDatastore, GetSimple)
 {
     Datastore ds;
     auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
@@ -413,7 +413,7 @@ TEST_F(TestDatastore, getSimple)
     ASSERT_EQ(*got, want);
 }
 
-TEST_F(TestDatastore, getNotFound)
+TEST_F(TestDatastore, GetNotFound)
 {
     Datastore ds;
     auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
@@ -431,26 +431,4 @@ TEST_F(TestDatastore, getNotFound)
     auto nope = ds.Get<string>("nope");
     ASSERT_FALSE(nope);
     ASSERT_EQ(nope.error(), psicash::Datastore::kNotFound);
-}
-
-TEST_F(TestDatastore, clear)
-{
-    Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
-    ASSERT_FALSE(err);
-
-    string want = "v";
-    err = ds.Set({{"k", want}});
-    ASSERT_FALSE(err);
-
-    auto got = ds.Get<string>("k");
-    ASSERT_TRUE(got);
-    ASSERT_EQ(*got, want);
-
-    ds.Clear();
-
-    // There should be nothing in the datastore.
-    got = ds.Get<string>("k");
-    ASSERT_FALSE(got);
-    ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
 }
