@@ -48,6 +48,9 @@ std::string Stringer(const T& value, const Args& ... args) {
 /// Synchronize the current scope using the given mutex.
 #define SYNCHRONIZE(m) std::unique_lock<std::recursive_mutex> synchronize_lock(m)
 
+/// Tests if the given filepath+name exists.
+bool FileExists(const std::string& filename);
+
 }
 
 #endif //PSICASHLIB_UTILS_H

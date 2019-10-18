@@ -19,7 +19,9 @@
 
 #include <iostream>
 #include <fstream>
+#include <cstdio>
 #include "datastore.hpp"
+#include "utils.hpp"
 #include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;
@@ -28,21 +30,22 @@ using namespace std;
 using namespace psicash;
 using namespace error;
 
+static string FilePath(const string& file_root, const string& suffix);
+static Result<json> FileLoad(const string& file_path);
+static Error FileStore(bool paused, const string& file_path, const json& json);
 
 Datastore::Datastore()
         : initialized_(false), json_(json::object()), paused_(false) {
 }
 
-static string FilePath(const string& file_root, const string& suffix) {
-    return file_root + "/psicashdatastore" + suffix;
-}
-
 Error Datastore::Init(const string& file_root, const string& suffix) {
     SYNCHRONIZE(mutex_);
     file_path_ = FilePath(file_root, suffix);
-    if (auto err = FileLoad(file_path_)) {
-        return PassError(err);
+    auto res = FileLoad(file_path_);
+    if (!res) {
+        return PassError(res.error());
     }
+    json_ = *res;
     initialized_ = true;
     return error::nullerr;
 }
@@ -51,8 +54,13 @@ Error Datastore::Init(const string& file_root, const string& suffix) {
 
 Error Datastore::Clear(const string& file_path) {
     SYNCHRONIZE(mutex_);
-    json_ = json::object();
-    return PassError(FileStore(file_path));
+    paused_ = false;
+    auto empty_json = json::object();
+    if (auto err = FileStore(paused_, file_path, empty_json)) {
+        return PassError(err);
+    }
+    json_ = empty_json;
+    return error::nullerr;
 }
 
 Error Datastore::Clear(const string& file_root, const string& suffix) {
@@ -77,63 +85,131 @@ Error Datastore::UnpauseWrites() {
         return nullerr;
     }
     paused_ = false;
-    return FileStore(file_path_);
+    return PassError(FileStore(paused_, file_path_, json_));
 }
 
 Error Datastore::Set(const json& in) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
     json_.update(in);
-    return PassError(FileStore(file_path_));
+    return PassError(FileStore(paused_, file_path_, json_));
 }
 
-Error Datastore::FileLoad(const string& file_path) {
-    SYNCHRONIZE(mutex_);
+static string FilePath(const string& file_root, const string& suffix) {
+    return file_root + "/psicashdatastore" + suffix;
+}
 
-    json_ = json::object();
+/*
+More-robust file saving will be achieved like this...
+
+When writing to file:
+1. Write data to a new file `file_path.temp` (overwrite if exists)
+2. Delete `file_path.commit`, if it exists (this should not happen, as the last read should have removed it)
+3. Rename new file to `file_path.commit`
+4. Delete existing `file_path` file
+5. Rename `file_path.commit` to `file_path`
+
+When reading from file:
+1. Check if `file_path.commit` exists
+  a. If so, delete `file_path`, if it exists
+  b. Rename `file_path.commit` to `file_path`
+2. Read `file_path`
+*/
+
+static constexpr auto TEMP_EXT = ".temp";
+static constexpr auto COMMIT_EXT = ".commit";
+
+static Result<json> FileLoad(const string& file_path) {
+    const auto commit_file_path = file_path + COMMIT_EXT;
+
+    // Do we have an existing commit file to promote?
+    if (utils::FileExists(commit_file_path)) {
+        int err;
+        if (utils::FileExists(file_path) && (err = std::remove(file_path.c_str())) != 0) {
+            return MakeCriticalError(utils::Stringer("removing file_path failed; err=", err, "; errno=", errno));
+        }
+        if ((err = std::rename(commit_file_path.c_str(), file_path.c_str())) != 0) {
+            return MakeCriticalError(utils::Stringer("renaming commit_file_path to file_path failed; err=", err, "; errno=", errno));
+        }
+    }
+
+    if (!utils::FileExists(file_path)) {
+        // Check that we can write here by trying to store.
+        auto empty_object = json::object();
+        if (auto err = FileStore(false, file_path, empty_object)) {
+            return WrapError(err, "file doesn't exist and FileStore failed");
+        }
+
+        // We'll continue on with the rest of the logic, which will read the new empty file.
+    }
 
     ifstream f;
     f.open(file_path, ios::in | ios::binary);
-
-    // Figuring out the cause of an open-file problem (i.e., file doesn't exist vs. filesystem is
-    // broken) is annoying difficult to do robustly and in a cross-platform manner.
-    // It seems like these state achieve approximately what we want.
-    // For details see: https://en.cppreference.com/w/cpp/io/ios_base/iostate
-    if (f.fail()) {
-        // File probably doesn't exist. Check that we can write here.
-        return WrapError(FileStore(file_path), "f.fail and FileStore failed");
-    } else if (!f.good()) {
-        return MakeCriticalError(utils::Stringer("not f.good; errno=", errno));
+    if (!f) {
+        return MakeCriticalError(utils::Stringer("file open failed; errno=", errno));
     }
 
+    json json;
     try {
-        f >> json_;
+        f >> json;
     }
     catch (json::exception& e) {
         return MakeCriticalError(utils::Stringer("json load failed: ", e.what(), "; id:", e.id));
     }
 
-    return nullerr;
+    return json;
 }
 
-Error Datastore::FileStore(const string& file_path) {
-    SYNCHRONIZE(mutex_);
-
-    if (paused_) {
+static Error FileStore(bool paused, const string& file_path, const json& json) {
+    if (paused) {
         return nullerr;
     }
 
+    const auto temp_file_path = file_path + TEMP_EXT;
+    const auto commit_file_path = file_path + COMMIT_EXT;
+
+    /*
+    Write to the temp file
+    */
+
     ofstream f;
-    f.open(file_path, ios::out | ios::trunc | ios::binary);
+    f.open(temp_file_path, ios::out | ios::trunc | ios::binary);
     if (!f.is_open()) {
-        return MakeCriticalError(utils::Stringer("not f.is_open; errno=", errno));
+        return MakeCriticalError(utils::Stringer("temp_file_path not f.is_open; errno=", errno));
     }
 
     try {
-        f << json_;
+        f << json;
     }
     catch (json::exception& e) {
         return MakeCriticalError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id));
+    }
+
+    f.close();
+
+    /*
+    Rename temp to commit
+    */
+
+    int err;
+    if (utils::FileExists(commit_file_path) && (err = std::remove(commit_file_path.c_str())) != 0) {
+        return MakeCriticalError(utils::Stringer("removing commit_file_path failed; err=", err, "; errno=", errno));
+    }
+
+    if ((err = std::rename(temp_file_path.c_str(), commit_file_path.c_str())) != 0) {
+        return MakeCriticalError(utils::Stringer("renaming temp_file_path to commit_file_path failed; err=", err, "; errno=", errno));
+    }
+
+    /*
+    Rename commit to datastore
+    */
+
+    if (utils::FileExists(file_path) && (err = std::remove(file_path.c_str())) != 0) {
+        return MakeCriticalError(utils::Stringer("removing file_path failed; err=", err, "; errno=", errno));
+    }
+
+    if ((err = std::rename(commit_file_path.c_str(), file_path.c_str())) != 0) {
+        return MakeCriticalError(utils::Stringer("renaming commit_file_path to file_path failed; err=", err, "; errno=", errno));
     }
 
     return nullerr;
