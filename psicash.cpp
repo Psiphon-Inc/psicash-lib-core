@@ -303,8 +303,7 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     }
 
     // Get the metadata (sponsor ID, etc.)
-    psicash_data["metadata"] = user_data_->GetRequestMetadata();
-    psicash_data["metadata"]["user_agent"] = user_agent_;
+    psicash_data["metadata"] = GetRequestMetadata(0);
 
     string json_data;
     try {
@@ -351,21 +350,6 @@ Result<string> PsiCash::GetBuyPsiURL() const {
 }
 
 Result<string> PsiCash::GetRewardedActivityData() const {
-    /*
-     The data is base64-encoded JSON-serialized with this structure:
-     {
-         "v": 1,
-         "tokens": "earner token",
-         "metadata": {
-             "client_region": "CA",
-             "client_version": "123",
-             "sponsor_id": "ABCDEFGH12345678",
-             "propagation_channel_id": "ABCDEFGH12345678"
-         },
-         "user_agent": "PsiCash-iOS-Client"
-     }
-    */
-
     json psicash_data;
     psicash_data["v"] = 1;
 
@@ -378,7 +362,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
     }
 
     // Get the metadata (sponsor ID, etc.)
-    psicash_data["metadata"] = user_data_->GetRequestMetadata();
+    psicash_data["metadata"] = GetRequestMetadata(0);
 
     string json_data;
     try {
@@ -427,6 +411,20 @@ json PsiCash::GetDiagnosticInfo() const {
 // Simple helper to determine if a given HTTP response code should be considered a "server error".
 inline bool IsServerError(int code) {
     return code >= 500 && code <= 599;
+}
+
+// Creates the metadata JSON that should be included with requests.
+// This method MUST be called rather than calling UserData::GetRequestMetdata directly.
+// If `attempt` is 0 it will be omitted from the metadata object.
+json PsiCash::GetRequestMetadata(int attempt) const {
+    auto req_metadata = user_data_->GetRequestMetadata();
+    // UserData stores only the explicitly set metadata. We have more fields to add at this level.
+    req_metadata["v"] = 1;
+    req_metadata["user_agent"] = user_agent_;
+    if (attempt > 0) {
+        req_metadata["attempt"] = attempt;
+    }
+    return req_metadata;
 }
 
 // Makes an HTTP request (with possible retries).
@@ -522,8 +520,7 @@ Result<HTTPParams> PsiCash::BuildRequestParams(
         params.headers["X-PsiCash-Auth"] = s;
     }
 
-    auto metadata = user_data_->GetRequestMetadata();
-    metadata["attempt"] = attempt;
+    auto metadata = GetRequestMetadata(attempt);
 
     try {
         params.headers["X-PsiCash-Metadata"] = metadata.dump(-1, ' ', true);
