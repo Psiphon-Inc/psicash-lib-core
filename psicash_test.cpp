@@ -712,7 +712,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     // No metadata set
     //
 
-    auto encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"user_agent":")", user_agent_, R"("},"tokens":null,"v":1})")));
+    auto encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"user_agent":")", user_agent_, R"(","v":1},"tokens":null,"v":1})")));
 
     url_in = {"https://asdf.sadf.gf", "", ""};
     auto res = pc.ModifyLandingPage(url_in.ToString());
@@ -780,7 +780,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.query_, url_in.query_);
-    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"("},"tokens":null,"v":1})")));
+    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"(","v":1},"tokens":null,"v":1})")));
     ASSERT_EQ(url_out.fragment_, "!"s + key_part + encoded_data);
 
     // With tokens
@@ -796,7 +796,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.query_, url_in.query_);
-    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"("},"tokens":"kEarnerTokenType","v":1})")));
+    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
     ASSERT_EQ(url_out.fragment_, "!"s + key_part + encoded_data);
 
     // Some tokens, but no earner token (different code path)
@@ -810,7 +810,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.query_, url_in.query_);
-    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"("},"tokens":null,"v":1})")));
+    encoded_data = base64::TrimPadding(base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"(","v":1},"tokens":null,"v":1})")));
     ASSERT_EQ(url_out.fragment_, "!"s + key_part + encoded_data);
 
     //
@@ -838,15 +838,13 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
 
     res = pc.GetRewardedActivityData();
     ASSERT_TRUE(res);
-    ASSERT_EQ(*res, base64::B64Encode("{\"metadata\":{},\"tokens\":"
-                                      "\"kEarnerTokenType\",\"v\":1}"));
+    ASSERT_EQ(*res, base64::B64Encode(utils::Stringer(R"({"metadata":{"user_agent":")", user_agent_, R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
 
     err = pc.SetRequestMetadataItem("k", "v");
     ASSERT_FALSE(err);
     res = pc.GetRewardedActivityData();
     ASSERT_TRUE(res);
-    ASSERT_EQ(*res, base64::B64Encode("{\"metadata\":{\"k\":\"v\"},\"tokens\":"
-                                      "\"kEarnerTokenType\",\"v\":1}"));
+    ASSERT_EQ(*res, base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", user_agent_, R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
 }
 
 TEST_F(TestPsiCash, GetDiagnosticInfo) {
