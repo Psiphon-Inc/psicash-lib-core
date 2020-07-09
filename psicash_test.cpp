@@ -122,13 +122,15 @@ class TestPsiCash : public ::testing::Test, public TempDir {
 
 TEST_F(TestPsiCash, InitSimple) {
     {
-        PsiCash pc;
+        // Force Init to test=false to test that path (you should typically not do this in tests)
+        PsiCashTester pc;
         auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, false);
         ASSERT_FALSE(err);
     }
 
     {
-        PsiCash pc;
+        PsiCashTester pc;
+        // Force Init to test=true to test that path (you should typically not do this in tests)
         auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
         ASSERT_FALSE(err);
     }
@@ -139,19 +141,19 @@ TEST_F(TestPsiCash, InitFail) {
         // Datastore directory that will not work
         auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
         PsiCashTester pc;
-        auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
+        auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr);
         ASSERT_TRUE(err) << bad_dir;
     }
     {
         // Empty datastore directory
-        PsiCash pc;
-        auto err = pc.Init(user_agent_, "", nullptr, true);
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, "", nullptr);
         ASSERT_TRUE(err);
     }
     {
         // Empty user agent
-        PsiCash pc;
-        auto err = pc.Init("", GetTempDir().c_str(), nullptr, true);
+        PsiCashTester pc;
+        auto err = pc.Init("", GetTempDir().c_str(), nullptr);
         ASSERT_TRUE(err);
     }
 }
@@ -171,7 +173,7 @@ TEST_F(TestPsiCash, UninitializedBehaviour) {
         // Failed Init
         auto bad_dir = GetTempDir() + "/a/b/c/d/f/g";
         PsiCashTester pc;
-        auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr, true);
+        auto err = pc.Init(user_agent_, bad_dir.c_str(), nullptr);
         ASSERT_TRUE(err) << bad_dir;
 
         ASSERT_FALSE(pc.Initialized());
@@ -183,14 +185,14 @@ TEST_F(TestPsiCash, UninitializedBehaviour) {
     }
 }
 
-TEST_F(TestPsiCash, Clear) {
+TEST_F(TestPsiCash, Reset) {
     int64_t want_balance = 123;
     auto temp_dir = GetTempDir();
 
     {
         // Set a value
         PsiCashTester pc;
-        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr);
         ASSERT_FALSE(err);
 
         err = pc.user_data().SetBalance(want_balance);
@@ -202,7 +204,7 @@ TEST_F(TestPsiCash, Clear) {
     {
         // Check the value's persistence
         PsiCashTester pc;
-        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        auto err = pc.Init(user_agent_, temp_dir.c_str(), nullptr);
         ASSERT_FALSE(err);
 
         auto got_balance = pc.Balance();
@@ -211,28 +213,28 @@ TEST_F(TestPsiCash, Clear) {
     {
         // Reset
         PsiCashTester pc;
-        auto err = pc.Reset(temp_dir.c_str(), true);
+        auto err = pc.Reset(temp_dir.c_str());
         ASSERT_FALSE(err);
 
-        err = pc.Init(user_agent_, temp_dir.c_str(), nullptr, true);
+        err = pc.Init(user_agent_, temp_dir.c_str(), nullptr);
         ASSERT_FALSE(err);
 
         auto got_balance = pc.Balance();
-        ASSERT_EQ(got_balance, 0);
+        ASSERT_EQ(got_balance, 0) << temp_dir;
     }
 }
 
 TEST_F(TestPsiCash, SetHTTPRequestFn) {
     {
-        PsiCash pc;
-        auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester);
         ASSERT_FALSE(err);
         pc.SetHTTPRequestFn(HTTPRequester);
     }
 
     {
-        PsiCash pc;
-        auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
         ASSERT_FALSE(err);
         pc.SetHTTPRequestFn(HTTPRequester);
     }
@@ -240,7 +242,7 @@ TEST_F(TestPsiCash, SetHTTPRequestFn) {
 
 TEST_F(TestPsiCash, SetRequestMetadataItem) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto j = pc.user_data().GetRequestMetadata();
@@ -255,7 +257,7 @@ TEST_F(TestPsiCash, SetRequestMetadataItem) {
 
 TEST_F(TestPsiCash, IsAccount) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     // Check the default
@@ -277,7 +279,7 @@ TEST_F(TestPsiCash, IsAccount) {
 
 TEST_F(TestPsiCash, ValidTokenTypes) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto vtt = pc.ValidTokenTypes();
@@ -301,7 +303,7 @@ TEST_F(TestPsiCash, ValidTokenTypes) {
 
 TEST_F(TestPsiCash, Balance) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     // Check the default
@@ -323,7 +325,7 @@ TEST_F(TestPsiCash, Balance) {
 
 TEST_F(TestPsiCash, GetPurchasePrices) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchasePrices();
@@ -346,7 +348,7 @@ TEST_F(TestPsiCash, GetPurchasePrices) {
 
 TEST_F(TestPsiCash, GetPurchases) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchases();
@@ -375,7 +377,7 @@ TEST_F(TestPsiCash, GetPurchases) {
 
 TEST_F(TestPsiCash, ActivePurchases) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchases();
@@ -448,7 +450,7 @@ TEST_F(TestPsiCash, DecodeAuthorization) {
 
 TEST_F(TestPsiCash, GetAuthorizations) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto purchases = pc.GetPurchases();
@@ -493,7 +495,7 @@ TEST_F(TestPsiCash, GetAuthorizations) {
 
 TEST_F(TestPsiCash, GetPurchasesByAuthorizationID) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto purchases = pc.GetPurchases();
@@ -531,7 +533,7 @@ TEST_F(TestPsiCash, GetPurchasesByAuthorizationID) {
 
 TEST_F(TestPsiCash, NextExpiringPurchase) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchases();
@@ -593,7 +595,7 @@ TEST_F(TestPsiCash, NextExpiringPurchase) {
 
 TEST_F(TestPsiCash, ExpirePurchases) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchases();
@@ -641,7 +643,7 @@ TEST_F(TestPsiCash, ExpirePurchases) {
 
 TEST_F(TestPsiCash, RemovePurchases) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     auto v = pc.GetPurchases();
@@ -823,7 +825,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
 
 TEST_F(TestPsiCash, GetRewardedActivityData) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     // Error with no tokens
@@ -848,44 +850,66 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
 }
 
 TEST_F(TestPsiCash, GetDiagnosticInfo) {
-    PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
-    ASSERT_FALSE(err);
+    {
+        // First do a simple test with test=false
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, false);
+        ASSERT_FALSE(err);
 
-    auto want = R"|({
-    "balance":0,
-    "isAccount":false,
-    "purchasePrices":[],
-    "purchases":[],
-    "serverTimeDiff":0,
-    "test":true,
-    "validTokenTypes":[]
-    })|"_json;
-    auto j = pc.GetDiagnosticInfo();
-    ASSERT_EQ(j, want);
+        auto want = R"|({
+        "balance":0,
+        "isAccount":false,
+        "purchasePrices":[],
+        "purchases":[],
+        "serverTimeDiff":0,
+        "test":false,
+        "validTokenTypes":[]
+        })|"_json;
+        auto j = pc.GetDiagnosticInfo();
+        ASSERT_EQ(j, want);
+    }
 
-    pc.user_data().SetBalance(12345);
-    pc.user_data().SetPurchasePrices({{"tc1", "d1", 123}, {"tc2", "d2", 321}});
-    pc.user_data().SetPurchases(
-            {{"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}});
-    pc.user_data().SetAuthTokens({{"a", "a"}, {"b", "b"}, {"c", "c"}}, true);
-    // pc.user_data().SetServerTimeDiff() // too hard to do reliably
-    want = R"|({
-    "balance":12345,
-    "isAccount":true,
-    "purchasePrices":[{"distinguisher":"d1","price":123,"class":"tc1"},{"distinguisher":"d2","price":321,"class":"tc2"}],
-    "purchases":[{"class":"tc2","distinguisher":"d2"}],
-    "serverTimeDiff":0,
-    "test":true,
-    "validTokenTypes":["a","b","c"]
-    })|"_json;
-    j = pc.GetDiagnosticInfo();
-    ASSERT_EQ(j, want);
+    {
+        // Then do the full test with test=true
+        PsiCashTester pc;
+        auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+        ASSERT_FALSE(err);
+
+        auto want = R"|({
+        "balance":0,
+        "isAccount":false,
+        "purchasePrices":[],
+        "purchases":[],
+        "serverTimeDiff":0,
+        "test":true,
+        "validTokenTypes":[]
+        })|"_json;
+        auto j = pc.GetDiagnosticInfo();
+        ASSERT_EQ(j, want);
+
+        pc.user_data().SetBalance(12345);
+        pc.user_data().SetPurchasePrices({{"tc1", "d1", 123}, {"tc2", "d2", 321}});
+        pc.user_data().SetPurchases(
+                {{"id2", "tc2", "d2", nonstd::nullopt, nonstd::nullopt, nonstd::nullopt}});
+        pc.user_data().SetAuthTokens({{"a", "a"}, {"b", "b"}, {"c", "c"}}, true);
+        // pc.user_data().SetServerTimeDiff() // too hard to do reliably
+        want = R"|({
+        "balance":12345,
+        "isAccount":true,
+        "purchasePrices":[{"distinguisher":"d1","price":123,"class":"tc1"},{"distinguisher":"d2","price":321,"class":"tc2"}],
+        "purchases":[{"class":"tc2","distinguisher":"d2"}],
+        "serverTimeDiff":0,
+        "test":true,
+        "validTokenTypes":["a","b","c"]
+        })|"_json;
+        j = pc.GetDiagnosticInfo();
+        ASSERT_EQ(j, want);
+    }
 }
 
 TEST_F(TestPsiCash, RefreshState) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
 
     pc.user_data().Clear();
@@ -983,7 +1007,7 @@ TEST_F(TestPsiCash, RefreshState) {
 
 TEST_F(TestPsiCash, RefreshStateMutators) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
 
     if (!pc.MutatorsEnabled()) {
@@ -1251,7 +1275,7 @@ TEST_F(TestPsiCash, RefreshStateMutators) {
 
 TEST_F(TestPsiCash, NewExpiringPurchase) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
 
     // Simple success
@@ -1414,8 +1438,13 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
 
 TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), HTTPRequester);
     ASSERT_FALSE(err);
+
+    if (!pc.MutatorsEnabled()) {
+      // Can't proceed with these tests
+      return;
+    }
 
     // Failure: invalid tokens
     auto refresh_result = pc.RefreshState({});
@@ -1473,7 +1502,7 @@ TEST_F(TestPsiCash, NewExpiringPurchaseMutators) {
 
 TEST_F(TestPsiCash, HTTPRequestBadResult) {
     PsiCashTester pc;
-    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr, true);
+    auto err = pc.Init(user_agent_, GetTempDir().c_str(), nullptr);
     ASSERT_FALSE(err);
 
     // This isn't a "bad" result, exactly, but we'll force an error code and message.
