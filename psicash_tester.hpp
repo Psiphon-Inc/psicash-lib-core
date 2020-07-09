@@ -27,6 +27,9 @@
 
 namespace testing {
 
+// If true, tests will use `dev-api.psi.cash`; if false `api.psi.cash`.
+constexpr bool DEV_ENV = true;
+
 // Subclass psicash::PsiCash to get access to private members for testing.
 // This would probably be done more cleanly with dependency injection, but that
 // adds a bunch of overhead for little gain.
@@ -34,6 +37,17 @@ class PsiCashTester : public psicash::PsiCash {
   public:
     PsiCashTester();
     virtual ~PsiCashTester();
+
+    // Most tests should use this form of Init. It will use the global flag for `init`.
+    psicash::error::Error Init(const std::string& user_agent, const std::string& file_store_root,
+                      psicash::MakeHTTPRequestFn make_http_request_fn);
+
+    // If the `test` flag really must be set explicitly, use this method.
+    psicash::error::Error Init(const std::string& user_agent, const std::string& file_store_root,
+                      psicash::MakeHTTPRequestFn make_http_request_fn, bool test);
+
+    // Overridden to use the global testing flag
+    psicash::error::Error Reset(const std::string& file_store_root);
 
     psicash::UserData& user_data();
 

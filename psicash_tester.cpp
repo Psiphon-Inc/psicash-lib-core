@@ -38,11 +38,26 @@ namespace testing {
 static std::vector<std::string> g_request_mutators;
 
 
-PsiCashTester::PsiCashTester() {
+PsiCashTester::PsiCashTester()
+    : PsiCash() {
     g_request_mutators.clear();
 }
 
 PsiCashTester::~PsiCashTester() {
+}
+
+error::Error PsiCashTester::Init(const string& user_agent, const string& file_store_root,
+                                 MakeHTTPRequestFn make_http_request_fn) {
+    return Init(user_agent, file_store_root, make_http_request_fn, DEV_ENV);
+}
+
+error::Error PsiCashTester::Init(const string& user_agent, const string& file_store_root,
+                                 MakeHTTPRequestFn make_http_request_fn, bool test) {
+    return PsiCash::Init(user_agent, file_store_root, make_http_request_fn, test);
+}
+
+error::Error PsiCashTester::Reset(const string& file_store_root) {
+    return PsiCash::Reset(file_store_root, DEV_ENV);
 }
 
 UserData& PsiCashTester::user_data() {
