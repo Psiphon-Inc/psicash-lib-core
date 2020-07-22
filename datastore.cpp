@@ -26,8 +26,9 @@
 
 using json = nlohmann::json;
 
+namespace psicash {
+
 using namespace std;
-using namespace psicash;
 using namespace error;
 
 static string FilePath(const string& file_root, const string& suffix);
@@ -52,46 +53,63 @@ Error Datastore::Init(const string& file_root, const string& suffix) {
 
 #define MUST_BE_INITIALIZED     if (!initialized_) { return MakeCriticalError("must only be called on an initialized datastore"); }
 
-Error Datastore::Clear(const string& file_path) {
+Error Datastore::Reset(const string& file_path, json new_value) {
     SYNCHRONIZE(mutex_);
     paused_ = false;
-    auto empty_json = json::object();
-    if (auto err = FileStore(paused_, file_path, empty_json)) {
+    if (auto err = FileStore(paused_, file_path, new_value)) {
         return PassError(err);
     }
-    json_ = empty_json;
+    json_ = new_value;
     return error::nullerr;
 }
 
-Error Datastore::Clear(const string& file_root, const string& suffix) {
-    return PassError(Clear(FilePath(file_root, suffix)));
+Error Datastore::Reset(const string& file_root, const string& suffix, json new_value) {
+    return PassError(Reset(FilePath(file_root, suffix), new_value));
 }
 
-Error Datastore::Clear() {
+Error Datastore::Reset(json new_value) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
-    return PassError(Clear(file_path_));
+    return PassError(Reset(file_path_, new_value));
 }
 
-void Datastore::PauseWrites() {
+bool Datastore::PauseWrites() {
     SYNCHRONIZE(mutex_);
+    auto was_paused = paused_;
     paused_ = true;
+    return !was_paused;
 }
 
-Error Datastore::UnpauseWrites() {
+Error Datastore::UnpauseWrites(bool commit) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
     if (!paused_) {
         return nullerr;
     }
     paused_ = false;
-    return PassError(FileStore(paused_, file_path_, json_));
+    if (commit) {
+        return PassError(FileStore(paused_, file_path_, json_));
+    }
+
+    // Revert to what's on disk
+    auto res = FileLoad(file_path_);
+    if (!res) {
+        return PassError(res.error());
+    }
+    json_ = *res;
+    return nullerr;
 }
 
-Error Datastore::Set(const json& in) {
+error::Result<nlohmann::json> Datastore::Get() const {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
-    json_.update(in);
+    return json_;
+}
+
+Error Datastore::Set(const json::json_pointer& p, json v) {
+    SYNCHRONIZE(mutex_);
+    MUST_BE_INITIALIZED;
+    json_[p] = v;
     return PassError(FileStore(paused_, file_path_, json_));
 }
 
@@ -141,6 +159,14 @@ static Result<json> FileLoad(const string& file_path) {
         }
 
         // We'll continue on with the rest of the logic, which will read the new empty file.
+    }
+
+    uint64_t file_size = 0;
+    if (auto err = utils::FileSize(file_path, file_size)) {
+        return WrapError(err, utils::Stringer("unable to get file size; errno=", errno));
+    }
+    if (file_size == 0) {
+        return MakeCriticalError("file size is zero");
     }
 
     ifstream f;
@@ -214,3 +240,5 @@ static Error FileStore(bool paused, const string& file_path, const json& json) {
 
     return nullerr;
 }
+
+} // namespace psicash

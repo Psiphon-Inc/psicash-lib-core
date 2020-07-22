@@ -50,60 +50,66 @@ public:
     /// Returns false if there's an unrecoverable error (such as an inability to use the filesystem).
     error::Error Init(const std::string& file_root, const std::string& suffix);
 
-    /// Clears the in-memory structure and the persistent file.
+    /// Resets the in-memory structure and the persistent file, setting it to `new_value`
+    /// (which may be an empty object).
     /// Calling this does not change the initialized state. If the datastore was already
     /// initialized with a different file_root+suffix, then the result is undefined.
-    error::Error Clear(const std::string& file_root, const std::string& suffix);
+    error::Error Reset(const std::string& file_root, const std::string& suffix, json new_value);
 
-    /// Clears the in-memory structure and the persistent file.
+    /// Reset the in-memory structure and the persistent file, setting it to `new_value`
+    /// (which may be an empty object).
     /// Calling this does not change the initialized state.
     /// Init() must have already been called, successfully.
-    error::Error Clear();
+    error::Error Reset(json new_value);
 
     /// Stops writing of updates to disk until UnpauseWrites is called.
-    void PauseWrites();
-    /// Unpauses writing and causes an immediate write.
-    error::Error UnpauseWrites();
+    /// Returns false if writing was already paused (so this call did nothing).
+    bool PauseWrites();
+    /// Unpauses writing. If commit is true, it writes the changes immediately; if false
+    /// it discards the changes.
+    error::Error UnpauseWrites(bool commit);
 
     /// Returns the value, or an error indicating the failure reason.
     template<typename T>
-    nonstd::expected<T, DatastoreGetError> Get(const char* key) const {
+    nonstd::expected<T, DatastoreGetError> Get(const json::json_pointer& p) const {
         try {
             // Not returning inside the synchronize block to avoid compiler warning about
             // "control reached end of non-void function without returning a value".
             T val;
             SYNCHRONIZE_BLOCK(mutex_) {
+                // Not using MUST_BE_INITIALIZED so we don't need it in the header.
                 if (!initialized_) {
                     return nonstd::make_unexpected(kDatastoreUninitialized);
                 }
-                if (json_.find(key) == json_.end()) {
+
+                if (p.empty() || !json_.contains(p)) {
                     return nonstd::make_unexpected(kNotFound);
                 }
 
-                val = json_[key].get<T>();
+                val = json_.at(p).get<T>();
             }
             return val;
         }
-        catch (json::type_error& e) {
+        catch (json::type_error&) {
             return nonstd::make_unexpected(kTypeMismatch);
         }
-        catch (json::out_of_range& e) {
+        catch (json::out_of_range&) {
             // This should be avoided by the explicit check above. But we'll be safe.
             return nonstd::make_unexpected(kNotFound);
         }
     }
 
-    /// To set a single key-value: `set({{"k1", "v1"}})`.
-    /// To set multiple key-values: `set({{"k1", "v1"}, {"k2", "v2"}})`.
-    /// NOTE: If you use too few curly braces, you'll accidentally create arrays instead of objects.
+    error::Result<nlohmann::json> Get() const;
+
+    // Sets the value v in the datastore at path p.
     /// NOTE: Set is not atomic. If the file operation fails, the intermediate object will still be
     /// updated. We may want this to be otherwise in the future, but for now I think that it's preferable.
     /// Returns false if the file operation failed.
-    error::Error Set(const json& in);
+    error::Error Set(const json::json_pointer& p, json v);
 
 protected:
-    /// Helper for the public Clear methods
-    error::Error Clear(const std::string& file_path);
+    /// Helper for the public Reset methods
+    error::Error Reset(const std::string& file_path, json new_value);
 
 private:
     mutable std::recursive_mutex mutex_;

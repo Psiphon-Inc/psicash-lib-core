@@ -43,11 +43,6 @@ using namespace error;
 
 namespace psicash {
 
-const char* const kEarnerTokenType = "earner";
-const char* const kSpenderTokenType = "spender";
-const char* const kIndicatorTokenType = "indicator";
-const char* const kAccountTokenType = "account";
-
 const char* const kTransactionIDZero = "";
 
 namespace prod {
@@ -56,20 +51,24 @@ static constexpr const char* kAPIServerHostname = "api.psi.cash";
 static constexpr int kAPIServerPort = 443;
 }
 namespace dev {
-static constexpr const char* kAPIServerScheme = "https";
-static constexpr const char* kAPIServerHostname = "dev-api.psi.cash";
-static constexpr int kAPIServerPort = 443;
-/*
+#define LOCAL_TEST 0
+#if LOCAL_TEST
 static constexpr const char* kAPIServerScheme = "http";
 static constexpr const char* kAPIServerHostname = "localhost";
 static constexpr int kAPIServerPort = 51337;
-*/
+#else
+static constexpr const char* kAPIServerScheme = "https";
+static constexpr const char* kAPIServerHostname = "api.dev.psi.cash";
+static constexpr int kAPIServerPort = 443;
+#endif
 }
 
 static constexpr const char* kAPIServerVersion = "v1";
 static constexpr const char* kLandingPageParamKey = "psicash";
 static constexpr const char* kMethodGET = "GET";
 static constexpr const char* kMethodPOST = "POST";
+
+static constexpr const char* kDateHeaderKey = "Date";
 
 //
 // PsiCash class implementation
@@ -91,7 +90,8 @@ PsiCash::~PsiCash() {
 }
 
 Error PsiCash::Init(const string& user_agent, const string& file_store_root,
-                    MakeHTTPRequestFn make_http_request_fn, bool test) {
+                    MakeHTTPRequestFn make_http_request_fn, bool force_reset,
+                    bool test) {
     test_ = test;
     if (test) {
         server_scheme_ = dev::kAPIServerScheme;
@@ -112,6 +112,10 @@ Error PsiCash::Init(const string& user_agent, const string& file_store_root,
         return MakeCriticalError("file_store_root is required");
     }
 
+    if (force_reset) {
+        user_data_->Clear(file_store_root, test);
+    }
+
     // May still be null.
     make_http_request_fn_ = std::move(make_http_request_fn);
 
@@ -123,13 +127,34 @@ Error PsiCash::Init(const string& user_agent, const string& file_store_root,
     return error::nullerr;
 }
 
+#define MUST_BE_INITIALIZED     if (!Initialized()) { return MakeCriticalError("PsiCash is uninitialized"); }
+
 bool PsiCash::Initialized() const {
     return initialized_;
 }
 
-Error PsiCash::Reset(const string& file_store_root, bool test) {
-    auto temp_user_data = std::make_unique<UserData>();
-    return PassError(temp_user_data->Clear(file_store_root, test));
+Error PsiCash::ResetUser() {
+    return PassError(user_data_->DeleteUserData(/*is_logged_out_account=*/false));
+}
+
+Error PsiCash::MigrateTrackerTokens(const map<string, string>& tokens) {
+    MUST_BE_INITIALIZED;
+
+    AuthTokens auth_tokens;
+    for (const auto& it : tokens) {
+        auth_tokens[it.first].id = it.second;
+        // leave expiry null
+    }
+
+    UserData::WritePauser pauser(*user_data_);
+    // Ignoring return values while writing is paused.
+    // Blow away any user state, as the newly migrated tokens are overwriting it.
+    (void)ResetUser();
+    (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/false, /*account_username=*/"");
+    if (auto err = pauser.Commit()) {
+        return WrapError(err, "user data write failed");
+    }
+    return nullerr;
 }
 
 void PsiCash::SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn) {
@@ -137,26 +162,52 @@ void PsiCash::SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn) {
 }
 
 Error PsiCash::SetRequestMetadataItem(const string& key, const string& value) {
+    MUST_BE_INITIALIZED;
     return PassError(user_data_->SetRequestMetadataItem(key, value));
+}
+
+Error PsiCash::SetLocale(const string& locale) {
+    MUST_BE_INITIALIZED;
+    return PassError(user_data_->SetLocale(locale));
 }
 
 //
 // Stored info accessors
 //
 
-TokenTypes PsiCash::ValidTokenTypes() const {
-    TokenTypes tt;
+bool PsiCash::HasTokens() const {
+    MUST_BE_INITIALIZED;
 
+    // Trackers and Accounts both require the same token types (for now).
+    // (Accounts will also have the "logout" type, but it isn't strictly needed for sane operation.)
+    vector<string> required_token_types = {kEarnerTokenType, kSpenderTokenType, kIndicatorTokenType};
     auto auth_tokens = user_data_->GetAuthTokens();
     for (const auto& it : auth_tokens) {
-        tt.push_back(it.first);
+        auto found = std::find(required_token_types.begin(), required_token_types.end(), it.first);
+        if (found != required_token_types.end()) {
+            required_token_types.erase(found);
+        }
     }
 
-    return tt;
+    return required_token_types.empty();
 }
 
+/// If the user has no tokens, most actions are disallowed. (This can include being in
+/// the is-logged-out-account state.)
+#define TOKENS_REQUIRED     if (!HasTokens()) { return MakeCriticalError("user has insufficient tokens"); }
+
 bool PsiCash::IsAccount() const {
+    if (user_data_->GetIsLoggedOutAccount()) {
+        return true;
+    }
     return user_data_->GetIsAccount();
+}
+
+nonstd::optional<std::string> PsiCash::AccountUsername() const {
+    if (user_data_->GetIsLoggedOutAccount() || !user_data_->GetIsAccount()) {
+        return nullopt;
+    }
+    return user_data_->GetAccountUsername();
 }
 
 int64_t PsiCash::Balance() const {
@@ -280,7 +331,10 @@ error::Result<Purchases> PsiCash::RemovePurchases(const vector<TransactionID>& i
     return removed_purchases;
 }
 
-Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
+/// Adds a params package to the URL which includes the user's earner token (if there is one).
+/// @param query_param_only If true, the params will only be added to the query parameters
+///     part of the URL, rather than first attempting to add it to the hash/fragment.
+Result<string> PsiCash::AddEarnerTokenToURL(const string& url_string, bool query_param_only) const {
     URL url;
     auto err = url.Parse(url_string);
     if (err) {
@@ -289,12 +343,13 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
 
     json psicash_data;
     psicash_data["v"] = 1;
+    psicash_data["timestamp"] = datetime::DateTime::Now().ToISO8601();
 
     auto auth_tokens = user_data_->GetAuthTokens();
     if (auth_tokens.count(kEarnerTokenType) == 0) {
         psicash_data["tokens"] = nullptr;
     } else {
-        psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
+        psicash_data["tokens"] = CommaDelimitTokens({kEarnerTokenType});
     }
 
     if (test_) {
@@ -319,12 +374,13 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     auto encoded_json = URL::Encode(base64::TrimPadding(base64::B64Encode(json_data)), false);
 
     // Our preference is to put the our data into the URL's fragment/hash/anchor,
-    // because we'd prefer the data not be sent to the server.
+    // because we'd prefer the data not be sent to the server nor included in the referrer
+    // header to third-party page resources.
     // But if there already is a fragment value then we'll put our data into the query parameters.
     // (Because altering the fragment is more likely to have negative consequences
     // for the page than adding a query parameter that will be ignored.)
 
-    if (url.fragment_.empty()) {
+    if (!query_param_only && url.fragment_.empty()) {
         // When setting in the fragment, we use "#!psicash=etc". The ! prevents the
         // fragment from accidentally functioning as a jump-to anchor on a landing page
         // (where we don't control element IDs, etc.).
@@ -339,17 +395,60 @@ Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
     return url.ToString();
 }
 
+Result<string> PsiCash::ModifyLandingPage(const string& url_string) const {
+    // All of our landing pages are arrived at via the redirector service we run. We want
+    // to send our token package to the redirector, so that it can decide if and how to
+    // include it in the final site URL. So we have to send it via a query parameter.
+    return AddEarnerTokenToURL(url_string, true);
+}
+
 Result<string> PsiCash::GetBuyPsiURL() const {
-    // This is just a special case of the landing page format, EXCEPT that tokens MUST be
-    // present, or else it's an error.
-    auto auth_tokens = user_data_->GetAuthTokens();
-    if (auth_tokens.count(kEarnerTokenType) == 0) {
-        return MakeNoncriticalError("no earner token available");
+    TOKENS_REQUIRED;
+    return AddEarnerTokenToURL(test_ ? "https://dev-psicash.myshopify.com/" : "https://buy.psi.cash/", false);
+}
+
+std::string PsiCash::GetUserSiteURL(UserSiteURLType url_type, bool webview) const {
+    URL url;
+    url.scheme_host_path_ = test_ ? "https://dev-my.psi.cash" : "https://my.psi.cash";
+
+    switch (url_type) {
+    case UserSiteURLType::AccountSignup:
+        url.scheme_host_path_ += "/signup";
+        break;
+
+    case UserSiteURLType::ForgotAccount:
+        url.scheme_host_path_ += "/forgot";
+        break;
+
+    case UserSiteURLType::AccountManagement:
+    default:
+        // Just the root domain
+        break;
     }
-    return ModifyLandingPage("https://buy.psi.cash/");
+
+    url.query_ = "utm_source=" + URL::Encode(user_agent_, false);
+    url.query_ += "&locale=" + URL::Encode(user_data_->GetLocale(), false);
+
+    if (!user_data_->GetAccountUsername().empty()) {
+        auto encoded_username = URL::Encode(user_data_->GetAccountUsername(), false);
+        // IE has a URL limit of 2083 characters, so if the username is too long (or encodes
+        // to too long), then we're going to omit this parameter). It is better to omit the
+        // username than to pre-fill an incorrect username or have broken UTF-8 characters.
+        if (encoded_username.length() < 2000) {
+            url.query_ += "&username=" + encoded_username;
+        }
+    }
+
+    if (webview) {
+        url.query_ += "&webview=true";
+    }
+
+    return url.ToString();
 }
 
 Result<string> PsiCash::GetRewardedActivityData() const {
+    TOKENS_REQUIRED;
+
     json psicash_data;
     psicash_data["v"] = 1;
 
@@ -358,7 +457,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
     if (auth_tokens.empty()) {
         return MakeCriticalError("earner token missing; can't create webhoook data");
     } else {
-        psicash_data["tokens"] = auth_tokens[kEarnerTokenType];
+        psicash_data["tokens"] = auth_tokens[kEarnerTokenType].id;
     }
 
     // Get the metadata (sponsor ID, etc.)
@@ -388,7 +487,8 @@ json PsiCash::GetDiagnosticInfo() const {
     json j = json::object();
 
     j["test"] = test_;
-    j["validTokenTypes"] = ValidTokenTypes();
+    j["isLoggedOutAccount"] = user_data_->GetIsLoggedOutAccount();
+    j["validTokenTypes"] = user_data_->ValidTokenTypes();
     j["isAccount"] = IsAccount();
     j["balance"] = Balance();
     j["serverTimeDiff"] = user_data_->GetServerTimeDiff().count(); // in milliseconds
@@ -431,10 +531,24 @@ json PsiCash::GetRequestMetadata(int attempt) const {
 // HTTPResult.error will always be empty on a non-error return.
 Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         const std::string& method, const std::string& path, bool include_auth_tokens,
-        const std::vector<std::pair<std::string, std::string>>& query_params)
+        const std::vector<std::pair<std::string, std::string>>& query_params,
+        const optional<json>& body)
 {
+    MUST_BE_INITIALIZED;
+
     if (!make_http_request_fn_) {
         throw std::runtime_error("make_http_request_fn_ must be set before requests are attempted");
+    }
+
+    string body_string;
+    if (body) {
+        try {
+            body_string = body->dump(-1, ' ', true);
+        }
+        catch (json::exception& e) {
+            return MakeCriticalError(
+                    utils::Stringer("body json dump failed: ", e.what(), "; id:", e.id));
+        }
     }
 
     const int max_attempts = 3;
@@ -447,7 +561,7 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         }
 
         auto req_params = BuildRequestParams(
-            method, path, include_auth_tokens, query_params, i + 1, {});
+            method, path, include_auth_tokens, query_params, i + 1, {}, body_string);
         if (!req_params) {
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
@@ -461,9 +575,10 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         }
 
         // We just got a fresh server timestamp, so set the server time diff
-        if (!http_result.date.empty()) {
+        auto date_header = utils::FindHeaderValue(http_result.headers, kDateHeaderKey);
+        if (!date_header.empty()) {
             datetime::DateTime server_datetime;
-            if (server_datetime.FromRFC7231(http_result.date)) {
+            if (server_datetime.FromRFC7231(date_header)) {
                 // We don't care about the return value at this point.
                 (void)user_data_->SetServerTimeDiff(server_datetime);
             }
@@ -471,11 +586,15 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         }
 
         if (http_result.code < 0) {
-            // Something happened that prevented the request from nominally succeeding. Don't retry.
+            // Something happened that prevented the request from nominally succeeding.
+            // If the native code indicates that this is a "recoverable error" (such as
+            // the network interruption error we see on iOS sometimes), then we will retry.
             if (http_result.code == HTTPResult::RECOVERABLE_ERROR) {
-                return MakeNoncriticalError(("Request resulted in noncritical error: "s + http_result.error));
+                continue;
             }
-            return MakeCriticalError(("Request resulted in critical error: "s + http_result.error));
+
+            // Unrecoverable error; don't retry.
+            return MakeCriticalError("Request resulted in critical error: "s + http_result.error);
         }
 
         if (IsServerError(http_result.code)) {
@@ -487,7 +606,14 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
         return http_result;
     }
 
-    // We exceeded our retry limit. Return the last result received, which will be 500-ish.
+    // We exceeded our retry limit.
+
+    if (http_result.code < 0) {
+        // A critical error would have returned above, so this is a non-critical error
+        return MakeNoncriticalError("Request resulted in noncritical error: "s + http_result.error);
+    }
+
+    // Return the last result (which is a 5xx server error)
     return http_result;
 }
 
@@ -495,7 +621,8 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
 Result<HTTPParams> PsiCash::BuildRequestParams(
         const std::string& method, const std::string& path, bool include_auth_tokens,
         const std::vector<std::pair<std::string, std::string>>& query_params, int attempt,
-        const std::map<std::string, std::string>& additional_headers) const {
+        const std::map<std::string, std::string>& additional_headers,
+        const std::string& body) const {
 
     HTTPParams params;
 
@@ -507,17 +634,11 @@ Result<HTTPParams> PsiCash::BuildRequestParams(
     params.query = query_params;
 
     params.headers = additional_headers;
+    params.headers["Accept"] = "application/json";
     params.headers["User-Agent"] = user_agent_;
 
     if (include_auth_tokens) {
-        string s;
-        for (const auto& at : user_data_->GetAuthTokens()) {
-            if (!s.empty()) {
-                s += ",";
-            }
-            s += at.second;
-        }
-        params.headers["X-PsiCash-Auth"] = s;
+        params.headers["X-PsiCash-Auth"] = CommaDelimitTokens({});
     }
 
     auto metadata = GetRequestMetadata(attempt);
@@ -530,16 +651,36 @@ Result<HTTPParams> PsiCash::BuildRequestParams(
                 utils::Stringer("metadata json dump failed: ", e.what(), "; id:", e.id));
     }
 
+    params.body = body;
+    if (!body.empty()) {
+        params.headers["Content-Type"] = "application/json; charset=utf-8";
+    }
+
     return params;
+}
+
+/// Returns our auth tokens in comma-delimited format. If types is `{}`, all tokens will
+/// be included; otherwise only tokens of the types specified will be included.
+std::string PsiCash::CommaDelimitTokens(const std::vector<std::string>& types) const {
+    vector<string> tokens;
+    for (const auto& at : user_data_->GetAuthTokens()) {
+        if (types.empty() || std::find(types.begin(), types.end(), at.first) != types.end()) {
+            tokens.push_back(at.second.id);
+        }
+    }
+    return utils::Join(tokens, ",");
 }
 
 // Get new tracker tokens from the server. This effectively gives us a new identity.
 Result<Status> PsiCash::NewTracker() {
+    MUST_BE_INITIALIZED;
+
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
             "/tracker",
             false,
-            {}
+            {{"instanceID", user_data_->GetInstanceID()}},
+            nullopt // body
     );
     if (!result) {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
@@ -570,10 +711,11 @@ Result<Status> PsiCash::NewTracker() {
 
         // Set our new data in a single write.
         UserData::WritePauser pauser(*user_data_);
-        (void)user_data_->SetAuthTokens(auth_tokens, false);
+        (void)user_data_->SetIsLoggedOutAccount(false);
+        (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/false, /*account_username=*/"");
         (void)user_data_->SetBalance(0);
-        if (auto err = pauser.Unpause()) {
-            return WrapError(err, "SetAuthTokens failed");
+        if (auto err = pauser.Commit()) {
+            return WrapError(err, "user data write failed");
         }
 
         return Status::Success;
@@ -582,16 +724,48 @@ Result<Status> PsiCash::NewTracker() {
     }
 
     return MakeCriticalError(utils::Stringer(
-        "request returned unexpected result code: ", result->code));
+            "request returned unexpected result code: ", result->code, "; ",
+            result->body, "; ", json(result->headers).dump()));
 }
 
-Result<Status> PsiCash::RefreshState(const std::vector<std::string>& purchase_classes) {
+Result<PsiCash::RefreshStateResponse> PsiCash::RefreshState(bool local_only, const std::vector<std::string>& purchase_classes) {
+    if (local_only) {
+        // Our "local only" refresh involves checking tokens for expiry and potentially
+        // shifting into a logged-out state.
+
+        // This call is offline, but we might be currently connected, so the reconnect_required
+        // considerations still apply.
+        bool reconnect_required = false;
+
+        auto local_now = datetime::DateTime::Now();
+        for (const auto& it : user_data_->GetAuthTokens()) {
+            if (it.second.server_time_expiry
+                && user_data_->ServerTimeToLocal(*it.second.server_time_expiry) < local_now) {
+                    // If any tokens are expired, we consider ourselves to not have a proper set
+
+                    // If we're transitioning to a logged out state and there are active
+                    // authorizations (applied to the current tunnel), then we need to
+                    // reconnect to remove them.
+                    // TODO: this line/logic is duplicated below; consider a helper to encapsulate
+                    reconnect_required = !GetAuthorizations(true).empty();
+
+                    if (auto err = user_data_->DeleteUserData(IsAccount())) {
+                        return WrapError(err, "DeleteUserData failed");
+                    }
+
+                    break;
+            }
+        }
+
+        return PsiCash::RefreshStateResponse{ Status::Success, reconnect_required };
+    }
+
     return RefreshState(purchase_classes, true);
 }
 
 // RefreshState helper that makes recursive calls (to allow for NewTracker and then
 // RefreshState requests).
-Result<Status> PsiCash::RefreshState(
+Result<PsiCash::RefreshStateResponse> PsiCash::RefreshState(
     const std::vector<std::string>& purchase_classes, bool allow_recursion) {
     /*
      Logic flow overview:
@@ -606,18 +780,15 @@ Result<Status> PsiCash::RefreshState(
      6. If there are still no valid tokens, then things are horribly wrong. Return error.
     */
 
-    if (!initialized_) {
-        return MakeCriticalError("PsiCash is uninitialized");
-    }
+    MUST_BE_INITIALIZED;
 
     auto auth_tokens = user_data_->GetAuthTokens();
     if (auth_tokens.empty()) {
         // No tokens.
-
-        if (user_data_->GetIsAccount()) {
-            // This is/was a logged-in account. We can't just get a new tracker.
+        if (IsAccount()) {
+            // This is a logged-in or logged-out account. We can't just get a new tracker.
             // The app will have to force a login for the user to do anything.
-            return Status::Success;
+            return PsiCash::RefreshStateResponse{ Status::Success, false };
         }
 
         if (!allow_recursion) {
@@ -634,7 +805,7 @@ Result<Status> PsiCash::RefreshState(
         }
 
         if (*new_tracker_result != Status::Success) {
-            return *new_tracker_result;
+            return PsiCash::RefreshStateResponse{ *new_tracker_result, false };
         }
 
         // Note: NewTracker calls SetAuthTokens and SetBalance.
@@ -650,11 +821,15 @@ Result<Status> PsiCash::RefreshState(
         query_items.emplace_back("class", purchase_class);
     }
 
+    // If LastTransactionID is empty, we'll get all transactions.
+    query_items.emplace_back("lastTransactionID", user_data_->GetLastTransactionID());
+
     auto result = MakeHTTPRequestWithRetry(
             kMethodGET,
             "/refresh-state",
             true,
-            query_items
+            query_items,
+            nullopt // body
     );
     if (!result) {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
@@ -666,6 +841,8 @@ Result<Status> PsiCash::RefreshState(
                     utils::Stringer("result has no body; code: ", result->code));
         }
 
+        bool reconnect_required = false;
+
         try {
             // We're going to be setting a bunch of UserData values, so let's wait until we're done
             // to write them all to disk.
@@ -674,11 +851,18 @@ Result<Status> PsiCash::RefreshState(
             auto j = json::parse(result->body);
 
             auto valid_token_types = j["TokensValid"].get<map<string, bool>>();
-            user_data_->CullAuthTokens(valid_token_types);
+            (void)user_data_->CullAuthTokens(valid_token_types);
 
             // If any of our tokens were valid, then the IsAccount value from the
             // server is authoritative. Otherwise we'll respect our existing value.
-            if (!valid_token_types.empty() && j["IsAccount"].is_boolean()) {
+            bool any_valid_token = false;
+            for (const auto& vtt : valid_token_types) {
+                if (vtt.second) {
+                    any_valid_token = true;
+                    break;
+                }
+            }
+            if (any_valid_token && j["IsAccount"].is_boolean()) {
                 // If we have moved from being an account to not being an account,
                 // something is very wrong.
                 auto prev_is_account = IsAccount();
@@ -687,11 +871,15 @@ Result<Status> PsiCash::RefreshState(
                     return MakeCriticalError("invalid is-account state");
                 }
 
-                user_data_->SetIsAccount(is_account);
+                (void)user_data_->SetIsAccount(is_account);
+            }
+
+            if (j["AccountUsername"].is_string()) {
+                (void)user_data_->SetAccountUsername(j["AccountUsername"].get<string>());
             }
 
             if (j["Balance"].is_number_integer()) {
-                user_data_->SetBalance(j["Balance"].get<int64_t>());
+                (void)user_data_->SetBalance(j["Balance"].get<int64_t>());
             }
 
             // We only try to use the PurchasePrices if we supplied purchase classes to the request
@@ -702,17 +890,43 @@ Result<Status> PsiCash::RefreshState(
                 // representation of PurchasePrice. We won't assume that the representation used by the
                 // server is the same (nor that it won't change independent of our representation).
                 for (const auto& pp : j["PurchasePrices"]) {
+                    auto transaction_class = pp["Class"].get<string>();
+
                     purchase_prices.push_back(PurchasePrice{
-                            pp["Class"].get<string>(),
+                            transaction_class,
                             pp["Distinguisher"].get<string>(),
                             pp["Price"].get<int64_t>()
                     });
                 }
 
-                user_data_->SetPurchasePrices(purchase_prices);
+                (void)user_data_->SetPurchasePrices(purchase_prices);
             }
 
-            if (auto err = pauser.Unpause()) {
+            if (j["Purchases"].is_array()) {
+                for (const auto& p : j["Purchases"]) {
+                    auto purchase_res = PurchaseFromJSON(p);
+                    if (!purchase_res) {
+                        return WrapError(purchase_res.error(), "failed to deserialize purchases");
+                    }
+
+                    // Authorizations are applied to tunnel connections, which requires a reconnect
+                    reconnect_required = reconnect_required || purchase_res->authorization;
+
+                    (void)user_data_->AddPurchase(*purchase_res);
+                }
+            }
+
+            // If the account tokens just expired, then we need to go into a logged-out state.
+            if (IsAccount() && !HasTokens()) {
+                // If we're transitioning to a logged out state and there are active
+                // authorizations (applied to the current tunnel), then we need to
+                // reconnect to remove them.
+                reconnect_required = reconnect_required || !GetAuthorizations(true).empty();
+
+                (void)user_data_->DeleteUserData(true);
+            }
+
+            if (auto err = pauser.Commit()) {
                 return WrapError(err, "UserData write failed");
             }
         }
@@ -723,42 +937,45 @@ Result<Status> PsiCash::RefreshState(
 
         if (IsAccount()) {
             // For accounts there's nothing else we can do, regardless of the state of token validity.
-            return Status::Success;
+            return PsiCash::RefreshStateResponse{ Status::Success, reconnect_required };
         }
 
-        if (!ValidTokenTypes().empty()) {
+        if (HasTokens()) {
             // We have a good tracker state.
-            return Status::Success;
+            return PsiCash::RefreshStateResponse{ Status::Success, reconnect_required };
         }
 
         // We started out with tracker tokens, but they're all invalid.
+        // Note that this shouldn't happen -- we "know" that Tracker tokens don't
+        // expire -- but we'll still try to recover if we haven't already recursed.
 
         if (!allow_recursion) {
             return MakeCriticalError("failed to obtain valid tracker tokens (b)");
         }
 
         return RefreshState(purchase_classes, true);
-    } else if (result->code == kHTTPStatusUnauthorized) {
+    }
+    else if (result->code == kHTTPStatusUnauthorized) {
         // This can only happen if the tokens we sent didn't all belong to same user.
         // This really should never happen. We're not checking the return value, as there
         // isn't a sane response to a failure at this point.
         (void)user_data_->Clear();
-        return Status::InvalidTokens;
-    } else if (IsServerError(result->code)) {
-        return Status::ServerError;
+        return PsiCash::RefreshStateResponse{ Status::InvalidTokens, false };
+    }
+    else if (IsServerError(result->code)) {
+        return PsiCash::RefreshStateResponse{ Status::ServerError, false };
     }
 
     return MakeCriticalError(utils::Stringer(
-        "request returned unexpected result code: ", result->code));
+            "request returned unexpected result code: ", result->code, "; ",
+            result->body, "; ", json(result->headers).dump()));
 }
 
 Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         const string& transaction_class,
         const string& distinguisher,
         const int64_t expected_price) {
-    if (!initialized_) {
-        return MakeCriticalError("PsiCash is uninitialized");
-    }
+    TOKENS_REQUIRED;
 
     auto result = MakeHTTPRequestWithRetry(
             kMethodPOST,
@@ -769,17 +986,14 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
                     {"distinguisher",  distinguisher},
                     // Note the conversion from positive to negative: price to amount.
                     {"expectedAmount", to_string(-expected_price)}
-            }
+            },
+            nullopt // body
     );
     if (!result) {
         return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
     }
 
-    string transaction_id, authorization_encoded, transaction_type;
-    datetime::DateTime server_expiry;
-
-    // Set our new data in a single write.
-    UserData::WritePauser pauser(*user_data_);
+    optional<Purchase> purchase;
 
     // These statuses require the response body to be parsed
     if (result->code == kHTTPStatusOK ||
@@ -794,36 +1008,40 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         try {
             auto j = json::parse(result->body);
 
-            // Many response fields are optional (depending on the presence of the indicator token)
+            // Set our new data in a single write.
+            // Note that any early return will cause updates to roll back.
+            UserData::WritePauser pauser(*user_data_);
 
-            if (j["Balance"].is_number_integer()) {
+            // Balance is present for all non-error responses
+            if (j.at("Balance").is_number_integer()) {
                 // We don't care about the return value of this right now
-                (void)user_data_->SetBalance(j["Balance"].get<int64_t>());
+                (void)user_data_->SetBalance(j.at("Balance").get<int64_t>());
             }
 
-            if (j["TransactionID"].is_string()) {
-                transaction_id = j["TransactionID"].get<string>();
-            }
-
-            if (j["Authorization"].is_string()) {
-                authorization_encoded = j["Authorization"].get<string>();
-            }
-
-            if (j["TransactionResponse"]["Type"].is_string()) {
-                transaction_type = j["TransactionResponse"]["Type"].get<string>();
-            }
-
-            if (j["TransactionResponse"]["Values"]["Expires"].is_string()) {
-                string expiry_string = j["TransactionResponse"]["Values"]["Expires"].get<string>();
-                if (!server_expiry.FromISO8601(expiry_string)) {
-                    return MakeCriticalError(
-                            "failed to parse TransactionResponse.Values.Expires; got "s +
-                            expiry_string);
+            if (result->code == kHTTPStatusOK) {
+                auto parse_res = PurchaseFromJSON(j, "expiring-purchase");
+                if (!parse_res) {
+                    return WrapError(parse_res.error(), "failed to parse purchase from response JSON");
                 }
+
+                purchase = *parse_res;
+
+                if (!purchase->server_time_expiry) {
+                    // Purchase expiry is optional, but we're specifically making a New**Expiring**Purchase
+                    return MakeCriticalError("response did not provide valid expiry");
+                }
+
+                // Not checking authorization, as it doesn't apply to all expiring purchases
+
+                if (auto err = user_data_->AddPurchase(*purchase)) {
+                    return WrapError(err, "AddPurchase failed");
+                }
+
             }
 
-            // Unused fields
-            //auto transaction_amount = j.at("TransactionAmount").get<int64_t>();
+            if (auto err = pauser.Commit()) {
+                return WrapError(err, "UserData write failed");
+            }
         }
         catch (json::exception& e) {
             return MakeCriticalError(
@@ -831,88 +1049,196 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
         }
     }
 
+    optional<PsiCash::NewExpiringPurchaseResponse> response;
+
     if (result->code == kHTTPStatusOK) {
-        if (transaction_type != "expiring-purchase") {
-            return MakeCriticalError(
-                    ("response contained incorrect TransactionResponse.Type; want 'expiring-purchase', got "s +
-                     transaction_type));
-        }
-        if (transaction_id.empty()) {
-            return MakeCriticalError("response did not provide valid TransactionID");
-        }
-        if (server_expiry.IsZero()) {
-            // Purchase expiry is optional, but we're specifically making a New**Expiring**Purchase
-            return MakeCriticalError(
-                    "response did not provide valid TransactionResponse.Values.Expires");
-        }
-        // Not checking authorization, as it doesn't apply to all expiring purchases
-
-        optional<Authorization> authOptional = nullopt;
-        if (!authorization_encoded.empty()) {
-            auto decodeAuthResult = DecodeAuthorization(authorization_encoded);
-            if (!decodeAuthResult) {
-                // Authorization can be optional, but inability to decode suggests
-                // something is very wrong.
-                return WrapError(decodeAuthResult.error(), "failed to decode Purchase Authorization");
-            }
-            authOptional = *decodeAuthResult;
-        }
-
-        Purchase purchase = {
-                transaction_id,
-                transaction_class,
-                distinguisher,
-                server_expiry.IsZero() ? nullopt : make_optional(
-                        server_expiry),
-                server_expiry.IsZero() ? nullopt : make_optional(
-                        server_expiry),
-                authOptional
-        };
-
-        user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
-
-        if (auto err = user_data_->AddPurchase(purchase)) {
-            return WrapError(err, "AddPurchase failed");
-        }
-
-        if (auto err = pauser.Unpause()) {
-            return WrapError(err, "UserData write failed");
-        }
-
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::Success,
                 purchase
         };
     } else if (result->code == kHTTPStatusTooManyRequests) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::ExistingTransaction
         };
     } else if (result->code == kHTTPStatusPaymentRequired) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::InsufficientBalance
         };
     } else if (result->code == kHTTPStatusConflict) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::TransactionAmountMismatch
         };
     } else if (result->code == kHTTPStatusNotFound) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::TransactionTypeNotFound
         };
     } else if (result->code == kHTTPStatusUnauthorized) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
                 Status::InvalidTokens
         };
     } else if (IsServerError(result->code)) {
-        return PsiCash::NewExpiringPurchaseResponse{
+        response = PsiCash::NewExpiringPurchaseResponse{
+                Status::ServerError
+        };
+    }
+    else {
+        return MakeCriticalError(utils::Stringer(
+                "request returned unexpected result code: ", result->code, "; ",
+                result->body, "; ", json(result->headers).dump()));
+    }
+
+    assert(response);
+    return *response;
+}
+
+Result<PsiCash::AccountLogoutResponse> PsiCash::AccountLogout() {
+    TOKENS_REQUIRED;
+
+    if (!IsAccount()) {
+        return MakeNoncriticalError("user is not account");
+    }
+
+    // Authorizations are applied to psiphond connections, so the presence of an active
+    // one means we will need to reconnect after logging out.
+    bool reconnect_required = !GetAuthorizations(true).empty();
+
+    Error httpErr;
+    auto result = MakeHTTPRequestWithRetry(
+            kMethodPOST,
+            "/logout",
+            true,  // include auth tokens
+            {},
+            nullopt // body
+    );
+    if (!result) {
+        httpErr = result.error();
+    }
+    else if (result->code != kHTTPStatusOK) {
+        httpErr = MakeNoncriticalError(utils::Stringer("logout request failed; code:", result->code, "; body:", result->body));
+    }
+    // Even if an error occurred, we still want to do the local logout, so carry on.
+
+    auto localErr = user_data_->DeleteUserData(true);
+
+    // The localErr is a more significant failure, so check it first.
+    if (localErr) {
+        return WrapError(localErr, "local AccountLogout failed");
+    }
+    /*
+    // We are not returning an error if the remote request failed. We have already
+    // affected the local logout, and we'll have to rely on the next login from this
+    // device to invalidate the tokens on the server.
+    else if (httpErr) {
+        return WrapError(httpErr, "MakeHTTPRequestWithRetry failed");
+    }
+    */
+
+    return PsiCash::AccountLogoutResponse{ reconnect_required };
+}
+
+error::Result<PsiCash::AccountLoginResponse> PsiCash::AccountLogin(
+        const std::string& utf8_username,
+        const std::string& utf8_password) {
+    MUST_BE_INITIALIZED;
+
+    static const vector<string> token_types = {kEarnerTokenType, kSpenderTokenType, kIndicatorTokenType, kLogoutTokenType};
+    static const string token_types_str = utils::Join(token_types, ",");
+
+    // If we have tracker tokens, include them to (attempt to) merge the balance.
+    string old_tokens;
+    if (!IsAccount() && HasTokens()) {
+        old_tokens = CommaDelimitTokens({});
+    }
+
+    json body =
+        {
+            {"username", utf8_username},
+            {"password", utf8_password},
+            {"instanceID", user_data_->GetInstanceID()},
+            {"tokenTypes", token_types_str},
+            {"oldTokens", old_tokens}
+        };
+
+    auto result = MakeHTTPRequestWithRetry(
+            kMethodPOST,
+            "/login",
+            false,  // tokens for tracker merge are provided via the request body
+            {},    // query params
+            body
+    );
+    if (!result) {
+        return WrapError(result.error(), "MakeHTTPRequestWithRetry failed");
+    }
+
+    if (result->code == kHTTPStatusOK) {
+        // Delete whatever local user data may be present. If it was a tracker, it has
+        // been merged now (or can't be); if it was an account, we should interpret the
+        // login as a desire to no longer be logged in with the previous account.
+        if (auto err = ResetUser()) {
+            return PassError(err);
+        }
+
+        if (result->body.empty()) {
+            return MakeCriticalError(
+                    utils::Stringer("result has no body; code: ", result->code));
+        }
+
+        AuthTokens auth_tokens;
+        optional<bool> last_tracker_merge;
+        try {
+            auto j = json::parse(result->body);
+            auth_tokens = j["Tokens"].get<AuthTokens>();
+
+            if (!j.at("TrackerMerged").is_null()) {
+                auto tracker_merges_remaining = j["TrackerMergesRemaining"].get<int>();
+                auto tracker_merged = j["TrackerMerged"].get<bool>();
+                last_tracker_merge = tracker_merged && tracker_merges_remaining == 0;
+            }
+        }
+        catch (json::exception& e) {
+            return MakeCriticalError(
+                    utils::Stringer("json parse failed: ", e.what(), "; id:", e.id));
+        }
+
+        // Sanity check
+        if (auth_tokens.size() < token_types.size()) {
+            return MakeCriticalError(
+                    utils::Stringer("bad number of tokens received: ", auth_tokens.size()));
+        }
+
+        // Set our new data in a single write.
+        UserData::WritePauser pauser(*user_data_);
+        (void)user_data_->SetIsLoggedOutAccount(false);
+        (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/true, /*utf8_username=*/utf8_username);
+        if (auto err = pauser.Commit()) {
+            return WrapError(err, "user data write failed");
+        }
+
+        return PsiCash::AccountLoginResponse{
+            Status::Success,
+            last_tracker_merge
+        };
+    }
+    else if (result->code == kHTTPStatusUnauthorized) {
+        return PsiCash::AccountLoginResponse{
+                Status::InvalidCredentials
+        };
+    }
+    else if (result->code == kHTTPStatusBadRequest) {
+        return PsiCash::AccountLoginResponse{
+                Status::BadRequest
+        };
+    }
+    else if (IsServerError(result->code)) {
+        return PsiCash::AccountLoginResponse{
                 Status::ServerError
         };
     }
 
     return MakeCriticalError(utils::Stringer(
-        "request returned unexpected result code: ", result->code));
+            "request returned unexpected result code: ", result->code, "; ",
+            result->body, "; ", json(result->headers).dump()));
 }
-
 
 // Enable JSON de/serializing of PurchasePrice.
 // See https://github.com/nlohmann/json#basic-usage
@@ -937,19 +1263,22 @@ void from_json(const json& j, PurchasePrice& pp) {
 
 // Enable JSON de/serializing of Purchase.
 // See https://github.com/nlohmann/json#basic-usage
+// NOTE: This is only for datastore purposes, and not for server responses.
 bool operator==(const Purchase& lhs, const Purchase& rhs) {
     return lhs.transaction_class == rhs.transaction_class &&
            lhs.distinguisher == rhs.distinguisher &&
            lhs.server_time_expiry == rhs.server_time_expiry &&
            //lhs.local_time_expiry == rhs.local_time_expiry && // Don't include the derived local time in the comparison
-           lhs.authorization == rhs.authorization;
+           lhs.authorization == rhs.authorization &&
+           lhs.server_time_created == rhs.server_time_created;
 }
 
 void to_json(json& j, const Purchase& p) {
     j = json{
-            {"id",            p.id},
-            {"class",         p.transaction_class},
-            {"distinguisher", p.distinguisher}};
+            {"id",                p.id},
+            {"class",             p.transaction_class},
+            {"distinguisher",     p.distinguisher},
+            {"serverTimeCreated", p.server_time_created}};
 
     if (p.authorization) {
         j["authorization"] = *p.authorization;
@@ -992,6 +1321,80 @@ void from_json(const json& j, Purchase& p) {
     } else {
         p.local_time_expiry = j.at("localTimeExpiry").get<datetime::DateTime>();
     }
+
+    // This field was not added until later versions of the datastore, so may not be present.
+    if (j.contains("serverTimeCreated")) {
+        p.server_time_created = j.at("serverTimeCreated").get<datetime::DateTime>();
+    } else {
+        // Default it to a very long time ago.
+        p.server_time_created = datetime::DateTime(datetime::TimePoint(datetime::DurationFromInt64(1)));
+    }
+}
+
+/// Builds a purchase from server response JSON.
+error::Result<psicash::Purchase> PsiCash::PurchaseFromJSON(const json& j, const string& expected_type/*=""*/) const {
+    string transaction_id, transaction_class, transaction_distinguisher, authorization_encoded, transaction_type;
+    datetime::DateTime server_expiry, server_created;
+    try {
+        if (!expected_type.empty() && expected_type != j.at("/TransactionResponse/Type"_json_pointer).get<string>()) {
+            return MakeCriticalError("expected type mismatch; want '"s + expected_type + "'; got '" + j.at("/TransactionResponse/Type"_json_pointer).get<string>() + "'");
+        }
+
+        transaction_id = j.at("TransactionID").get<string>();
+        transaction_class = j.at("Class").get<string>();
+        transaction_distinguisher = j.at("Distinguisher").get<string>();
+
+        if (!server_created.FromISO8601(j.at("Created").get<string>())) {
+            return MakeCriticalError("failed to parse Created; got "s + j.at("Created").get<string>());
+        }
+
+        if (j.at("Authorization").is_string()) {
+            authorization_encoded = j["Authorization"].get<string>();
+        }
+
+        // NOTE: The presence of this field depends on the type. Right now we only have
+        // expiring purchases, but that may change in the future.
+        if (j.at("/TransactionResponse/Values/Expires"_json_pointer).is_string()) {
+            auto expiry_string = j["/TransactionResponse/Values/Expires"_json_pointer].get<string>();
+            if (!server_expiry.FromISO8601(expiry_string)) {
+                return MakeCriticalError("failed to parse TransactionResponse.Values.Expires; got "s + expiry_string);
+            }
+        }
+
+        // Unused fields
+        //auto transaction_amount = j.at("TransactionAmount").get<int64_t>();
+    }
+    catch (json::exception& e) {
+        return MakeCriticalError(
+                utils::Stringer("json parse failed: ", e.what(), "; id:", e.id));
+    }
+
+    optional<Authorization> authOptional = nullopt;
+    if (!authorization_encoded.empty()) {
+        auto decodeAuthResult = DecodeAuthorization(authorization_encoded);
+        if (!decodeAuthResult) {
+            // Authorization can be optional, but inability to decode suggests
+            // something is very wrong.
+            return WrapError(decodeAuthResult.error(), "failed to decode Purchase Authorization");
+        }
+        authOptional = *decodeAuthResult;
+    }
+
+    Purchase purchase = {
+        transaction_id,
+        server_created,
+        transaction_class,
+        transaction_distinguisher,
+        server_expiry.IsZero() ? nullopt : make_optional(
+                server_expiry),
+        server_expiry.IsZero() ? nullopt : make_optional(
+                server_expiry),
+        authOptional
+    };
+
+    user_data_->UpdatePurchaseLocalTimeExpiry(purchase);
+
+    return purchase;
 }
 
 // Enable JSON de/serializing of Authorization.

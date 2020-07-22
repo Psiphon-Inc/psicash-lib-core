@@ -55,6 +55,10 @@ datetime::TimePoint NormalizeTimePoint(const datetime::Clock::time_point& tp) {
 }
 
 bool FromString(const char* parseSpecifier, const string& s, TimePoint& tp) {
+    if (s.empty()) {
+        return false;
+    }
+
     TimePoint temp;
     istringstream ss(s);
     ss.imbue(std::locale::classic());
@@ -94,6 +98,10 @@ bool DateTime::IsZero() const {
     // This makes the assumption that we won't be dealing with 1970-01-01 as a legit date.
     //return time_point_.time_since_epoch().count() == 0;
     return time_point_ == kTimePointZero;
+}
+
+string DateTime::ToString() const {
+    return ToISO8601();
 }
 
 string DateTime::ToISO8601() const {
