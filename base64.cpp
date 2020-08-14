@@ -43,7 +43,7 @@ static const char to_base64[] =
 std::string B64Encode(const std::string& buf) {
     if (buf.empty())
         return "";
-    return B64Encode((const unsigned char*)buf.c_str(), buf.size());
+    return B64Encode((const unsigned char*)buf.c_str(), (unsigned int)buf.size());
 }
 
 std::string B64Encode(const std::vector<BYTE>& buf) {
