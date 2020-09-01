@@ -89,7 +89,7 @@ string URL::Encode(const string& s, bool full) {
         string::value_type c = (*i);
 
         // Keep alphanumeric and other accepted characters intact
-        if (!full && (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')) {
+        if (!full && (isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.' || c == '~')) {
             escaped << c;
             continue;
         }

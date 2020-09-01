@@ -106,6 +106,9 @@ TEST(TestURL, EncodeNotFull)
 
   enc = URL::Encode("{\"k1\": \"v\", \"k2\": 123}", false);
   ASSERT_EQ(enc, "%7B%22k1%22%3A%20%22v%22%2C%20%22k2%22%3A%20123%7D");
+
+  enc = URL::Encode("⌘", false);
+  ASSERT_EQ(enc, "%E2%8C%98");
 }
 
 TEST(TestURL, EncodeFull)
@@ -124,4 +127,7 @@ TEST(TestURL, EncodeFull)
 
   enc = URL::Encode("{\"k1\": \"v\", \"k2\": 123}", true);
   ASSERT_EQ(enc, "%7B%22%6B%31%22%3A%20%22%76%22%2C%20%22%6B%32%22%3A%20%31%32%33%7D");
+
+  enc = URL::Encode("⌘", false);
+  ASSERT_EQ(enc, "%E2%8C%98");
 }
