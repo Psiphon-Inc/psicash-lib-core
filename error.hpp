@@ -41,6 +41,7 @@ class Error {
 public:
     Error();
     Error(const Error& src) = default;
+    Error(Error&&) noexcept = default;
     Error(bool critical, const std::string& message,
           const std::string& filename, const std::string& function, int line);
     Error& operator=(const Error&) = default;
