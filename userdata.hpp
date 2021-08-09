@@ -29,9 +29,21 @@
 
 namespace psicash {
 
-extern const char* REQUEST_METADATA; // only for use in template method below
+extern const nlohmann::json::json_pointer kRequestMetadataPtr; // only for use in template method below
 
-using AuthTokens = std::map<std::string, std::string>;
+struct TokenInfo { std::string id; nonstd::optional<datetime::DateTime> server_time_expiry; };
+using AuthTokens = std::map<std::string, TokenInfo>; // type to token info
+void to_json(nlohmann::json& j, const AuthTokens& v);
+void from_json(const nlohmann::json& j, AuthTokens& v);
+using TokenTypes = std::vector<std::string>;
+
+// These are the possible token types.
+extern const char* const kEarnerTokenType;
+extern const char* const kSpenderTokenType;
+extern const char* const kIndicatorTokenType;
+extern const char* const kAccountTokenType;
+extern const char* const kLogoutTokenType;
+
 
 /// Storage and retrieval (and some processing) of PsiCash user data/state.
 /// UserData operations are threadsafe (via Datastore).
@@ -55,30 +67,50 @@ public:
     /// Init() must have already been called, successfully.
     error::Error Clear();
 
-    /// Used to pause and result datastore file writing.
+    /// Used to pause and resume datastore file writing.
+    /// WritePausers can be nested -- inner instances will do nothing.
     class WritePauser {
     public:
-        WritePauser(UserData& user_data) : user_data_(
-                user_data) { user_data_.datastore_.PauseWrites(); };
-        ~WritePauser() { (void)Unpause(); } // TODO: Should dtor nuke changes (implying error)? Maybe param to ctor to indicate?
-        error::Error Unpause() { return user_data_.datastore_.UnpauseWrites(); }
+        WritePauser(UserData& user_data) : actually_paused_(false), user_data_(
+                user_data) { actually_paused_ = user_data_.datastore_.PauseWrites(); };
+        ~WritePauser() { if (actually_paused_) { (void)Rollback(); } }
+        error::Error Commit() { return Unpause(true); }
+        error::Error Rollback() { return Unpause(false); }
     private:
+        error::Error Unpause(bool commit) { auto p = actually_paused_; actually_paused_ = false; if (p) { return user_data_.datastore_.UnpauseWrites(commit); } return error::nullerr; }
+        bool actually_paused_;
         UserData& user_data_;
     };
 
 public:
+    /// Deletes the stored user data and sets the isLoggedOutAccount flag.
+    error::Error DeleteUserData(bool isLoggedOutAccount);
+
+    std::string GetInstanceID() const;
+
+    bool GetIsLoggedOutAccount() const;
+    error::Error SetIsLoggedOutAccount(bool v);
+
     datetime::Duration GetServerTimeDiff() const;
     error::Error SetServerTimeDiff(const datetime::DateTime& serverTimeNow);
+    /// Converts `server_time` to local time using the current diff
+    datetime::DateTime ServerTimeToLocal(const datetime::DateTime& server_time) const;
     /// Modifies the argument purchase.
     void UpdatePurchaseLocalTimeExpiry(Purchase& purchase) const;
 
     AuthTokens GetAuthTokens() const;
-    error::Error SetAuthTokens(const AuthTokens& v, bool is_account);
+    /// `utf8_username` must be set if `is_account` is true.
+    error::Error SetAuthTokens(const AuthTokens& v, bool is_account, const std::string& utf8_username);
     /// valid_token_types is of the form {"tokenvalueABCD0123": true, ...}
     error::Error CullAuthTokens(const std::map<std::string, bool>& valid_tokens);
+    psicash::TokenTypes ValidTokenTypes() const;
 
     bool GetIsAccount() const;
+    /// Note that setting is-account to true does _not_ populate the account username field.
     error::Error SetIsAccount(bool v);
+
+    std::string GetAccountUsername() const;
+    error::Error SetAccountUsername(const std::string& v);
 
     int64_t GetBalance() const;
     error::Error SetBalance(int64_t v);
@@ -87,7 +119,10 @@ public:
     error::Error SetPurchasePrices(const PurchasePrices& v);
 
     Purchases GetPurchases() const;
+    /// Does not update LastTransactionID. This must only be called when storing a subset
+    /// of the already-existing purchases. Also, the vector must still be sorted.
     error::Error SetPurchases(const Purchases& v);
+    /// Does update LastTransactionID.
     error::Error AddPurchase(const Purchase& v);
 
     TransactionID GetLastTransactionID() const;
@@ -99,10 +134,12 @@ public:
         if (key.empty()) {
             return error::MakeCriticalError("Metadata key cannot be empty");
         }
-        auto j = GetRequestMetadata();
-        j[key] = val;
-        return datastore_.Set({{REQUEST_METADATA, j}});
+        auto ptr = kRequestMetadataPtr / key;
+        return datastore_.Set(ptr, val);
     }
+
+    std::string GetLocale() const;
+    error::Error SetLocale(const std::string& v);
 
 protected:
     /// Modifies the purchases in the argument.

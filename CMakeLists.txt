@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 20)
 
 add_definitions(-DTESTING)
 
@@ -15,6 +15,8 @@ list(FILTER TEST_SOURCES INCLUDE REGEX "(.*_test\\.cpp)|(test_.*\\.cpp)$")
 #message("TEST_SOURCES: ${TEST_SOURCES}")
 
 if(MSVC)
+    add_compile_options(/std:c++latest)
+
     # From https://stackoverflow.com/questions/10113017/setting-the-msvc-runtime-in-cmake
     # Default to statically-linked runtime.
     if("${MSVC_RUNTIME}" STREQUAL "")
@@ -58,7 +60,6 @@ add_library( # Sets the name of the library.
              # Provides a relative path to your source file(s).
              ${SOURCES} )
 
-# TODO: Coverage stuff should not be done unconditionally
 SET(GCC_COVERAGE_COMPILE_FLAGS "-Wall -fprofile-arcs -ftest-coverage -g -O0")
 SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 
@@ -105,5 +106,6 @@ add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
 # Now simply link against gtest or gtest_main or gmock_main as needed.
 add_executable(runUnitTests ${TEST_SOURCES})
 target_link_libraries(runUnitTests gmock_main)
+target_link_libraries(runUnitTests ssl crypto)
 target_link_libraries(runUnitTests psicash)
 #add_test(NAME example_test COMMAND runUnitTests)
