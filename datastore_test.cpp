@@ -46,10 +46,11 @@ TEST_F(TestDatastore, InitSimple)
 TEST_F(TestDatastore, InitCorrupt)
 {
     auto temp_dir = GetTempDir();
-    WriteBadData(temp_dir.c_str(), ds_suffix);
+    auto ok = WriteBadData(temp_dir.c_str(), true);
+    ASSERT_TRUE(ok);
 
     Datastore ds;
-    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds.Init(temp_dir.c_str(), GetSuffix(true));
     ASSERT_TRUE(err);
     ASSERT_GT(err.ToString().length(), 0);
 }
@@ -79,10 +80,11 @@ TEST_F(TestDatastore, CheckPersistence)
     ASSERT_FALSE(err);
 
     string want = "v";
-    err = ds->Set({{"k", want}});
+    auto k = "/k"_json_pointer;
+    err = ds->Set(k, want);
     ASSERT_FALSE(err);
 
-    auto got = ds->Get<string>("k");
+    auto got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
@@ -94,14 +96,14 @@ TEST_F(TestDatastore, CheckPersistence)
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
     delete ds;
 }
 
-TEST_F(TestDatastore, Clear)
+TEST_F(TestDatastore, Reset)
 {
     auto temp_dir = GetTempDir();
 
@@ -110,10 +112,11 @@ TEST_F(TestDatastore, Clear)
     ASSERT_FALSE(err);
 
     string want = "v";
-    err = ds->Set({{"k", want}});
+    auto k = "/k"_json_pointer;
+    err = ds->Set(k, want);
     ASSERT_FALSE(err);
 
-    auto got = ds->Get<string>("k");
+    auto got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
@@ -125,55 +128,78 @@ TEST_F(TestDatastore, Clear)
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
     delete ds;
 
-    // Clear with arguments
+    // Reset with arguments
     ds = new Datastore();
-    err = ds->Clear(temp_dir.c_str(), ds_suffix);
+    err = ds->Reset(temp_dir.c_str(), ds_suffix, {});
     ASSERT_FALSE(err) << err.ToString();
 
     // First Get without calling Init; should get "not initialized" error
-    got = ds->Get<string>("k");
+    got = ds->Get<string>(k);
     ASSERT_FALSE(got);
     ASSERT_EQ(got.error(), psicash::Datastore::kDatastoreUninitialized);
 
+    // Then initialize and try again
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    // Key should not be found, since we haven't set it
+    got = ds->Get<string>(k);
     ASSERT_FALSE(got);
     ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
 
-    err = ds->Set({{"k", want}});
+    // Set it
+    err = ds->Set(k, want);
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    // Get it for real
+    got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
     delete ds;
 
-    // Clear without arguments
+    // Reset without arguments
     ds = new Datastore();
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    got = ds->Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
-    err = ds->Clear();
+    err = ds->Reset({});
     ASSERT_FALSE(err);
 
-    got = ds->Get<string>("k");
+    got = ds->Get<string>(k);
     ASSERT_FALSE(got);
     ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
 
     delete ds;
+
+    // Reset with non-empty new value
+    temp_dir = GetTempDir(); // use a fresh dir to avoid pollution
+    ds = new Datastore();
+    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("/k"_json_pointer);
+    ASSERT_FALSE(got);
+
+    err = ds->Reset({{"k", want}});
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>("/k"_json_pointer);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, want);
+
+    delete ds;
+
 }
 
 TEST_F(TestDatastore, WritePause)
@@ -185,22 +211,38 @@ TEST_F(TestDatastore, WritePause)
     ASSERT_FALSE(err);
 
     // This should persist
-    string pause_want1 = "pause_want1";
-    err = ds->Set({{pause_want1, pause_want1}});
+    auto pause_want1 = "/pause_want1"_json_pointer;
+    err = ds->Set(pause_want1, pause_want1.to_string());
     ASSERT_FALSE(err);
 
-    // This should persist
+    // This should persist, as we're committing
     ds->PauseWrites();
-    string pause_want2 = "pause_want2";
-    err = ds->Set({{pause_want2, pause_want2}});
+    auto pause_want2 = "/pause_want2"_json_pointer;
+    err = ds->Set(pause_want2, pause_want2.to_string());
     ASSERT_FALSE(err);
-    err = ds->UnpauseWrites();
+    err = ds->UnpauseWrites(/*commit=*/true);
     ASSERT_FALSE(err);
 
-    // This should NOT persist, since we'll close before unpausing
+    // This should NOT persist, as we're rolling back
     ds->PauseWrites();
-    string pause_want3 = "pause_want3";
-    err = ds->Set({{pause_want3, pause_want3}});
+    auto pause_want3 = "/pause_want3"_json_pointer;
+    err = ds->Set(pause_want3, pause_want3.to_string());
+    ASSERT_FALSE(err);
+    err = ds->UnpauseWrites(/*commit=*/false);
+    ASSERT_FALSE(err);
+
+    // Another committed value, to make sure the order of things doesn't matter
+    ds->PauseWrites();
+    auto pause_want4 = "/pause_want4"_json_pointer;
+    err = ds->Set(pause_want4, pause_want4.to_string());
+    ASSERT_FALSE(err);
+    err = ds->UnpauseWrites(/*commit=*/true);
+    ASSERT_FALSE(err);
+
+    // This should also NOT persist, since we're hitting the dtor
+    ds->PauseWrites();
+    auto pause_want5 = "/pause_want5"_json_pointer;
+    err = ds->Set(pause_want5, pause_want5.to_string());
     ASSERT_FALSE(err);
 
     // Close
@@ -211,15 +253,22 @@ TEST_F(TestDatastore, WritePause)
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    auto got = ds->Get<string>(pause_want1.c_str());
+    auto got = ds->Get<string>(pause_want1);
     ASSERT_TRUE(got);
-    ASSERT_EQ(*got, pause_want1);
+    ASSERT_EQ(*got, pause_want1.to_string());
 
-    got = ds->Get<string>(pause_want2.c_str());
+    got = ds->Get<string>(pause_want2);
     ASSERT_TRUE(got);
-    ASSERT_EQ(*got, pause_want2);
+    ASSERT_EQ(*got, pause_want2.to_string());
 
-    got = ds->Get<string>(pause_want3.c_str());
+    got = ds->Get<string>(pause_want3);
+    ASSERT_FALSE(got);
+
+    got = ds->Get<string>(pause_want4);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, pause_want4.to_string());
+
+    got = ds->Get<string>(pause_want5);
     ASSERT_FALSE(got);
 
     delete ds;
@@ -231,33 +280,14 @@ TEST_F(TestDatastore, SetSimple)
     auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
+    auto k = "/k"_json_pointer;
     string want = "v";
-    err = ds.Set({{"k", want}});
+    err = ds.Set(k, want);
     ASSERT_FALSE(err);
 
-    auto got = ds.Get<string>("k");
+    auto got = ds.Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
-}
-
-TEST_F(TestDatastore, SetMulti)
-{
-    Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
-    ASSERT_FALSE(err);
-
-    const char *key1 = "key1", *key2 = "key2";
-    string want1 = "want1", want2 = "want2";
-    err = ds.Set({{key1, want1}, {key2, want2}});
-    ASSERT_FALSE(err);
-
-    auto got = ds.Get<string>(key1);
-    ASSERT_TRUE(got);
-    ASSERT_EQ(*got, want1);
-
-    got = ds.Get<string>(key2);
-    ASSERT_TRUE(got);
-    ASSERT_EQ(*got, want2);
 }
 
 TEST_F(TestDatastore, SetDeep)
@@ -266,16 +296,22 @@ TEST_F(TestDatastore, SetDeep)
     auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    const char *key1 = "key1", *key2 = "key2";
+    auto key1 = "/key1"_json_pointer, key2 = "/key2"_json_pointer;
     string want = "want";
-    err = ds.Set({{key1, {{key2, want}}}});
+    err = ds.Set(key1/key2, want);
     ASSERT_FALSE(err);
 
+    // Try to get key1 and then get key2 from it
     auto gotShallow = ds.Get<json>(key1);
     ASSERT_TRUE(gotShallow);
 
     string gotDeep = gotShallow->at(key2).get<string>();
     ASSERT_EQ(gotDeep, want);
+
+    // Then try to get /key1/key2 directly
+    auto gotDeep2 = ds.Get<string>(key1/key2);
+    ASSERT_TRUE(gotDeep2);
+    ASSERT_EQ(gotDeep2, want);
 }
 
 TEST_F(TestDatastore, SetAndClear)
@@ -285,19 +321,19 @@ TEST_F(TestDatastore, SetAndClear)
     ASSERT_FALSE(err);
 
     map<string, string> want = {{"a", "a"}, {"b", "b"}};
-    err = ds.Set({{"k", want}});
+    auto k = "/k"_json_pointer;
+    err = ds.Set(k, want);
     ASSERT_FALSE(err);
 
-    auto got = ds.Get<map<string, string>>("k");
+    auto got = ds.Get<map<string, string>>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(got->size(), want.size());
 
     want.clear();
-    err = ds.Set({{"k", want}});
+    err = ds.Set(k, want);
     ASSERT_FALSE(err);
 
-    // This used to fail when Datastore was using json.merge_patch instead of json.update.
-    got = ds.Get<map<string, string>>("k");
+    got = ds.Get<map<string, string>>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(got->size(), 0);
 }
@@ -312,8 +348,8 @@ TEST_F(TestDatastore, SetTypes)
 
     // Start with string
     string wantString = "v";
-    const char *wantStringKey = "wantStringKey";
-    err = ds.Set({{wantStringKey, wantString}});
+    auto wantStringKey = "/wantStringKey"_json_pointer;
+    err = ds.Set(wantStringKey, wantString);
     ASSERT_FALSE(err);
 
     auto gotString = ds.Get<string>(wantStringKey);
@@ -322,8 +358,8 @@ TEST_F(TestDatastore, SetTypes)
 
     // bool
     bool wantBool = true;
-    const char *wantBoolKey = "wantBoolKey";
-    err = ds.Set({{wantBoolKey, wantBool}});
+    auto wantBoolKey = "/wantBoolKey"_json_pointer;
+    err = ds.Set(wantBoolKey, wantBool);
     ASSERT_FALSE(err);
 
     auto gotBool = ds.Get<bool>(wantBoolKey);
@@ -332,8 +368,8 @@ TEST_F(TestDatastore, SetTypes)
 
     // int
     int wantInt = 5273482;
-    const char *wantIntKey = "wantIntKey";
-    err = ds.Set({{wantIntKey, wantInt}});
+    auto wantIntKey = "/wantIntKey"_json_pointer;
+    err = ds.Set(wantIntKey, wantInt);
     ASSERT_FALSE(err);
 
     auto gotInt = ds.Get<int>(wantIntKey);
@@ -349,8 +385,8 @@ TEST_F(TestDatastore, TypeMismatch)
 
     // string
     string wantString = "v";
-    const char *wantStringKey = "wantStringKey";
-    err = ds.Set({{wantStringKey, wantString}});
+    auto wantStringKey = "/wantStringKey"_json_pointer;
+    err = ds.Set(wantStringKey, wantString);
     ASSERT_FALSE(err);
 
     auto gotString = ds.Get<string>(wantStringKey);
@@ -359,8 +395,8 @@ TEST_F(TestDatastore, TypeMismatch)
 
     // bool
     bool wantBool = true;
-    const char *wantBoolKey = "wantBoolKey";
-    err = ds.Set({{wantBoolKey, wantBool}});
+    auto wantBoolKey = "/wantBoolKey"_json_pointer;
+    err = ds.Set(wantBoolKey, wantBool);
     ASSERT_FALSE(err);
 
     auto gotBool = ds.Get<bool>(wantBoolKey);
@@ -369,8 +405,8 @@ TEST_F(TestDatastore, TypeMismatch)
 
     // int
     int wantInt = 5273482;
-    const char *wantIntKey = "wantIntKey";
-    err = ds.Set({{wantIntKey, wantInt}});
+    auto wantIntKey = "/wantIntKey"_json_pointer;
+    err = ds.Set(wantIntKey, wantInt);
     ASSERT_FALSE(err);
 
     auto gotInt = ds.Get<int>(wantIntKey);
@@ -394,7 +430,7 @@ TEST_F(TestDatastore, TypeMismatch)
     //ASSERT_FALSE(got_fail_4); // NOTE: This doesn't actually fail. There must be a successful implicit conversion.
 
     // It's not an error to set one type to a key and then replace it with another type
-    err = ds.Set({{wantStringKey, wantBool}});
+    err = ds.Set(wantStringKey, wantBool);
     ASSERT_FALSE(err);
 }
 
@@ -405,12 +441,38 @@ TEST_F(TestDatastore, GetSimple)
     ASSERT_FALSE(err);
 
     string want = "v";
-    err = ds.Set({{"k", want}});
+    err = ds.Set("/k"_json_pointer, want);
     ASSERT_FALSE(err);
 
-    auto got = ds.Get<string>("k");
+    auto got = ds.Get<string>("/k"_json_pointer);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
+}
+
+TEST_F(TestDatastore, GetDeep)
+{
+    // This is a copy of SetDeep
+
+    Datastore ds;
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    auto key1 = "/key1"_json_pointer, key2 = "/key2"_json_pointer;
+    string want = "want";
+    err = ds.Set(key1/key2, want);
+    ASSERT_FALSE(err);
+
+    // Try to get key1 and then get key2 from it
+    auto gotShallow = ds.Get<json>(key1);
+    ASSERT_TRUE(gotShallow);
+
+    string gotDeep = gotShallow->at(key2).get<string>();
+    ASSERT_EQ(gotDeep, want);
+
+    // Then try to get /key1/key2 directly
+    auto gotDeep2 = ds.Get<string>(key1/key2);
+    ASSERT_TRUE(gotDeep2);
+    ASSERT_EQ(gotDeep2, want);
 }
 
 TEST_F(TestDatastore, GetNotFound)
@@ -420,15 +482,84 @@ TEST_F(TestDatastore, GetNotFound)
     ASSERT_FALSE(err);
 
     string want = "v";
-    err = ds.Set({{"k", want}});
+    auto k = "/k"_json_pointer;
+    err = ds.Set(k, want);
     ASSERT_FALSE(err);
 
-    auto got = ds.Get<string>("k");
+    auto got = ds.Get<string>(k);
     ASSERT_TRUE(got);
     ASSERT_EQ(*got, want);
 
     // Bad key
-    auto nope = ds.Get<string>("nope");
+    auto nope = ds.Get<string>("/nope"_json_pointer);
     ASSERT_FALSE(nope);
     ASSERT_EQ(nope.error(), psicash::Datastore::kNotFound);
 }
+
+TEST_F(TestDatastore, GetFullDS)
+{
+    // Testing Get() with no params, that returns the full datastore json
+
+    Datastore ds;
+
+    // Error before Init
+    auto j = ds.Get();
+    ASSERT_FALSE(j);
+
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    j = ds.Get();
+    ASSERT_TRUE(j);
+    ASSERT_TRUE(j->empty());
+
+    string want = "v";
+    err = ds.Set("/k"_json_pointer, want);
+    ASSERT_FALSE(err);
+
+    j = ds.Get();
+    ASSERT_TRUE(j);
+    ASSERT_EQ(j->at("k").get<string>(), want);
+}
+
+
+/*
+This was a failed attempt to trigger a datastore corruption error we sometimes see.
+To run, FileStore and FileLoad need to be exported.
+TEST_F(TestDatastore, Errors)
+{
+    Datastore ds;
+
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    for (size_t i = 0; i < 1000; i++) {
+        auto j = ds.Get();
+        ASSERT_TRUE(j);
+
+        string want = "v";
+        err = ds.Set("/k"_json_pointer, want);
+        ASSERT_FALSE(err);
+    }
+
+    auto datastore_filename = DatastoreFilepath(GetTempDir(), true);
+
+    auto load_res = FileLoad(datastore_filename);
+    ASSERT_TRUE(load_res);
+
+    auto error = FileStore(false, datastore_filename, json::object());
+    ASSERT_FALSE(error) << error.ToString();
+    load_res = FileLoad(datastore_filename);
+    ASSERT_TRUE(load_res);
+
+    error = FileStore(false, datastore_filename, json());
+    ASSERT_FALSE(error) << error.ToString();
+    load_res = FileLoad(datastore_filename);
+    ASSERT_TRUE(load_res);
+
+    error = FileStore(false, datastore_filename, nullptr);
+    ASSERT_FALSE(error) << error.ToString();
+    load_res = FileLoad(datastore_filename);
+    ASSERT_TRUE(load_res);
+}
+*/

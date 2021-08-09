@@ -24,6 +24,7 @@
 #include <vector>
 #include <map>
 #include "psicash.hpp"
+#include "error.hpp"
 
 namespace testing {
 
@@ -40,14 +41,11 @@ class PsiCashTester : public psicash::PsiCash {
 
     // Most tests should use this form of Init. It will use the global flag for `init`.
     psicash::error::Error Init(const std::string& user_agent, const std::string& file_store_root,
-                      psicash::MakeHTTPRequestFn make_http_request_fn);
+                      psicash::MakeHTTPRequestFn make_http_request_fn, bool force_reset);
 
     // If the `test` flag really must be set explicitly, use this method.
     psicash::error::Error Init(const std::string& user_agent, const std::string& file_store_root,
-                      psicash::MakeHTTPRequestFn make_http_request_fn, bool test);
-
-    // Overridden to use the global testing flag
-    psicash::error::Error Reset(const std::string& file_store_root);
+                      psicash::MakeHTTPRequestFn make_http_request_fn, bool force_reset, bool test);
 
     psicash::UserData& user_data();
 
@@ -59,14 +57,14 @@ class PsiCashTester : public psicash::PsiCash {
     BuildRequestParams(const std::string& method, const std::string& path, bool include_auth_tokens,
                        const std::vector<std::pair<std::string, std::string>>& query_params,
                        int attempt,
-                       const std::map<std::string, std::string>& additional_headers) const;
+                       const std::map<std::string, std::string>& additional_headers,
+                       const std::string& body) const;
 
     bool MutatorsEnabled();
 
     void SetRequestMutators(const std::vector<std::string>& mutators);
 
-private:
-    bool mutators_enabled_;
+    psicash::error::Result<psicash::Purchase> PurchaseFromJSON(const nlohmann::json& j, const std::string& expected_type="") const;
 };
 
 } // namespace testing
