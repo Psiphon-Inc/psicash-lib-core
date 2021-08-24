@@ -1101,7 +1101,19 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         "test":false,
         "validTokenTypes":[]
         })|"_json;
-        auto j = pc.GetDiagnosticInfo();
+        auto j = pc.GetDiagnosticInfo(/*lite=*/false);
+        ASSERT_EQ(j, want);
+
+        want = R"|({
+        "balance":0,
+        "isAccount":false,
+        "isLoggedOutAccount":false,
+        "purchases":[],
+        "serverTimeDiff":0,
+        "test":false,
+        "validTokenTypes":[]
+        })|"_json;
+        j = pc.GetDiagnosticInfo(/*lite=*/true);
         ASSERT_EQ(j, want);
     }
 
@@ -1121,7 +1133,19 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         "test":true,
         "validTokenTypes":[]
         })|"_json;
-        auto j = pc.GetDiagnosticInfo();
+        auto j = pc.GetDiagnosticInfo(/*lite=*/false);
+        ASSERT_EQ(j, want);
+
+        want = R"|({
+        "balance":0,
+        "isAccount":false,
+        "isLoggedOutAccount":false,
+        "purchases":[],
+        "serverTimeDiff":0,
+        "test":true,
+        "validTokenTypes":[]
+        })|"_json;
+        j = pc.GetDiagnosticInfo(/*lite=*/true);
         ASSERT_EQ(j, want);
 
         pc.user_data().SetBalance(12345);
@@ -1140,7 +1164,18 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         "test":true,
         "validTokenTypes":["a","b","c"]
         })|"_json;
-        j = pc.GetDiagnosticInfo();
+        j = pc.GetDiagnosticInfo(/*lite=*/false);
+        ASSERT_EQ(j, want);
+        want = R"|({
+        "balance":12345,
+        "isAccount":true,
+        "isLoggedOutAccount":false,
+        "purchases":[{"class":"tc2","distinguisher":"d2"}],
+        "serverTimeDiff":0,
+        "test":true,
+        "validTokenTypes":["a","b","c"]
+        })|"_json;
+        j = pc.GetDiagnosticInfo(/*lite=*/true);
         ASSERT_EQ(j, want);
 
         pc.user_data().DeleteUserData(/*is_logged_out_account=*/true);
@@ -1154,7 +1189,18 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         "test":true,
         "validTokenTypes":[]
         })|"_json;
-        j = pc.GetDiagnosticInfo();
+        j = pc.GetDiagnosticInfo(/*lite=*/false);
+        ASSERT_EQ(j, want);
+        want = R"|({
+        "balance":0,
+        "isAccount":true,
+        "isLoggedOutAccount":true,
+        "purchases":[],
+        "serverTimeDiff":0,
+        "test":true,
+        "validTokenTypes":[]
+        })|"_json;
+        j = pc.GetDiagnosticInfo(/*lite=*/true);
         ASSERT_EQ(j, want);
     }
 }
