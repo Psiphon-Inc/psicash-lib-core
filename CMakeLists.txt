@@ -61,7 +61,7 @@ add_library( # Sets the name of the library.
              ${SOURCES} )
 
 SET(GCC_COVERAGE_COMPILE_FLAGS "-Wall -fprofile-arcs -ftest-coverage -g -O0")
-SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
+SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS} -pthread")
 
 SET(GCC_COVERAGE_LINK_FLAGS    "-lgcov --coverage")
 #SET(GCC_COVERAGE_LINK_FLAGS    "-lclang_rt.profile_osx -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/10.0.0/lib/darwin")

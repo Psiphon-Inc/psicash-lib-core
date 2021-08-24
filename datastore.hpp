@@ -35,7 +35,7 @@ class Datastore {
     using json = nlohmann::json;
 
 public:
-    enum DatastoreGetError {
+    enum class DatastoreGetError {
         kNotFound = 1,
         kTypeMismatch,
         kDatastoreUninitialized
@@ -62,12 +62,16 @@ public:
     /// Init() must have already been called, successfully.
     error::Error Reset(json new_value);
 
-    /// Stops writing of updates to disk until UnpauseWrites is called.
-    /// Returns false if writing was already paused (so this call did nothing).
-    bool PauseWrites();
-    /// Unpauses writing. If commit is true, it writes the changes immediately; if false
-    /// it discards the changes.
-    error::Error UnpauseWrites(bool commit);
+    /// Locks the read/write mutex and stops writing of updates to disk until
+    /// EndTransaction is called. Transactions are re-enterable, but not nested.
+    /// NOTE: Failing to call EndTransaction will result in undefined behaviour.
+    void BeginTransaction();
+    /// Ends an ongoing transaction writing. If commit is true, it writes the changes
+    /// immediately; if false it discards the changes.
+    /// Committing or rolling back inner transactions does nothing. Any errors during
+    /// inner transactions that require the outermost transaction to be rolled back must
+    /// be handled by the caller.
+    error::Error EndTransaction(bool commit);
 
     /// Returns the value, or an error indicating the failure reason.
     template<typename T>
@@ -79,11 +83,11 @@ public:
             SYNCHRONIZE_BLOCK(mutex_) {
                 // Not using MUST_BE_INITIALIZED so we don't need it in the header.
                 if (!initialized_) {
-                    return nonstd::make_unexpected(kDatastoreUninitialized);
+                    return nonstd::make_unexpected(DatastoreGetError::kDatastoreUninitialized);
                 }
 
                 if (p.empty() || !json_.contains(p)) {
-                    return nonstd::make_unexpected(kNotFound);
+                    return nonstd::make_unexpected(DatastoreGetError::kNotFound);
                 }
 
                 val = json_.at(p).get<T>();
@@ -91,11 +95,11 @@ public:
             return val;
         }
         catch (json::type_error&) {
-            return nonstd::make_unexpected(kTypeMismatch);
+            return nonstd::make_unexpected(DatastoreGetError::kTypeMismatch);
         }
         catch (json::out_of_range&) {
             // This should be avoided by the explicit check above. But we'll be safe.
-            return nonstd::make_unexpected(kNotFound);
+            return nonstd::make_unexpected(DatastoreGetError::kNotFound);
         }
     }
 
@@ -112,11 +116,14 @@ protected:
     error::Error Reset(const std::string& file_path, json new_value);
 
 private:
-    mutable std::recursive_mutex mutex_;
     bool initialized_;
+
+    mutable std::recursive_mutex mutex_;
+    std::unique_lock<std::recursive_mutex> explicit_lock_;
+    int transaction_depth_;
+
     std::string file_path_;
     json json_;
-    bool paused_;
 };
 
 } // namespace psicash

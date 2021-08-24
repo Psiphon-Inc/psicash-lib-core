@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <thread>
 
 #include "gtest/gtest.h"
 #include "test_helpers.hpp"
@@ -142,7 +143,7 @@ TEST_F(TestDatastore, Reset)
     // First Get without calling Init; should get "not initialized" error
     got = ds->Get<string>(k);
     ASSERT_FALSE(got);
-    ASSERT_EQ(got.error(), psicash::Datastore::kDatastoreUninitialized);
+    ASSERT_EQ(got.error(), psicash::Datastore::DatastoreGetError::kDatastoreUninitialized);
 
     // Then initialize and try again
     err = ds->Init(temp_dir.c_str(), ds_suffix);
@@ -151,7 +152,7 @@ TEST_F(TestDatastore, Reset)
     // Key should not be found, since we haven't set it
     got = ds->Get<string>(k);
     ASSERT_FALSE(got);
-    ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
+    ASSERT_EQ(got.error(), psicash::Datastore::DatastoreGetError::kNotFound);
 
     // Set it
     err = ds->Set(k, want);
@@ -178,7 +179,7 @@ TEST_F(TestDatastore, Reset)
 
     got = ds->Get<string>(k);
     ASSERT_FALSE(got);
-    ASSERT_EQ(got.error(), psicash::Datastore::kNotFound);
+    ASSERT_EQ(got.error(), psicash::Datastore::DatastoreGetError::kNotFound);
 
     delete ds;
 
@@ -202,7 +203,7 @@ TEST_F(TestDatastore, Reset)
 
 }
 
-TEST_F(TestDatastore, WritePause)
+TEST_F(TestDatastore, Transactions)
 {
     auto temp_dir = GetTempDir();
 
@@ -211,38 +212,38 @@ TEST_F(TestDatastore, WritePause)
     ASSERT_FALSE(err);
 
     // This should persist
-    auto pause_want1 = "/pause_want1"_json_pointer;
-    err = ds->Set(pause_want1, pause_want1.to_string());
+    auto trans_want1 = "/trans_want1"_json_pointer;
+    err = ds->Set(trans_want1, trans_want1.to_string());
     ASSERT_FALSE(err);
 
     // This should persist, as we're committing
-    ds->PauseWrites();
-    auto pause_want2 = "/pause_want2"_json_pointer;
-    err = ds->Set(pause_want2, pause_want2.to_string());
+    ds->BeginTransaction();
+    auto trans_want2 = "/trans_want2"_json_pointer;
+    err = ds->Set(trans_want2, trans_want2.to_string());
     ASSERT_FALSE(err);
-    err = ds->UnpauseWrites(/*commit=*/true);
+    err = ds->EndTransaction(/*commit=*/true);
     ASSERT_FALSE(err);
 
     // This should NOT persist, as we're rolling back
-    ds->PauseWrites();
-    auto pause_want3 = "/pause_want3"_json_pointer;
-    err = ds->Set(pause_want3, pause_want3.to_string());
+    ds->BeginTransaction();
+    auto trans_want3 = "/trans_want3"_json_pointer;
+    err = ds->Set(trans_want3, trans_want3.to_string());
     ASSERT_FALSE(err);
-    err = ds->UnpauseWrites(/*commit=*/false);
+    err = ds->EndTransaction(/*commit=*/false);
     ASSERT_FALSE(err);
 
     // Another committed value, to make sure the order of things doesn't matter
-    ds->PauseWrites();
-    auto pause_want4 = "/pause_want4"_json_pointer;
-    err = ds->Set(pause_want4, pause_want4.to_string());
+    ds->BeginTransaction();
+    auto trans_want4 = "/trans_want4"_json_pointer;
+    err = ds->Set(trans_want4, trans_want4.to_string());
     ASSERT_FALSE(err);
-    err = ds->UnpauseWrites(/*commit=*/true);
+    err = ds->EndTransaction(/*commit=*/true);
     ASSERT_FALSE(err);
 
     // This should also NOT persist, since we're hitting the dtor
-    ds->PauseWrites();
-    auto pause_want5 = "/pause_want5"_json_pointer;
-    err = ds->Set(pause_want5, pause_want5.to_string());
+    ds->BeginTransaction();
+    auto trans_want5 = "/trans_want5"_json_pointer;
+    err = ds->Set(trans_want5, trans_want5.to_string());
     ASSERT_FALSE(err);
 
     // Close
@@ -253,25 +254,158 @@ TEST_F(TestDatastore, WritePause)
     err = ds->Init(temp_dir.c_str(), ds_suffix);
     ASSERT_FALSE(err);
 
-    auto got = ds->Get<string>(pause_want1);
+    auto got = ds->Get<string>(trans_want1);
     ASSERT_TRUE(got);
-    ASSERT_EQ(*got, pause_want1.to_string());
+    ASSERT_EQ(*got, trans_want1.to_string());
 
-    got = ds->Get<string>(pause_want2);
+    got = ds->Get<string>(trans_want2);
     ASSERT_TRUE(got);
-    ASSERT_EQ(*got, pause_want2.to_string());
+    ASSERT_EQ(*got, trans_want2.to_string());
 
-    got = ds->Get<string>(pause_want3);
+    got = ds->Get<string>(trans_want3);
     ASSERT_FALSE(got);
 
-    got = ds->Get<string>(pause_want4);
+    got = ds->Get<string>(trans_want4);
     ASSERT_TRUE(got);
-    ASSERT_EQ(*got, pause_want4.to_string());
+    ASSERT_EQ(*got, trans_want4.to_string());
 
-    got = ds->Get<string>(pause_want5);
+    got = ds->Get<string>(trans_want5);
     ASSERT_FALSE(got);
 
     delete ds;
+}
+
+TEST_F(TestDatastore, NestedTransactions)
+{
+    auto temp_dir = GetTempDir();
+
+    auto ds = new Datastore();
+    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    // Nest then commit
+
+    ds->BeginTransaction();
+    auto trans_want1 = "/trans_want1"_json_pointer;
+    err = ds->Set(trans_want1, trans_want1.to_string());
+    ASSERT_FALSE(err);
+
+    ds->BeginTransaction();
+    auto trans_want2 = "/trans_want2"_json_pointer;
+    err = ds->Set(trans_want2, trans_want2.to_string());
+    ASSERT_FALSE(err);
+
+    err = ds->EndTransaction(/*commit=*/true);
+    ASSERT_FALSE(err);
+
+    auto trans_want3 = "/trans_want3"_json_pointer;
+    err = ds->Set(trans_want3, trans_want3.to_string());
+    ASSERT_FALSE(err);
+
+    err = ds->EndTransaction(/*commit=*/true);
+    ASSERT_FALSE(err);
+
+    auto got = ds->Get<string>(trans_want1);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, trans_want1.to_string());
+    got = ds->Get<string>(trans_want2);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, trans_want2.to_string());
+    got = ds->Get<string>(trans_want3);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, trans_want3.to_string());
+
+    // Nest then roll back
+
+    ds->BeginTransaction();
+    auto trans_want4 = "/trans_want4"_json_pointer;
+    err = ds->Set(trans_want4, trans_want4.to_string());
+    ASSERT_FALSE(err);
+
+    // Also set one of the previous set values
+    err = ds->Set(trans_want3, "nope");
+    ASSERT_FALSE(err);
+
+    ds->BeginTransaction();
+    auto trans_want5 = "/trans_want5"_json_pointer;
+    err = ds->Set(trans_want5, trans_want5.to_string());
+    ASSERT_FALSE(err);
+
+    // We're going to commit the inner transaction...
+    err = ds->EndTransaction(/*commit=*/true);
+    ASSERT_FALSE(err);
+
+    auto trans_want6 = "/trans_want6"_json_pointer;
+    err = ds->Set(trans_want6, trans_want6.to_string());
+    ASSERT_FALSE(err);
+
+    // ...and roll back the outer transaction
+    err = ds->EndTransaction(/*commit=*/false);
+    ASSERT_FALSE(err);
+
+    got = ds->Get<string>(trans_want3);
+    ASSERT_TRUE(got);
+    ASSERT_EQ(*got, trans_want3.to_string());
+    got = ds->Get<string>(trans_want4);
+    ASSERT_FALSE(got) << *got;
+    got = ds->Get<string>(trans_want5);
+    ASSERT_FALSE(got);
+    got = ds->Get<string>(trans_want6);
+    ASSERT_FALSE(got);
+}
+
+TEST_F(TestDatastore, TransactionRaceConditionBug)
+{
+    // Before we added "transactions" to the datastore, it only provided the ability to
+    // "pause" writing. But this still left the possibility that a set of updates that
+    // are only coherent together (like setting "is account" and the "account username")
+    // could be read when only partially updated (each individual Set is threadsafe, but
+    // multiple of them could be read separately).
+
+    Datastore ds;
+    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    const auto k = "/k"_json_pointer;
+    const string k_want1 = "kv";
+    err = ds.Set(k, k_want1);
+    ASSERT_FALSE(err);
+
+    const auto j = "/j"_json_pointer;
+    const string j_want1 = "jv";
+    err = ds.Set(j, j_want1);
+    ASSERT_FALSE(err);
+
+    const string k_want2 = "kv2", j_want2 = "jv2";
+
+    std::thread t([&](){
+        ds.BeginTransaction();
+
+        err = ds.Set(k, k_want2);
+        ASSERT_FALSE(err);
+
+        // Give the main-thread code a chance to read k
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        err = ds.Set(j, j_want2);
+        ASSERT_FALSE(err);
+
+        ds.EndTransaction(true);
+    });
+
+    // Give the thread a chance to start and set k
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // With proper transaction isolation, this Get should wait on the mutex until the thread is done
+    auto k_got = ds.Get<string>(k);
+    ASSERT_TRUE(k_got);
+    auto j_got = ds.Get<string>(j);
+    ASSERT_TRUE(j_got) << (int)j_got.error();
+    // If we have a race condition, k will have been updated, but j won't be
+    ASSERT_EQ(*k_got, k_want2);
+    ASSERT_EQ(*j_got, j_want2) << "transaction isolation fail!";
+
+    t.join();
 }
 
 TEST_F(TestDatastore, SetSimple)
@@ -416,15 +550,15 @@ TEST_F(TestDatastore, TypeMismatch)
     // It's an error to set one type and then try to get another
     auto got_fail_1 = ds.Get<bool>(wantStringKey);
     ASSERT_FALSE(got_fail_1);
-    ASSERT_EQ(got_fail_1.error(), psicash::Datastore::kTypeMismatch);
+    ASSERT_EQ(got_fail_1.error(), psicash::Datastore::DatastoreGetError::kTypeMismatch);
 
     auto got_fail_2 = ds.Get<string>(wantIntKey);
     ASSERT_FALSE(got_fail_2);
-    ASSERT_EQ(got_fail_2.error(), psicash::Datastore::kTypeMismatch);
+    ASSERT_EQ(got_fail_2.error(), psicash::Datastore::DatastoreGetError::kTypeMismatch);
 
     auto got_fail_3 = ds.Get<int>(wantStringKey);
     ASSERT_FALSE(got_fail_3);
-    ASSERT_EQ(got_fail_3.error(), psicash::Datastore::kTypeMismatch);
+    ASSERT_EQ(got_fail_3.error(), psicash::Datastore::DatastoreGetError::kTypeMismatch);
 
     auto got_fail_4 = ds.Get<int>(wantBoolKey);
     //ASSERT_FALSE(got_fail_4); // NOTE: This doesn't actually fail. There must be a successful implicit conversion.
@@ -493,7 +627,7 @@ TEST_F(TestDatastore, GetNotFound)
     // Bad key
     auto nope = ds.Get<string>("/nope"_json_pointer);
     ASSERT_FALSE(nope);
-    ASSERT_EQ(nope.error(), psicash::Datastore::kNotFound);
+    ASSERT_EQ(nope.error(), psicash::Datastore::DatastoreGetError::kNotFound);
 }
 
 TEST_F(TestDatastore, GetFullDS)

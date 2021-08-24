@@ -67,19 +67,24 @@ public:
     /// Init() must have already been called, successfully.
     error::Error Clear();
 
-    /// Used to pause and resume datastore file writing.
-    /// WritePausers can be nested -- inner instances will do nothing.
-    class WritePauser {
+    /// Used to wrap datastore "transactions" (paused writing, mutexed access).
+    /// Transaction can be nested -- inner instances will do nothing.
+    class Transaction {
     public:
-        WritePauser(UserData& user_data) : actually_paused_(false), user_data_(
-                user_data) { actually_paused_ = user_data_.datastore_.PauseWrites(); };
-        ~WritePauser() { if (actually_paused_) { (void)Rollback(); } }
-        error::Error Commit() { return Unpause(true); }
-        error::Error Rollback() { return Unpause(false); }
+        Transaction(UserData& user_data) : user_data_(user_data), in_transaction_(false)
+            { user_data_.datastore_.BeginTransaction(); in_transaction_ = true; };
+        ~Transaction() { if (in_transaction_) { (void)Rollback(); } }
+        error::Error Commit() { return End(true); }
+        error::Error Rollback() { return End(false); }
     private:
-        error::Error Unpause(bool commit) { auto p = actually_paused_; actually_paused_ = false; if (p) { return user_data_.datastore_.UnpauseWrites(commit); } return error::nullerr; }
-        bool actually_paused_;
+        error::Error End(bool commit) {
+            if (in_transaction_) {
+                in_transaction_ = false; return user_data_.datastore_.EndTransaction(commit);
+            }
+            return error::nullerr;
+        }
         UserData& user_data_;
+        bool in_transaction_;
     };
 
 public:

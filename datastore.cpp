@@ -20,6 +20,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdio>
+#include <mutex>
 #include "datastore.hpp"
 #include "utils.hpp"
 #include "vendor/nlohmann/json.hpp"
@@ -33,10 +34,11 @@ using namespace error;
 
 static string FilePath(const string& file_root, const string& suffix);
 static Result<json> FileLoad(const string& file_path);
-static Error FileStore(bool paused, const string& file_path, const json& json);
+static Error FileStore(int transaction_depth, const string& file_path, const json& json);
 
 Datastore::Datastore()
-        : initialized_(false), json_(json::object()), paused_(false) {
+        : initialized_(false), explicit_lock_(mutex_, std::defer_lock),
+          transaction_depth_(0), json_(json::object()) {
 }
 
 Error Datastore::Init(const string& file_root, const string& suffix) {
@@ -55,8 +57,8 @@ Error Datastore::Init(const string& file_root, const string& suffix) {
 
 Error Datastore::Reset(const string& file_path, json new_value) {
     SYNCHRONIZE(mutex_);
-    paused_ = false;
-    if (auto err = FileStore(paused_, file_path, new_value)) {
+    transaction_depth_ = 0;
+    if (auto err = FileStore(transaction_depth_, file_path, new_value)) {
         return PassError(err);
     }
     json_ = new_value;
@@ -73,25 +75,40 @@ Error Datastore::Reset(json new_value) {
     return PassError(Reset(file_path_, new_value));
 }
 
-bool Datastore::PauseWrites() {
+void Datastore::BeginTransaction() {
+    // We only acquire a non-local lock if we're starting an outermost transaction.
     SYNCHRONIZE(mutex_);
-    auto was_paused = paused_;
-    paused_ = true;
-    return !was_paused;
+    // We got a local lock, so we know there's no transaction in progress in any other thread.
+    if (transaction_depth_ == 0) {
+        explicit_lock_.lock();
+    }
+    transaction_depth_++;
 }
 
-Error Datastore::UnpauseWrites(bool commit) {
+Error Datastore::EndTransaction(bool commit) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
-    if (!paused_) {
+    if (transaction_depth_ <= 0) {
+        assert(false);
         return nullerr;
     }
-    paused_ = false;
-    if (commit) {
-        return PassError(FileStore(paused_, file_path_, json_));
+
+    transaction_depth_--;
+
+    if (transaction_depth_ > 0) {
+        // This was an inner transaction and there's nothing more to do.
+        return nullerr;
     }
 
-    // Revert to what's on disk
+    // We need to release the explicit lock on exit from ths function, no matter what.
+    // We will "adopt" the lock into this lock_guard to ensure the unlock happens when it goes out of scope.
+    std::lock_guard<std::unique_lock<std::recursive_mutex>> lock_releaser(explicit_lock_, std::adopt_lock);
+
+    if (commit) {
+        return PassError(FileStore(transaction_depth_, file_path_, json_));
+    }
+
+    // We're rolling back -- revert to what's on disk
     auto res = FileLoad(file_path_);
     if (!res) {
         return PassError(res.error());
@@ -110,7 +127,7 @@ Error Datastore::Set(const json::json_pointer& p, json v) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
     json_[p] = v;
-    return PassError(FileStore(paused_, file_path_, json_));
+    return PassError(FileStore(transaction_depth_, file_path_, json_));
 }
 
 static string FilePath(const string& file_root, const string& suffix) {
@@ -186,8 +203,8 @@ static Result<json> FileLoad(const string& file_path) {
     return json;
 }
 
-static Error FileStore(bool paused, const string& file_path, const json& json) {
-    if (paused) {
+static Error FileStore(int transaction_depth, const string& file_path, const json& json) {
+    if (transaction_depth > 0) {
         return nullerr;
     }
 

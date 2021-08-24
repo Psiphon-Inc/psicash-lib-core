@@ -146,12 +146,12 @@ Error PsiCash::MigrateTrackerTokens(const map<string, string>& tokens) {
         // leave expiry null
     }
 
-    UserData::WritePauser pauser(*user_data_);
+    UserData::Transaction transaction(*user_data_);
     // Ignoring return values while writing is paused.
     // Blow away any user state, as the newly migrated tokens are overwriting it.
     (void)ResetUser();
     (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/false, /*account_username=*/"");
-    if (auto err = pauser.Commit()) {
+    if (auto err = transaction.Commit()) {
         return WrapError(err, "user data write failed");
     }
     return nullerr;
@@ -710,11 +710,11 @@ Result<Status> PsiCash::NewTracker() {
         }
 
         // Set our new data in a single write.
-        UserData::WritePauser pauser(*user_data_);
+        UserData::Transaction transaction(*user_data_);
         (void)user_data_->SetIsLoggedOutAccount(false);
         (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/false, /*account_username=*/"");
         (void)user_data_->SetBalance(0);
-        if (auto err = pauser.Commit()) {
+        if (auto err = transaction.Commit()) {
             return WrapError(err, "user data write failed");
         }
 
@@ -846,7 +846,7 @@ Result<PsiCash::RefreshStateResponse> PsiCash::RefreshState(
         try {
             // We're going to be setting a bunch of UserData values, so let's wait until we're done
             // to write them all to disk.
-            UserData::WritePauser pauser(*user_data_);
+            UserData::Transaction transaction(*user_data_);
 
             auto j = json::parse(result->body);
 
@@ -926,7 +926,7 @@ Result<PsiCash::RefreshStateResponse> PsiCash::RefreshState(
                 (void)user_data_->DeleteUserData(true);
             }
 
-            if (auto err = pauser.Commit()) {
+            if (auto err = transaction.Commit()) {
                 return WrapError(err, "UserData write failed");
             }
         }
@@ -1010,7 +1010,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
 
             // Set our new data in a single write.
             // Note that any early return will cause updates to roll back.
-            UserData::WritePauser pauser(*user_data_);
+            UserData::Transaction transaction(*user_data_);
 
             // Balance is present for all non-error responses
             if (j.at("Balance").is_number_integer()) {
@@ -1039,7 +1039,7 @@ Result<PsiCash::NewExpiringPurchaseResponse> PsiCash::NewExpiringPurchase(
 
             }
 
-            if (auto err = pauser.Commit()) {
+            if (auto err = transaction.Commit()) {
                 return WrapError(err, "UserData write failed");
             }
         }
@@ -1207,10 +1207,10 @@ error::Result<PsiCash::AccountLoginResponse> PsiCash::AccountLogin(
         }
 
         // Set our new data in a single write.
-        UserData::WritePauser pauser(*user_data_);
+        UserData::Transaction transaction(*user_data_);
         (void)user_data_->SetIsLoggedOutAccount(false);
         (void)user_data_->SetAuthTokens(auth_tokens, /*is_account=*/true, /*utf8_username=*/utf8_username);
-        if (auto err = pauser.Commit()) {
+        if (auto err = transaction.Commit()) {
             return WrapError(err, "user data write failed");
         }
 

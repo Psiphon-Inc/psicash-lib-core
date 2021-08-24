@@ -1937,7 +1937,7 @@ TEST_F(TestPsiCash, RefreshStateOffline) {
         request_attempted = true;
         return HTTPResult();
     };
-    const MakeHTTPRequestFn errorHTTPRequester = [&request_attempted](const HTTPParams&) -> HTTPResult {
+    const MakeHTTPRequestFn errorHTTPRequester = [](const HTTPParams&) -> HTTPResult {
         auto res = HTTPResult();
         res.code = HTTPResult::RECOVERABLE_ERROR;
         res.error = "test";
@@ -2133,10 +2133,10 @@ TEST_F(TestPsiCash, NewExpiringPurchase) {
     ASSERT_EQ(pc.Balance(), initial_balance);
 }
 
-TEST_F(TestPsiCash, NewExpiringPurchasePauserCommitBug) {
+TEST_F(TestPsiCash, NewExpiringPurchaseTransactionCommitBug) {
     // Bug test: When a kHTTPStatusTooManyRequests response (or any non-success, but
     // especially that one) was received, the updated balance received in the response
-    // would be written to the datastore, but the WritePauser would not be committed, so
+    // would be written to the datastore, but the Transaction would not be committed, so
     // the change would be lost and the UI wouldn't update until a RefreshState request
     // was made.
 
