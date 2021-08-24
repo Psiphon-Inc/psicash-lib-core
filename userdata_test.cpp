@@ -609,3 +609,108 @@ TEST_F(TestUserData, Locale)
     v = ud.GetLocale();
     ASSERT_EQ(v, "");
 }
+
+TEST_F(TestUserData, Transaction)
+{
+    UserData ud;
+    auto err = ud.Init(GetTempDir().c_str(), dev);
+    ASSERT_FALSE(err);
+
+    // We're only using specific accessors for easy testing
+    err = ud.SetLocale("1");
+    ASSERT_FALSE(err);
+    auto v = ud.GetLocale();
+    ASSERT_EQ(v, "1");
+
+    {
+        UserData::Transaction udt(ud);
+        err = ud.SetLocale("2");
+        ASSERT_FALSE(err);
+        auto v = ud.GetLocale();
+        ASSERT_EQ(v, "2");
+        // dtor rollback
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "1");
+
+    {
+        UserData::Transaction udt(ud);
+        err = ud.SetLocale("3");
+        ASSERT_FALSE(err);
+        auto err = udt.Commit();
+        ASSERT_FALSE(err);
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "3");
+
+    {
+        UserData::Transaction udt(ud);
+        err = ud.SetLocale("4");
+        ASSERT_FALSE(err);
+        auto err = udt.Rollback();
+        ASSERT_FALSE(err);
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "3");
+
+    {
+        UserData::Transaction udt(ud);
+        err = ud.SetLocale("5");
+        ASSERT_FALSE(err);
+        auto err = udt.Commit();
+        ASSERT_FALSE(err);
+        err = udt.Rollback(); // does nothing
+        ASSERT_FALSE(err);
+        err = udt.Commit(); // does nothing
+        ASSERT_FALSE(err);
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "5");
+
+    {
+        UserData::Transaction udt(ud);
+        auto err = udt.Rollback();
+        ASSERT_FALSE(err);
+        // Modify _after_ rollback
+        err = ud.SetLocale("6");
+        ASSERT_FALSE(err);
+        // Extra rollback should do nothing
+        err = udt.Rollback();
+        ASSERT_FALSE(err);
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "6");
+
+    {
+        UserData::Transaction udt(ud);
+
+        {
+            UserData::Transaction udt(ud);
+
+            {
+                UserData::Transaction udt(ud);
+                err = ud.SetLocale("7");
+                ASSERT_FALSE(err);
+                // inner commit does nothing
+                auto err = udt.Commit();
+                ASSERT_FALSE(err);
+            }
+
+            auto v = ud.GetIsAccount();
+            ASSERT_EQ(v, false);
+            err = ud.SetIsAccount(true);
+            ASSERT_FALSE(err);
+            // inner rollback does nothing
+            auto err = udt.Rollback();
+            ASSERT_FALSE(err);
+        }
+
+        // We have committed one inner transaction and rolled back the another, but they have no effect on the outer.
+        // Now we're commit the outer transaction.
+        udt.Commit();
+    }
+    v = ud.GetLocale();
+    ASSERT_EQ(v, "7");
+    auto b = ud.GetIsAccount();
+    ASSERT_EQ(b, true);
+}

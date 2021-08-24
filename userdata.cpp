@@ -31,7 +31,6 @@ namespace psicash {
 constexpr int kCurrentDatastoreVersion = 2;
 
 // Datastore keys
-static constexpr const char* VERSION = "v";
 static auto kVersionPtr = "/v"_json_pointer;
 //
 // Instance-specific data keys
@@ -148,11 +147,11 @@ error::Error UserData::Clear() {
 }
 
 error::Error UserData::DeleteUserData(bool isLoggedOutAccount) {
-    WritePauser pauser(*this);
+    Transaction transaction(*this);
     // Not checking return values, since writing is paused.
     (void)datastore_.Set(kUserPtr, json::object());
     (void)SetIsLoggedOutAccount(isLoggedOutAccount);
-    return PassError(pauser.Commit());
+    return PassError(transaction.Commit());
 }
 
 std::string UserData::GetInstanceID() const {
@@ -257,14 +256,14 @@ AuthTokens UserData::GetAuthTokens() const {
 }
 
 error::Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account, const std::string& utf8_username) {
-    WritePauser pauser(*this);
+    Transaction transaction(*this);
     // Not checking errors while paused, as there's no error that can occur.
     json json_tokens;
     to_json(json_tokens, v);
     (void)datastore_.Set(kAuthTokensPtr, json_tokens);
     (void)datastore_.Set(kIsAccountPtr, is_account);
     (void)datastore_.Set(kAccountUsernamePtr, utf8_username);
-    return PassError(pauser.Commit()); // write
+    return PassError(transaction.Commit()); // write
 }
 
 error::Error UserData::CullAuthTokens(const std::map<std::string, bool>& valid_tokens) {
@@ -418,12 +417,12 @@ error::Error UserData::AddPurchase(const Purchase& v) {
         }
     }
 
-    // Pause to set Purchases and LastTransactionID in one write
-    WritePauser pauser(*this);
+    // Use transaction to set Purchases and LastTransactionID in one write
+    Transaction transaction(*this);
     // These don't write, so have no meaningful return
     (void)SetPurchases(purchases);
     (void)SetLastTransactionID(v.id);
-    return PassError(pauser.Commit()); // write
+    return PassError(transaction.Commit()); // write
 }
 
 void UserData::UpdatePurchaseLocalTimeExpiry(Purchase& purchase) const {

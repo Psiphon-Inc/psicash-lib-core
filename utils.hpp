@@ -50,7 +50,7 @@ std::string Stringer(const T& value, const Args& ... args) {
 /// }
 #define SYNCHRONIZE_BLOCK(m) for(std::unique_lock<std::recursive_mutex> lk(m); lk; lk.unlock())
 /// Synchronize the current scope using the given mutex.
-#define SYNCHRONIZE(m) std::unique_lock<std::recursive_mutex> synchronize_lock(m)
+#define SYNCHRONIZE(m) std::lock_guard<std::recursive_mutex> synchronize_lock(m)
 
 /// Tests if the given filepath+name exists.
 bool FileExists(const std::string& filename);
