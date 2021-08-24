@@ -477,7 +477,7 @@ Result<string> PsiCash::GetRewardedActivityData() const {
     return json_data;
 }
 
-json PsiCash::GetDiagnosticInfo() const {
+json PsiCash::GetDiagnosticInfo(bool lite) const {
     // NOTE: Do not put personal identifiers in this package.
     // TODO: This is still enough info to uniquely identify the user (combined with the
     // PsiCash DB). So maybe avoiding direct PII does not achieve anything, and we should
@@ -492,13 +492,18 @@ json PsiCash::GetDiagnosticInfo() const {
     j["isAccount"] = IsAccount();
     j["balance"] = Balance();
     j["serverTimeDiff"] = user_data_->GetServerTimeDiff().count(); // in milliseconds
-    j["purchasePrices"] = GetPurchasePrices();
 
     // Include a sanitized version of the purchases
     j["purchases"] = json::array();
     for (const auto& p : GetPurchases()) {
         j["purchases"].push_back({{"class",         p.transaction_class},
                                   {"distinguisher", p.distinguisher}});
+    }
+
+    // The purchase prices are about 800 bytes of the 1000 bytes in a typical diangnostic
+    // dump, and they're generally not useful.
+    if (!lite) {
+        j["purchasePrices"] = GetPurchasePrices();
     }
 
     return j;
