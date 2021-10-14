@@ -2589,6 +2589,85 @@ TEST_F(TestPsiCash, AccountLoginMerge) {
     ASSERT_TRUE(pc.HasTokens());
 }
 
+// This specifically tests a bug where a purchase made with a pre-accounts client wasn't
+// being properly merged when logging in (with a post-accounts client).
+// https://github.com/Psiphon-Inc/psiphon-issues/issues/789
+TEST_F(TestPsiCash, AccountLoginMergeOldClient) {
+    AuthTokens tracker_tokens;
+    string instance_id_1, transaction_id;
+
+    {
+        PsiCashTester pc;
+        auto err = pc.Init(TestPsiCash::UserAgent(), GetTempDir().c_str(), HTTPRequester, false);
+        ASSERT_FALSE(err);
+
+        // The actual bug arose because transactions made b a pre-accounts client has a
+        // placeholder instance ID. When the tracker was merged into an account, its
+        // transactions now belonged to the account, but the instance ID was still the
+        // placeholder. But the new client used a new, real instance ID, so the old
+        // transactions were not properly retrieved. (Basically, a purchase made with a
+        // pre-accounts client disappeared when merged into an account.)
+        // We will emulate this scenario by creating a purchase with one instance ID, and then
+        // merging into an account that uses a different instance ID. The instance ID of the
+        // purchase should be updated to the new one and the purchase should be retrieved.
+
+        // Get a tracker
+        auto res_refresh = pc.RefreshState(false, {});
+        ASSERT_TRUE(res_refresh) << res_refresh.error();
+        ASSERT_EQ(res_refresh->status, Status::Success);
+        ASSERT_FALSE(pc.IsAccount());
+        ASSERT_TRUE(pc.HasTokens());
+        ASSERT_THAT(pc.Balance(), AllOf(Ge(0), Le(MAX_STARTING_BALANCE)));
+
+        // Get some balance with which to make purchases
+        err = MAKE_1T_REWARD(pc, 3);
+        ASSERT_FALSE(err) << err;
+
+        // Make a purchase
+        auto purchase_result = pc.NewExpiringPurchase(TEST_DEBIT_TRANSACTION_CLASS, TEST_ONE_TRILLION_TEN_SECOND_DISTINGUISHER, ONE_TRILLION);
+        ASSERT_TRUE(purchase_result);
+        ASSERT_EQ(purchase_result->status, Status::Success);
+        auto expected_purchases = pc.GetPurchases();
+        ASSERT_THAT(expected_purchases, SizeIs(1));
+
+        transaction_id = purchase_result->purchase->id;
+
+        // Remember our tracker tokens so that we can reuse them later
+        tracker_tokens = pc.user_data().GetAuthTokens();
+
+        instance_id_1 = pc.user_data().GetInstanceID();
+    }
+    {
+        // Create a new datastore with a new instance ID
+        PsiCashTester pc;
+        auto err = pc.Init(TestPsiCash::UserAgent(), GetTempDir().c_str(), HTTPRequester, false);
+        ASSERT_FALSE(err);
+
+        ASSERT_NE(instance_id_1, pc.user_data().GetInstanceID());
+
+        // Force the old tracker tokens into the datastore
+        err = pc.user_data().SetAuthTokens(tracker_tokens, false, "");
+        ASSERT_FALSE(err);
+
+        // Now log in and merge the tracker
+        auto res_login = pc.AccountLogin(TEST_ACCOUNT_ONE_USERNAME, TEST_ACCOUNT_ONE_PASSWORD);
+        ASSERT_TRUE(res_login);
+        ASSERT_EQ(res_login->status, Status::Success);
+        ASSERT_TRUE(res_login->last_tracker_merge);
+        ASSERT_FALSE(*res_login->last_tracker_merge); // this tracker has near-infinite merges
+
+        auto res_refresh = pc.RefreshState(false, {});
+        ASSERT_TRUE(res_refresh) << res_refresh.error();
+        ASSERT_EQ(res_refresh->status, Status::Success);
+        ASSERT_TRUE(pc.IsAccount());
+        ASSERT_TRUE(pc.HasTokens());
+
+        ASSERT_THAT(pc.Balance(), Ge(MAX_STARTING_BALANCE));
+        ASSERT_THAT(pc.GetPurchases(), SizeIs(1));
+        ASSERT_EQ(pc.GetPurchases()[0].id, transaction_id);
+    }
+}
+
 TEST_F(TestPsiCash, AccountLogout) {
     // This also tests the combination of logging in and out
 
