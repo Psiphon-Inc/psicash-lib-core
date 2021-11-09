@@ -230,6 +230,10 @@ static Error FileStore(int transaction_depth, const string& file_path, const jso
 
     f.close();
 
+    if (f.fail()) {
+        return MakeCriticalError(utils::Stringer("temp_file_path close failed; errno=", errno));
+    }
+
     /*
     Rename temp to commit
     */
