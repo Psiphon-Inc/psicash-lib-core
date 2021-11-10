@@ -161,9 +161,17 @@ void PsiCash::SetHTTPRequestFn(MakeHTTPRequestFn make_http_request_fn) {
     make_http_request_fn_ = std::move(make_http_request_fn);
 }
 
-Error PsiCash::SetRequestMetadataItem(const string& key, const string& value) {
+Error PsiCash::SetRequestMetadataItems(const std::map<std::string, std::string>& items) {
     MUST_BE_INITIALIZED;
-    return PassError(user_data_->SetRequestMetadataItem(key, value));
+    UserData::Transaction transaction(*user_data_);
+    for (const auto& it : items) {
+        // Errors won't manifest until we commit
+        (void)user_data_->SetRequestMetadataItem(it.first, it.second);
+    }
+    if (auto err = transaction.Commit()) {
+        return WrapError(err, "user data write failed");
+    }
+    return nullerr;
 }
 
 Error PsiCash::SetLocale(const string& locale) {
