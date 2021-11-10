@@ -66,8 +66,8 @@ public:
     /// EndTransaction is called. Transactions are re-enterable, but not nested.
     /// NOTE: Failing to call EndTransaction will result in undefined behaviour.
     void BeginTransaction();
-    /// Ends an ongoing transaction writing. If commit is true, it writes the changes
-    /// immediately; if false it discards the changes.
+    /// Ends an ongoing transaction. If commit is true, it writes the changes immediately;
+    /// if false it discards the changes.
     /// Committing or rolling back inner transactions does nothing. Any errors during
     /// inner transactions that require the outermost transaction to be rolled back must
     /// be handled by the caller.
@@ -121,6 +121,7 @@ private:
     mutable std::recursive_mutex mutex_;
     std::unique_lock<std::recursive_mutex> explicit_lock_;
     int transaction_depth_;
+    bool transaction_dirty_;
 
     std::string file_path_;
     json json_;

@@ -34,11 +34,11 @@ using namespace error;
 
 static string FilePath(const string& file_root, const string& suffix);
 static Result<json> FileLoad(const string& file_path);
-static Error FileStore(int transaction_depth, const string& file_path, const json& json);
+static Error FileStore(const string& file_path, const json& json);
 
 Datastore::Datastore()
         : initialized_(false), explicit_lock_(mutex_, std::defer_lock),
-          transaction_depth_(0), json_(json::object()) {
+          transaction_depth_(0), transaction_dirty_(false), json_(json::object()) {
 }
 
 Error Datastore::Init(const string& file_root, const string& suffix) {
@@ -58,7 +58,8 @@ Error Datastore::Init(const string& file_root, const string& suffix) {
 Error Datastore::Reset(const string& file_path, json new_value) {
     SYNCHRONIZE(mutex_);
     transaction_depth_ = 0;
-    if (auto err = FileStore(transaction_depth_, file_path, new_value)) {
+    transaction_dirty_ = false;
+    if (auto err = FileStore(file_path, new_value)) {
         return PassError(err);
     }
     json_ = new_value;
@@ -80,6 +81,7 @@ void Datastore::BeginTransaction() {
     SYNCHRONIZE(mutex_);
     // We got a local lock, so we know there's no transaction in progress in any other thread.
     if (transaction_depth_ == 0) {
+        transaction_dirty_ = false;
         explicit_lock_.lock();
     }
     transaction_depth_++;
@@ -100,12 +102,18 @@ Error Datastore::EndTransaction(bool commit) {
         return nullerr;
     }
 
-    // We need to release the explicit lock on exit from ths function, no matter what.
+    // We need to release the explicit lock on exit from this function, no matter what.
     // We will "adopt" the lock into this lock_guard to ensure the unlock happens when it goes out of scope.
     std::lock_guard<std::unique_lock<std::recursive_mutex>> lock_releaser(explicit_lock_, std::adopt_lock);
 
+    if (!transaction_dirty_) {
+        // No actual substantive changes were made during this transaction, so we will avoid
+        // writing to disk. Committing and rolling back are no-ops if there are no changes.
+        return nullerr;
+    }
+
     if (commit) {
-        return PassError(FileStore(transaction_depth_, file_path_, json_));
+        return PassError(FileStore(file_path_, json_));
     }
 
     // We're rolling back -- revert to what's on disk
@@ -126,8 +134,24 @@ error::Result<nlohmann::json> Datastore::Get() const {
 Error Datastore::Set(const json::json_pointer& p, json v) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
+
+    // We will use the transaction mechanism to do the writing. It will also help prevent
+    // changes to the stored value between the time we check it and the time we set it.
+    BeginTransaction();
+
+    // Avoid modifying the datastore if the value is the same as what's already there.
+    bool changed = true;
+    try {
+        changed = (json_.at(p) != v);
+    }
+    catch (json::out_of_range&) {
+        // The key doesn't exist, so continue to set it.
+    }
+
     json_[p] = v;
-    return PassError(FileStore(transaction_depth_, file_path_, json_));
+    transaction_dirty_ = changed;
+
+    return PassError(EndTransaction(true));
 }
 
 static string FilePath(const string& file_root, const string& suffix) {
@@ -171,7 +195,7 @@ static Result<json> FileLoad(const string& file_path) {
     if (!utils::FileExists(file_path)) {
         // Check that we can write here by trying to store.
         auto empty_object = json::object();
-        if (auto err = FileStore(false, file_path, empty_object)) {
+        if (auto err = FileStore(file_path, empty_object)) {
             return WrapError(err, "file doesn't exist and FileStore failed");
         }
 
@@ -203,11 +227,7 @@ static Result<json> FileLoad(const string& file_path) {
     return json;
 }
 
-static Error FileStore(int transaction_depth, const string& file_path, const json& json) {
-    if (transaction_depth > 0) {
-        return nullerr;
-    }
-
+static Error FileStore(const string& file_path, const json& json) {
     const auto temp_file_path = file_path + TEMP_EXT;
     const auto commit_file_path = file_path + COMMIT_EXT;
 

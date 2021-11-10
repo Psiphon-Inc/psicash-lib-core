@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <thread>
+#include <filesystem>
 
 #include "gtest/gtest.h"
 #include "test_helpers.hpp"
@@ -509,6 +510,100 @@ TEST_F(TestDatastore, SetTypes)
     auto gotInt = ds.Get<int>(wantIntKey);
     ASSERT_TRUE(gotInt);
     ASSERT_EQ(*gotInt, wantInt);
+}
+
+TEST_F(TestDatastore, SetWriteDedup)
+{
+    auto temp_dir = GetTempDir();
+    auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
+
+    Datastore ds;
+    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    auto k = "/k"_json_pointer;
+    err = ds.Set(k, "a");
+    ASSERT_FALSE(err);
+    auto file_time1 = std::filesystem::last_write_time(ds_path);
+
+    // Try setting the same value again
+    err = ds.Set(k, "a");
+    ASSERT_FALSE(err);
+    auto file_time2 = std::filesystem::last_write_time(ds_path);
+
+    // The file time should not have changed after setting the same value
+    ASSERT_EQ(file_time1, file_time2);
+
+    // Change to a different value
+    err = ds.Set(k, "b");
+    ASSERT_FALSE(err);
+    auto file_time3 = std::filesystem::last_write_time(ds_path);
+
+    // The file should have been updated, so its time should be newer
+    ASSERT_GT(file_time3, file_time1);
+}
+
+TEST_F(TestDatastore, TransactionWriteDedup)
+{
+    auto temp_dir = GetTempDir();
+    auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
+
+    Datastore ds;
+    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+    ASSERT_FALSE(err);
+
+    auto k1 = "/k1"_json_pointer;
+    auto k2 = "/k2"_json_pointer;
+    err = ds.Set(k1, "a");
+    ASSERT_FALSE(err);
+    err = ds.Set(k2, "a");
+    ASSERT_FALSE(err);
+    auto file_time1 = std::filesystem::last_write_time(ds_path);
+
+    ds.BeginTransaction();
+
+    // Try setting the same values again
+    err = ds.Set(k1, "a");
+    ASSERT_FALSE(err);
+    err = ds.Set(k2, "a");
+    ASSERT_FALSE(err);
+
+    err = ds.EndTransaction(true);
+    ASSERT_FALSE(err);
+    auto file_time2 = std::filesystem::last_write_time(ds_path);
+
+    // The file time should not have changed after setting the same values
+    ASSERT_EQ(file_time1, file_time2);
+
+    ds.BeginTransaction();
+
+    // Change to a different value
+    err = ds.Set(k1, "b");
+    ASSERT_FALSE(err);
+    err = ds.Set(k2, "b");
+    ASSERT_FALSE(err);
+
+    err = ds.EndTransaction(true);
+    ASSERT_FALSE(err);
+    auto file_time3 = std::filesystem::last_write_time(ds_path);
+
+    // The file should have been updated, so its time should be newer
+    ASSERT_GT(file_time3, file_time1);
+
+    ds.BeginTransaction();
+
+    // Changing and then rolling back should still work as expected
+    err = ds.Set(k1, "c");
+    ASSERT_FALSE(err);
+    err = ds.Set(k2, "c");
+    ASSERT_FALSE(err);
+
+    err = ds.EndTransaction(false);
+    ASSERT_FALSE(err);
+    auto file_time4 = std::filesystem::last_write_time(ds_path);
+
+    // Should not have changed
+    ASSERT_EQ(file_time3, file_time4);
 }
 
 TEST_F(TestDatastore, TypeMismatch)
