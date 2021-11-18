@@ -279,7 +279,7 @@ TEST_F(TestPsiCash, SetHTTPRequestFn) {
     }
 }
 
-TEST_F(TestPsiCash, SetRequestMetadataItem) {
+TEST_F(TestPsiCash, SetRequestMetadataItems) {
     PsiCashTester pc;
     auto err = pc.Init(TestPsiCash::UserAgent(), GetTempDir().c_str(), nullptr, false);
     ASSERT_FALSE(err);
@@ -287,11 +287,19 @@ TEST_F(TestPsiCash, SetRequestMetadataItem) {
     auto j = pc.user_data().GetRequestMetadata();
     ASSERT_EQ(j.size(), 0);
 
-    err = pc.SetRequestMetadataItem("k", "v");
+    err = pc.SetRequestMetadataItems({{"k", "v"}});
     ASSERT_FALSE(err);
 
     j = pc.user_data().GetRequestMetadata();
     ASSERT_EQ(j["k"], "v");
+
+    err = pc.SetRequestMetadataItems({{"a", "b"}, {"x", "y"}});
+    ASSERT_FALSE(err);
+
+    j = pc.user_data().GetRequestMetadata();
+    ASSERT_EQ(j["k"], "v");
+    ASSERT_EQ(j["a"], "b");
+    ASSERT_EQ(j["x"], "y");
 }
 
 TEST_F(TestPsiCash, SetLocale) {
@@ -934,7 +942,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     // With metadata
     //
 
-    err = pc.SetRequestMetadataItem("k", "v");
+    err = pc.SetRequestMetadataItems({{"k", "v"}, {"x", "y"}});
     ASSERT_FALSE(err);
     url_in = {"https://asdf.sadf.gf", "", ""};
     res = pc.ModifyLandingPage(url_in.ToString());
@@ -942,7 +950,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"metadata":{"k":"v"},"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"metadata":{"k":"v","x":"y"},"tokens":"kEarnerTokenType"})"_json), IsEmpty());
 
     //
     // Errors
@@ -1077,7 +1085,7 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
     ASSERT_TRUE(res);
     ASSERT_EQ(*res, base64::B64Encode(utils::Stringer(R"({"metadata":{"user_agent":")", TestPsiCash::UserAgent(), R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
 
-    err = pc.SetRequestMetadataItem("k", "v");
+    err = pc.SetRequestMetadataItems({{"k", "v"}});
     ASSERT_FALSE(err);
     res = pc.GetRewardedActivityData();
     ASSERT_TRUE(res);

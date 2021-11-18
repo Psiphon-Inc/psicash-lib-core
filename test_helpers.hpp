@@ -68,8 +68,16 @@ class TempDir
         return dev ? ".dev" : ".prod";
     }
 
+    std::string DatastoreFilepath(const std::string& datastore_root, const char* suffix) {
+        return datastore_root + "/psicashdatastore" + suffix;
+    }
+
+    std::string DatastoreFilepath(const std::string& datastore_root, const std::string& suffix) {
+        return DatastoreFilepath(datastore_root, suffix.c_str());
+    }
+
     std::string DatastoreFilepath(const std::string& datastore_root, bool dev) {
-        return datastore_root + "/psicashdatastore" + GetSuffix(dev);
+        return DatastoreFilepath(datastore_root, GetSuffix(dev));
     }
 
     bool Write(const std::string& datastore_root, bool dev, const std::string& s) {
