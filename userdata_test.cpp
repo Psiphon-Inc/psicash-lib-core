@@ -176,6 +176,46 @@ TEST_F(TestUserData, GetInstanceID)
     ASSERT_NE(v1, v2);
 }
 
+TEST_F(TestUserData, HasInstanceID)
+{
+    auto temp_dir = GetTempDir();
+
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+        ASSERT_TRUE(ud.HasInstanceID());
+
+        // Clear should generate a new instance ID
+        ud.Clear();
+        ASSERT_TRUE(ud.HasInstanceID());
+    }
+
+    {
+        auto instance_id_ptr = "/instance/instanceID"_json_pointer;
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(dev));
+        ASSERT_FALSE(err);
+
+        auto instance_id = ds.Get<string>(instance_id_ptr);
+        ASSERT_TRUE(instance_id);
+        ASSERT_THAT(*instance_id, Not(IsEmpty()));
+
+        // Clear the instanceID so that it's absent later
+        err = ds.Set(instance_id_ptr, nullptr);
+        ASSERT_FALSE(err);
+    }
+
+    {
+        // Now we shouldn't have an instance ID
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+        ASSERT_FALSE(ud.HasInstanceID());
+    }
+}
+
 TEST_F(TestUserData, IsLoggedOutAccount)
 {
     UserData ud;
