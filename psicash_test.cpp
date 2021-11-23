@@ -1100,6 +1100,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         ASSERT_FALSE(err);
 
         auto want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":false,
         "isLoggedOutAccount":false,
@@ -1113,6 +1114,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         ASSERT_EQ(j, want);
 
         want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":false,
         "isLoggedOutAccount":false,
@@ -1132,6 +1134,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         ASSERT_FALSE(err);
 
         auto want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":false,
         "isLoggedOutAccount":false,
@@ -1145,6 +1148,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         ASSERT_EQ(j, want);
 
         want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":false,
         "isLoggedOutAccount":false,
@@ -1163,6 +1167,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         pc.user_data().SetAuthTokens({{"a", {"a"}}, {"b", {"b"}}, {"c", {"c"}}}, true, "username");
         // pc.user_data().SetServerTimeDiff() // too hard to do reliably
         want = R"|({
+        "hasInstanceID":true,
         "balance":12345,
         "isAccount":true,
         "isLoggedOutAccount":false,
@@ -1175,6 +1180,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         j = pc.GetDiagnosticInfo(/*lite=*/false);
         ASSERT_EQ(j, want);
         want = R"|({
+        "hasInstanceID":true,
         "balance":12345,
         "isAccount":true,
         "isLoggedOutAccount":false,
@@ -1188,6 +1194,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
 
         pc.user_data().DeleteUserData(/*is_logged_out_account=*/true);
         want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":true,
         "isLoggedOutAccount":true,
@@ -1200,6 +1207,7 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         j = pc.GetDiagnosticInfo(/*lite=*/false);
         ASSERT_EQ(j, want);
         want = R"|({
+        "hasInstanceID":true,
         "balance":0,
         "isAccount":true,
         "isLoggedOutAccount":true,

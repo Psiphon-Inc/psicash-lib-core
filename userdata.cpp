@@ -163,6 +163,11 @@ std::string UserData::GetInstanceID() const {
     return *v;
 }
 
+bool UserData::HasInstanceID() const {
+    auto v = datastore_.Get<string>(kInstanceIDPtr);
+    return !!v && v->length() > 0;
+}
+
 bool UserData::GetIsLoggedOutAccount() const {
     auto v = datastore_.Get<bool>(kIsLoggedOutAccountPtr);
     if (!v) {

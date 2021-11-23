@@ -92,6 +92,8 @@ public:
     error::Error DeleteUserData(bool isLoggedOutAccount);
 
     std::string GetInstanceID() const;
+    /// Returns true if there is a non-empty instance ID in the datstore.
+    bool HasInstanceID() const;
 
     bool GetIsLoggedOutAccount() const;
     error::Error SetIsLoggedOutAccount(bool v);

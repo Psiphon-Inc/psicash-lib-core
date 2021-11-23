@@ -495,6 +495,7 @@ json PsiCash::GetDiagnosticInfo(bool lite) const {
     json j = json::object();
 
     j["test"] = test_;
+    j["hasInstanceID"] = user_data_->HasInstanceID();
     j["isLoggedOutAccount"] = user_data_->GetIsLoggedOutAccount();
     j["validTokenTypes"] = user_data_->ValidTokenTypes();
     j["isAccount"] = IsAccount();
