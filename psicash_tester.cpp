@@ -137,6 +137,10 @@ psicash::error::Result<psicash::Purchase> PsiCashTester::PurchaseFromJSON(const 
     return PsiCash::PurchaseFromJSON(j, expected_type);
 }
 
+std::string PsiCashTester::CommaDelimitTokens(const std::vector<std::string>& types) const {
+    return PsiCash::CommaDelimitTokens(types);
+}
+
 } // namespace psicash
 
 #endif // NDEBUG

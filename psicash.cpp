@@ -349,37 +349,10 @@ Result<string> PsiCash::AddEarnerTokenToURL(const string& url_string, bool query
         return WrapError(err, "url.Parse failed");
     }
 
-    json psicash_data;
-    psicash_data["v"] = 1;
-    psicash_data["timestamp"] = datetime::DateTime::Now().ToISO8601();
-
-    auto auth_tokens = user_data_->GetAuthTokens();
-    if (auth_tokens.count(kEarnerTokenType) == 0) {
-        psicash_data["tokens"] = nullptr;
-    } else {
-        psicash_data["tokens"] = CommaDelimitTokens({kEarnerTokenType});
+    auto url_package_res = GetUserMetadataURLPackage({kEarnerTokenType}, false);
+    if (!url_package_res) {
+        return WrapError(url_package_res.error(), "GetUserMetadataURLPackage failed");
     }
-
-    if (test_) {
-        psicash_data["dev"] = 1;
-        psicash_data["debug"] = 1;
-    }
-
-    // Get the metadata (sponsor ID, etc.)
-    psicash_data["metadata"] = GetRequestMetadata(0);
-
-    string json_data;
-    try {
-        json_data = psicash_data.dump(-1, ' ',  // disable indent
-                                      true);    // ensure ASCII
-    }
-    catch (json::exception& e) {
-        return MakeCriticalError(
-                utils::Stringer("json dump failed: ", e.what(), "; id:", e.id));
-    }
-
-    // Base64-encode the JSON
-    auto encoded_json = URL::Encode(base64::TrimPadding(base64::B64Encode(json_data)), false);
 
     // Our preference is to put the our data into the URL's fragment/hash/anchor,
     // because we'd prefer the data not be sent to the server nor included in the referrer
@@ -392,12 +365,12 @@ Result<string> PsiCash::AddEarnerTokenToURL(const string& url_string, bool query
         // When setting in the fragment, we use "#!psicash=etc". The ! prevents the
         // fragment from accidentally functioning as a jump-to anchor on a landing page
         // (where we don't control element IDs, etc.).
-        url.fragment_ = "!"s + kLandingPageParamKey + "=" + encoded_json;
+        url.fragment_ = "!"s + kLandingPageParamKey + "=" + *url_package_res;
     } else {
         if (!url.query_.empty()) {
             url.query_ += "&";
         }
-        url.query_ += kLandingPageParamKey + "="s + encoded_json;
+        url.query_ += kLandingPageParamKey + "="s + *url_package_res;
     }
 
     return url.ToString();
@@ -451,38 +424,69 @@ std::string PsiCash::GetUserSiteURL(UserSiteURLType url_type, bool webview) cons
         url.query_ += "&webview=true";
     }
 
+    auto metadata_package_res = GetUserMetadataURLPackage({}, false);
+    if (metadata_package_res) {
+        url.fragment_ = "!psicash=" + *metadata_package_res;
+    }
+
     return url.ToString();
 }
 
-Result<string> PsiCash::GetRewardedActivityData() const {
-    TOKENS_REQUIRED;
-
+/// Creates the metadata+tokens package should be added to URLs where, for example,
+/// earning is desired (landing pages) or user info should be passed onto the server
+/// even if there is no earning (user management site).
+Result<string> PsiCash::GetUserMetadataURLPackage(
+    const vector<string>& token_types, bool error_if_token_missing) const {
     json psicash_data;
     psicash_data["v"] = 1;
 
-    // Get the earner token. If we don't have one, the webhook can't succeed.
-    auto auth_tokens = user_data_->GetAuthTokens();
-    if (auth_tokens.empty()) {
-        return MakeCriticalError("earner token missing; can't create webhoook data");
-    } else {
-        psicash_data["tokens"] = auth_tokens[kEarnerTokenType].id;
+    if (test_) {
+        psicash_data["dev"] = 1;
+        psicash_data["debug"] = 1;
     }
+
+    psicash_data["timestamp"] = datetime::DateTime::Now().ToISO8601();
 
     // Get the metadata (sponsor ID, etc.)
     psicash_data["metadata"] = GetRequestMetadata(0);
 
+    // Get tokens to include, if indicated
+    if (!token_types.empty()) {
+        auto auth_tokens = user_data_->GetAuthTokens();
+        for (const auto& tt : token_types) {
+            if (auth_tokens.count(tt) == 0 && error_if_token_missing) {
+                // Missing token for this type
+                return MakeCriticalError(utils::Stringer("token type missing: ", tt));
+            }
+        }
+
+        auto tokens_string = CommaDelimitTokens(token_types);
+        if (tokens_string.empty()) {
+            psicash_data["tokens"] = nullptr;
+        } else {
+            psicash_data["tokens"] = tokens_string;
+        }
+    }
+
     string json_data;
     try {
-        json_data = psicash_data.dump(-1, ' ', true);
+        json_data = psicash_data.dump(-1, ' ',  // disable indent
+                                      true);    // ensure ASCII
     }
     catch (json::exception& e) {
         return MakeCriticalError(
                 utils::Stringer("json dump failed: ", e.what(), "; id:", e.id));
     }
 
-    json_data = base64::B64Encode(json_data);
+    // Base64-encode the JSON
+    auto encoded_json = URL::Encode(base64::TrimPadding(base64::B64Encode(json_data)), false);
 
-    return json_data;
+    return encoded_json;
+}
+
+Result<string> PsiCash::GetRewardedActivityData() const {
+    TOKENS_REQUIRED;
+    return GetUserMetadataURLPackage({kEarnerTokenType}, true);
 }
 
 json PsiCash::GetDiagnosticInfo(bool lite) const {
