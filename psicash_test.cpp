@@ -307,14 +307,17 @@ TEST_F(TestPsiCash, SetLocale) {
     auto err = pc.Init(TestPsiCash::UserAgent(), GetTempDir().c_str(), nullptr, false);
     ASSERT_FALSE(err);
 
-    auto url = pc.GetUserSiteURL(PsiCash::UserSiteURLType::AccountSignup, false);
-    ASSERT_THAT(url, EndsWith("locale="));
+    auto url_str = pc.GetUserSiteURL(PsiCash::UserSiteURLType::AccountSignup, false);
+    URL url;
+    ASSERT_FALSE(url.Parse(url_str));
+    ASSERT_THAT(url.query_, EndsWith("locale="));
 
     err = pc.SetLocale("en-US");
     ASSERT_FALSE(err);
 
-    url = pc.GetUserSiteURL(PsiCash::UserSiteURLType::AccountSignup, false);
-    ASSERT_THAT(url, HasSubstr("locale=en-US"));
+    url_str = pc.GetUserSiteURL(PsiCash::UserSiteURLType::AccountSignup, false);
+    ASSERT_FALSE(url.Parse(url_str));
+    ASSERT_THAT(url.query_, HasSubstr("locale=en-US"));
 }
 
 TEST_F(TestPsiCash, IsAccount) {
@@ -806,11 +809,16 @@ TEST_F(TestPsiCash, RemovePurchases) {
 }
 
 // Returns empty string on match
-string TokenPayloadsMatch(const string &got_base64, const json& want_incomplete) {
+string UserMetadataURLPackagesMatch(const string &got_base64, const json& want_incomplete, bool test) {
     auto want = want_incomplete;
     want["v"] = 1;
     want["metadata"]["v"] = 1;
     want["metadata"]["user_agent"] = TestPsiCash::UserAgent();
+
+    if (test) {
+        want["dev"] = 1;
+        want["debug"] = 1;
+    }
 
     // Extract the timestamp we got, then remove so we can compare the rest
     auto got = json::parse(base64::B64Decode(got_base64));
@@ -853,7 +861,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"tokens":null})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"tokens":null})"_json, false), IsEmpty());
 
     //
     // Add tokens
@@ -870,7 +878,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"tokens":null})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"tokens":null})"_json, false), IsEmpty());
 
     // All tokens
     auth_tokens = {{kSpenderTokenType, {"kSpenderTokenType"}},
@@ -884,7 +892,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     //
     // No metadata set
@@ -896,7 +904,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     url_in = {"https://asdf.sadf.gf", "gfaf=asdf", ""};
     res = pc.ModifyLandingPage(url_in.ToString());
@@ -904,7 +912,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     url_in = {"https://asdf.sadf.gf/asdfilj/adf", "gfaf=asdf", ""};
     res = pc.ModifyLandingPage(url_in.ToString());
@@ -912,7 +920,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "gfaf=asdf", ""};
     res = pc.ModifyLandingPage(url_in.ToString());
@@ -920,14 +928,14 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "", "regffd"};
     res = pc.ModifyLandingPage(url_in.ToString());
     ASSERT_TRUE(res);
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
 
     url_in = {"https://asdf.sadf.gf/asdfilj/adf.html", "adfg=asdf&vfjnk=fadjn", "regffd"};
@@ -935,7 +943,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     ASSERT_TRUE(res);
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr((url_in.query_+and_key_part).length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
 
     //
@@ -950,7 +958,7 @@ TEST_F(TestPsiCash, ModifyLandingPage) {
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, url_in.scheme_host_path_);
     ASSERT_EQ(url_out.fragment_, url_in.fragment_);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.query_.substr(key_part.length()), R"({"metadata":{"k":"v","x":"y"},"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.query_.substr(key_part.length()), R"({"metadata":{"k":"v","x":"y"},"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 
     //
     // Errors
@@ -1006,7 +1014,7 @@ TEST_F(TestPsiCash, GetBuyPsiURL) {
     ASSERT_TRUE(res);
     url_out.Parse(*res);
     ASSERT_EQ(url_out.scheme_host_path_, buy_scheme_host_path);
-    ASSERT_THAT(TokenPayloadsMatch(url_out.fragment_.substr(bang_key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json), IsEmpty());
+    ASSERT_THAT(UserMetadataURLPackagesMatch(url_out.fragment_.substr(bang_key_part.length()), R"({"tokens":"kEarnerTokenType"})"_json, false), IsEmpty());
 }
 
 TEST_F(TestPsiCash, GetUserSiteURL) {
@@ -1024,42 +1032,52 @@ TEST_F(TestPsiCash, GetUserSiteURL) {
                     ASSERT_TRUE(res_refresh) << res_refresh.error();
                     ASSERT_EQ(res_refresh->status, Status::Success);
 
-                    err = pc.SetLocale(locale);
-                    ASSERT_FALSE(err);
+                    ASSERT_FALSE(pc.SetLocale(locale));
 
-                    auto url = pc.GetUserSiteURL(url_type, webview);
+                    ASSERT_FALSE(pc.SetRequestMetadataItems({{"k1","v1"},{"k2","v2"}}));
 
-                    ASSERT_THAT(url, StartsWith("https://"));
-                    ASSERT_THAT(url, HasSubstr(TestPsiCash::UserAgent()));
+                    auto url_str = pc.GetUserSiteURL(url_type, webview);
+                    URL url;
+                    ASSERT_FALSE(url.Parse(url_str));
+
+                    ASSERT_THAT(url.scheme_host_path_, StartsWith("https://"));
 
                     if (test) {
-                        ASSERT_THAT(url, HasSubstr("dev-"));
+                        ASSERT_THAT(url.scheme_host_path_, HasSubstr("dev-"));
                     }
                     else {
-                        ASSERT_THAT(url, Not(HasSubstr("dev-")));
+                        ASSERT_THAT(url.scheme_host_path_, Not(HasSubstr("dev-")));
                     }
+
+                    ASSERT_THAT(url.query_, HasSubstr("utm_source="s+TestPsiCash::UserAgent()));
 
                     if (webview) {
-                        ASSERT_THAT(url, HasSubstr("webview"));
+                        ASSERT_THAT(url.query_, HasSubstr("webview"));
                     }
                     else {
-                        ASSERT_THAT(url, Not(HasSubstr("webview")));
+                        ASSERT_THAT(url.query_, Not(HasSubstr("webview")));
                     }
 
-                    ASSERT_THAT(url, HasSubstr("locale="+locale));
+                    ASSERT_THAT(url.query_, HasSubstr("locale="+locale));
 
-                    ASSERT_THAT(url, Not(HasSubstr("username=")));
+                    // We're using a tracker, so no username
+                    ASSERT_THAT(url.query_, Not(HasSubstr("username=")));
+
+                    const string bang_key_part = "!psicash=";
+                    ASSERT_THAT(UserMetadataURLPackagesMatch(url.fragment_.substr(bang_key_part.length()), R"({"metadata":{"k1":"v1", "k2":"v2"}})"_json, true), IsEmpty());
 
                     // We're not going to log in to set the username, as it makes this test very slow (around a full minute)
                     pc.user_data().SetAccountUsername(TEST_ACCOUNT_UNICODE_USERNAME);
-                    url = pc.GetUserSiteURL(url_type, webview);
-                    ASSERT_THAT(url, HasSubstr("username=%E1%88%88"));
+                    url_str = pc.GetUserSiteURL(url_type, webview);
+                    ASSERT_FALSE(url.Parse(url_str));
+                    ASSERT_THAT(url.query_, HasSubstr("username=%E1%88%88"));
 
                     string too_long_username;
                     too_long_username.resize(3000, 'x');
                     pc.user_data().SetAccountUsername(too_long_username);
-                    url = pc.GetUserSiteURL(url_type, webview);
-                    ASSERT_THAT(url, Not(HasSubstr("username=")));
+                    url_str = pc.GetUserSiteURL(url_type, webview);
+                    ASSERT_FALSE(url.Parse(url_str));
+                    ASSERT_THAT(url.query_, Not(HasSubstr("username=")));
                 }
             }
         }
@@ -1083,13 +1101,13 @@ TEST_F(TestPsiCash, GetRewardedActivityData) {
 
     res = pc.GetRewardedActivityData();
     ASSERT_TRUE(res);
-    ASSERT_EQ(*res, base64::B64Encode(utils::Stringer(R"({"metadata":{"user_agent":")", TestPsiCash::UserAgent(), R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
+    ASSERT_THAT(UserMetadataURLPackagesMatch(*res, R"({"tokens":"kEarnerTokenType"})"_json, true), IsEmpty());
 
     err = pc.SetRequestMetadataItems({{"k", "v"}});
     ASSERT_FALSE(err);
     res = pc.GetRewardedActivityData();
     ASSERT_TRUE(res);
-    ASSERT_EQ(*res, base64::B64Encode(utils::Stringer(R"({"metadata":{"k":"v","user_agent":")", TestPsiCash::UserAgent(), R"(","v":1},"tokens":"kEarnerTokenType","v":1})")));
+    ASSERT_THAT(UserMetadataURLPackagesMatch(*res, R"({"metadata":{"k":"v"},"tokens":"kEarnerTokenType"})"_json, true), IsEmpty());
 }
 
 TEST_F(TestPsiCash, GetDiagnosticInfo) {
@@ -1219,6 +1237,31 @@ TEST_F(TestPsiCash, GetDiagnosticInfo) {
         j = pc.GetDiagnosticInfo(/*lite=*/true);
         ASSERT_EQ(j, want);
     }
+}
+
+TEST_F(TestPsiCash, CommaDelimitTokens) {
+    PsiCashTester pc;
+    auto err = pc.Init(TestPsiCash::UserAgent(), GetTempDir().c_str(), HTTPRequester, false);
+    ASSERT_FALSE(err) << err;
+    ASSERT_FALSE(pc.HasTokens());
+
+    auto res = pc.CommaDelimitTokens({kEarnerTokenType});
+    ASSERT_THAT(res, IsEmpty());
+
+    auto refresh_res = pc.RefreshState(false, {"speed-boost"});
+    ASSERT_TRUE(refresh_res) << refresh_res.error();
+    ASSERT_EQ(refresh_res->status, Status::Success) << (int)refresh_res->status;
+
+    res = pc.CommaDelimitTokens({kEarnerTokenType});
+    ASSERT_THAT(res, Not(IsEmpty()));
+    ASSERT_EQ(res.find(","), string::npos);
+
+    res = pc.CommaDelimitTokens({kEarnerTokenType, kIndicatorTokenType});
+    ASSERT_THAT(res, Not(IsEmpty()));
+    ASSERT_NE(res.find(","), string::npos);
+
+    res = pc.CommaDelimitTokens({"nope1", "nope2"});
+    ASSERT_THAT(res, IsEmpty());
 }
 
 TEST_F(TestPsiCash, RefreshState) {

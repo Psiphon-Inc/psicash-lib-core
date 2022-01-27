@@ -60,6 +60,8 @@ class PsiCashTester : public psicash::PsiCash {
                        const std::map<std::string, std::string>& additional_headers,
                        const std::string& body) const;
 
+    std::string CommaDelimitTokens(const std::vector<std::string>& types) const;
+
     bool MutatorsEnabled();
 
     void SetRequestMutators(const std::vector<std::string>& mutators);
