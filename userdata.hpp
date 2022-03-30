@@ -152,8 +152,18 @@ protected:
     /// Modifies the purchases in the argument.
     void UpdatePurchasesLocalTimeExpiry(Purchases& purchases) const;
 
+    nlohmann::json GetStashedRequestMetadata() const;
+    void SetStashedRequestMetadata(const nlohmann::json& j);
+
 private:
     Datastore datastore_;
+
+    /// In-memory stash of request metadata. When DeleteUserData is called, the request
+    /// metadata is lost. But we want that data available when making a Login request and
+    /// we want to restore it after login (so that the clients don't have to set it again).
+    /// This _must_ be accessed through the mutex. Use Get/SetStashedRequestMetadata.
+    nlohmann::json stashed_request_metadata_;
+    mutable std::recursive_mutex stashed_request_metadata_mutex_;
 };
 
 } // namespace psicash

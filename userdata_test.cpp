@@ -151,6 +151,23 @@ TEST_F(TestUserData, Persistence)
     }
 }
 
+TEST_F(TestUserData, DeleteUserData)
+{
+    UserData ud;
+    auto err = ud.Init(GetTempDir().c_str(), dev);
+    ASSERT_FALSE(err);
+
+    ASSERT_EQ(ud.GetBalance(), 0);
+    ASSERT_FALSE(ud.GetIsLoggedOutAccount());
+
+    ASSERT_FALSE(ud.SetBalance(1234L));
+    ASSERT_EQ(ud.GetBalance(), 1234L);
+
+    ASSERT_FALSE(ud.DeleteUserData(/*is_logged_out_account=*/true));
+    ASSERT_EQ(ud.GetBalance(), 0);
+    ASSERT_TRUE(ud.GetIsLoggedOutAccount());
+}
+
 TEST_F(TestUserData, GetInstanceID)
 {
     UserData ud;
@@ -628,6 +645,90 @@ TEST_F(TestUserData, Metadata)
     ASSERT_FALSE(err);
     v = ud.GetRequestMetadata();
     ASSERT_TRUE(v["k"].is_null());
+}
+
+TEST_F(TestUserData, StashMetadata)
+{
+    auto ds_dir = GetTempDir();
+
+    {
+        UserData ud;
+        auto err = ud.Init(ds_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        ASSERT_EQ(ud.GetBalance(), 0);
+        ASSERT_FALSE(ud.GetIsLoggedOutAccount());
+        ASSERT_TRUE(ud.GetRequestMetadata().empty());
+
+        ASSERT_FALSE(ud.SetBalance(1234L));
+        ASSERT_EQ(ud.GetBalance(), 1234L);
+        ASSERT_FALSE(ud.SetRequestMetadataItem("key1", "val1"));
+        auto val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+        ASSERT_FALSE(ud.DeleteUserData(/*is_logged_out_account=*/true));
+
+        ASSERT_EQ(ud.GetBalance(), 0);
+        ASSERT_TRUE(ud.GetIsLoggedOutAccount());
+        // We still have stashed metadata that should be accessible
+        val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+
+        // Adding new metadata should result in the new item stored but not the stash
+        ASSERT_FALSE(ud.SetRequestMetadataItem("key2", "val2"));
+        auto val2 = ud.GetRequestMetadata().at("key2").get<string>();
+        ASSERT_EQ(val2, "val2");
+        // Ensure the original value is still available
+        val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+    }
+
+    // Close and reopen the datastore
+    {
+        UserData ud;
+        auto err = ud.Init(ds_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        ASSERT_EQ(ud.GetBalance(), 0);
+        ASSERT_TRUE(ud.GetIsLoggedOutAccount());
+
+        // Our stashed metadata is gone, but the stored metadata is retained
+        auto val2 = ud.GetRequestMetadata().at("key2").get<string>();
+        ASSERT_EQ(val2, "val2");
+        ASSERT_FALSE(ud.GetRequestMetadata().contains("val1"));
+
+        ASSERT_FALSE(ud.SetBalance(1234L));
+        ASSERT_EQ(ud.GetBalance(), 1234L);
+        ASSERT_FALSE(ud.SetRequestMetadataItem("key1", "val1"));
+        auto val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+
+        // Delete the user data again
+        ASSERT_FALSE(ud.DeleteUserData(/*is_logged_out_account=*/true));
+
+        ASSERT_EQ(ud.GetBalance(), 0);
+        ASSERT_TRUE(ud.GetIsLoggedOutAccount());
+        // We still have stashed metadata that should be accessible
+        val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+        val2 = ud.GetRequestMetadata().at("key2").get<string>();
+        ASSERT_EQ(val2, "val2");
+
+        // Setting the auth tokens should make the stashed metadata permanent
+        err = ud.SetAuthTokens({{"k1", {"v1", datetime::DateTime::Now()}}}, false, "");
+    }
+
+    // Close and reopen the datastore again
+    {
+        UserData ud;
+        auto err = ud.Init(ds_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // This time our request metadata should have persisted
+        auto val1 = ud.GetRequestMetadata().at("key1").get<string>();
+        ASSERT_EQ(val1, "val1");
+        auto val2 = ud.GetRequestMetadata().at("key2").get<string>();
+        ASSERT_EQ(val2, "val2");
+    }
 }
 
 TEST_F(TestUserData, Locale)
