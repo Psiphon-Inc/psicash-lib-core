@@ -532,7 +532,7 @@ inline bool IsServerError(int code) {
 }
 
 // Creates the metadata JSON that should be included with requests.
-// This method MUST be called rather than calling UserData::GetRequestMetdata directly.
+// This method MUST be called rather than calling UserData::GetRequestMetadata directly.
 // If `attempt` is 0 it will be omitted from the metadata object.
 json PsiCash::GetRequestMetadata(int attempt) const {
     auto req_metadata = user_data_->GetRequestMetadata();
