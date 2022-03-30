@@ -74,7 +74,9 @@ const char* const kAccountTokenType = "account";
 const char* const kLogoutTokenType = "logout";
 
 
-UserData::UserData() {
+UserData::UserData()
+    : stashed_request_metadata_(json::object())
+{
 }
 
 UserData::~UserData() {
@@ -147,6 +149,9 @@ error::Error UserData::Clear() {
 }
 
 error::Error UserData::DeleteUserData(bool isLoggedOutAccount) {
+    // We're about to delete the request metadata, so now is the time to stash it.
+    SetStashedRequestMetadata(GetRequestMetadata());
+
     Transaction transaction(*this);
     // Not checking return values, since writing is paused.
     (void)datastore_.Set(kUserPtr, json::object());
@@ -268,6 +273,13 @@ error::Error UserData::SetAuthTokens(const AuthTokens& v, bool is_account, const
     (void)datastore_.Set(kAuthTokensPtr, json_tokens);
     (void)datastore_.Set(kIsAccountPtr, is_account);
     (void)datastore_.Set(kAccountUsernamePtr, utf8_username);
+
+    // We may have request metadata that we stashed when the user data was deleted.
+    // Setting auth tokens means we have user data once again, so we should restore that
+    // request metadata. GetRequestMetadata automatically incorporates the stashed
+    // metadata, so we're just going to get it and store it.
+    datastore_.Set(kRequestMetadataPtr, GetRequestMetadata());
+
     return PassError(transaction.Commit()); // write
 }
 
@@ -458,11 +470,18 @@ error::Error UserData::SetLastTransactionID(const TransactionID& v) {
 
 json UserData::GetRequestMetadata() const {
     auto j = datastore_.Get<json>(kRequestMetadataPtr);
-    if (!j) {
-        return json::object();
+    auto stored = json::object();
+    if (j) {
+        stored = *j;
     }
 
-    return *j;
+    // We might have stashed request metadata. We'll merge the stash into the stored
+    // metadata. Either might be empty, or neither. Stored metadata will take precedence.
+    // A side-effect of this is that metadata items that the caller might no longer want
+    // will be retained. But we know that in our use of it this doesn't happen.
+    stored.update(GetStashedRequestMetadata());
+
+    return stored;
 }
 
 std::string UserData::GetLocale() const {
@@ -477,5 +496,15 @@ error::Error UserData::SetLocale(const std::string& v) {
     return PassError(datastore_.Set(kLocalePtr, v));
 }
 
+json UserData::GetStashedRequestMetadata() const {
+    SYNCHRONIZE(stashed_request_metadata_mutex_);
+    auto stashed = stashed_request_metadata_;
+    return stashed;
+}
+
+void UserData::SetStashedRequestMetadata(const json& j) {
+    SYNCHRONIZE(stashed_request_metadata_mutex_);
+    stashed_request_metadata_ = j;
+}
 
 } // namespace psicash
