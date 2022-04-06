@@ -196,7 +196,11 @@ datetime::Duration UserData::GetServerTimeDiff() const {
 error::Error UserData::SetServerTimeDiff(const datetime::DateTime& serverTimeNow) {
     auto localTimeNow = datetime::DateTime::Now();
     auto diff = serverTimeNow.Diff(localTimeNow);
-    return PassError(datastore_.Set(kServerTimeDiffPtr, datetime::DurationToInt64(diff)));
+    // Updating the server time diff isn't so important that it needs to be written to disk
+    // immediately. Also, it is generally done outside of a transaction and then followed
+    // by a transaction, so it can lead to rapid datastore updates (which we suspect can
+    // cause corruption issues).
+    return PassError(datastore_.Set(kServerTimeDiffPtr, datetime::DurationToInt64(diff), /*write_store=*/false));
 }
 
 datetime::DateTime UserData::ServerTimeToLocal(const datetime::DateTime& server_time) const {

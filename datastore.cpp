@@ -131,13 +131,15 @@ error::Result<nlohmann::json> Datastore::Get() const {
     return json_;
 }
 
-Error Datastore::Set(const json::json_pointer& p, json v) {
+Error Datastore::Set(const json::json_pointer& p, json v, bool write_store/*=true*/) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
 
     // We will use the transaction mechanism to do the writing. It will also help prevent
     // changes to the stored value between the time we check it and the time we set it.
-    BeginTransaction();
+    if (write_store) {
+        BeginTransaction();
+    }
 
     // Avoid modifying the datastore if the value is the same as what's already there.
     bool changed = true;
@@ -151,7 +153,10 @@ Error Datastore::Set(const json::json_pointer& p, json v) {
     json_[p] = v;
     transaction_dirty_ = changed;
 
-    return PassError(EndTransaction(true));
+    if (write_store) {
+        return PassError(EndTransaction(true));
+    }
+    return nullerr;
 }
 
 static string FilePath(const string& file_root, const string& suffix) {
