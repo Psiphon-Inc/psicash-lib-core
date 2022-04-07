@@ -259,21 +259,54 @@ TEST_F(TestUserData, IsLoggedOutAccount)
 
 TEST_F(TestUserData, ServerTimeDiff)
 {
-    UserData ud;
-    auto err = ud.Init(GetTempDir().c_str(), dev);
-    ASSERT_FALSE(err);
+    auto temp_dir = GetTempDir();
 
-    // Check default value
-    auto v = ud.GetServerTimeDiff();
-    ASSERT_EQ(v.count(), 0);
-
-    // Set then get
     auto want = datetime::Duration(54321);
     auto shifted_now = datetime::DateTime::Now().Add(want);
-    err = ud.SetServerTimeDiff(shifted_now);
-    ASSERT_FALSE(err);
-    auto got = ud.GetServerTimeDiff();
-    ASSERT_NEAR(want.count(), got.count(), 10);
+
+    // Note that ServerTimeDiff is not written to disk immediately when set. It will only
+    // be written by a following update of a different field.
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // Check default value
+        auto v = ud.GetServerTimeDiff();
+        ASSERT_EQ(v.count(), 0);
+
+        // Set then get
+        err = ud.SetServerTimeDiff(shifted_now);
+        ASSERT_FALSE(err);
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 20);
+    }
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // There should be not stored value, as there was no other field set
+        auto v = ud.GetServerTimeDiff();
+        ASSERT_EQ(v.count(), 0);
+
+        err = ud.SetServerTimeDiff(shifted_now);
+        ASSERT_FALSE(err);
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 20);
+
+        // Set another field to force ServerTimeDiff to be written
+        ud.SetBalance(1234);
+    }
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // The value should have been stored
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 20);
+    }
 }
 
 TEST_F(TestUserData, UpdatePurchaseLocalTimeExpiry)

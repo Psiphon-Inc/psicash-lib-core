@@ -512,6 +512,60 @@ TEST_F(TestDatastore, SetTypes)
     ASSERT_EQ(*gotInt, wantInt);
 }
 
+TEST_F(TestDatastore, SetNoStore)
+{
+    auto temp_dir = GetTempDir();
+    auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
+
+    auto k = "/k"_json_pointer;
+    auto v = "a";
+
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Set without writing to disk
+        err = ds.Set(k, v, false);
+        ASSERT_FALSE(err);
+        // Should be accessible
+        auto got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+    }
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Value should not have been stored
+        auto got = ds.Get<string>(k);
+        ASSERT_FALSE(got);
+
+        // Set without writing to disk
+        err = ds.Set(k, v, false);
+        ASSERT_FALSE(err);
+        // Should be accessible
+        got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+
+        // Write another value that is stored, prompting the storage of k
+        err = ds.Set("/x"_json_pointer, "y", true);
+        ASSERT_FALSE(err);
+    }
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Value should have been stored this time
+        auto got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+    }
+}
+
 TEST_F(TestDatastore, SetWriteDedup)
 {
     auto temp_dir = GetTempDir();
