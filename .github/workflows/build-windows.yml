@@ -1,0 +1,33 @@
+# On release, make a Windows release build and attach it to the release
+name: Windows Release Build
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    permissions:
+      # Required for release binary upload
+      contents: write
+
+    runs-on: windows-2019
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: egor-tensin/vs-shell@v2
+      with:
+        arch: x86
+
+    - name: Run build script
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: .\build-windows.bat
+
+    - name: Create zip
+      run: 7z a dist-windows.zip dist-windows
+
+    - uses: AButler/upload-release-assets@v2.0
+      with:
+        files: 'dist-windows.zip'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
