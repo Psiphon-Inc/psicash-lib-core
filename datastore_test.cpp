@@ -67,6 +67,7 @@ TEST_F(TestDatastore, InitBadDir)
     bad_dir = "/";
     Datastore ds2;
     err = ds2.Init(bad_dir.c_str(), ds_suffix);
+    // This fails when running under Docker (via act) but not as a GitHub Action
     ASSERT_TRUE(err);
 }
 
@@ -580,6 +581,10 @@ TEST_F(TestDatastore, SetWriteDedup)
     ASSERT_FALSE(err);
     auto file_time1 = std::filesystem::last_write_time(ds_path);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     // Try setting the same value again
     err = ds.Set(k, "a");
     ASSERT_FALSE(err);
@@ -588,16 +593,17 @@ TEST_F(TestDatastore, SetWriteDedup)
     // The file time should not have changed after setting the same value
     ASSERT_EQ(file_time1, file_time2);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     // Change to a different value
     err = ds.Set(k, "b");
     ASSERT_FALSE(err);
     auto file_time3 = std::filesystem::last_write_time(ds_path);
 
-    // When running under Docker (i.e., GitHub Actions), the the file times don't change
-    if (std::getenv("GITHUB_ACTION") == nullptr) {
-        // The file should have been updated, so its time should be newer
-        ASSERT_GT(file_time3, file_time1);
-    }
+    // The file should have been updated, so its time should be newer
+    ASSERT_GT(file_time3, file_time1);
 }
 
 TEST_F(TestDatastore, TransactionWriteDedup)
@@ -617,6 +623,10 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     ASSERT_FALSE(err);
     auto file_time1 = std::filesystem::last_write_time(ds_path);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     ds.BeginTransaction();
 
     // Try setting the same values again
@@ -632,6 +642,10 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     // The file time should not have changed after setting the same values
     ASSERT_EQ(file_time1, file_time2);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     ds.BeginTransaction();
 
     // Change to a different value
@@ -644,11 +658,12 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     ASSERT_FALSE(err);
     auto file_time3 = std::filesystem::last_write_time(ds_path);
 
-    // When running under Docker (i.e., GitHub Actions), the the file times don't change
-    if (std::getenv("GITHUB_ACTION") == nullptr) {
-        // The file should have been updated, so its time should be newer
-        ASSERT_GT(file_time3, file_time1);
-    }
+    // The file should have been updated, so its time should be newer
+    ASSERT_GT(file_time3, file_time1);
+
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     ds.BeginTransaction();
 
