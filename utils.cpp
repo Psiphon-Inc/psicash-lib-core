@@ -21,6 +21,9 @@
 #include <iostream>
 #include <fstream>
 #include <limits>
+#include <algorithm>
+#include <cctype>
+#include <locale>
 #include "utils.hpp"
 #include "error.hpp"
 
@@ -117,6 +120,39 @@ error::Error FileSize(const string& path, uint64_t& o_size) {
 
     o_size = (uint64_t)length;
     return error::nullerr;
+}
+
+// From https://stackoverflow.com/a/217605/729729
+void TrimLeft(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+void TrimRight(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
+void Trim(std::string &s) {
+    TrimLeft(s);
+    TrimRight(s);
+}
+
+std::string TrimLeftCopy(std::string s) {
+    TrimLeft(s);
+    return s;
+}
+
+std::string TrimRightCopy(std::string s) {
+    TrimRight(s);
+    return s;
+}
+
+std::string TrimCopy(std::string s) {
+    Trim(s);
+    return s;
 }
 
 }

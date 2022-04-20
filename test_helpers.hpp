@@ -11,6 +11,7 @@
 #include <fstream>
 #include "gtest/gtest.h"
 #include "userdata.hpp"
+#include "error.hpp"
 
 class TempDir
 {
@@ -80,10 +81,25 @@ class TempDir
         return DatastoreFilepath(datastore_root, GetSuffix(dev));
     }
 
-    bool Write(const std::string& datastore_root, bool dev, const std::string& s) {
-        auto ds_file = DatastoreFilepath(datastore_root, dev);
+    std::string BackupDatastoreFile(const std::string& datastore_file) {
+        return datastore_file + ".2";
+    }
+
+    psicash::error::Result<std::string> ReadFile(const std::string& filename) {
+        std::ifstream f;
+        f.open(filename, std::ios::in | std::ios::binary);
+        if (!f.is_open()) {
+            return psicash::error::MakeCriticalError("failed to open file");
+        }
+        std::stringstream ss;
+        ss << f.rdbuf();
+        f.close();
+        return ss.str();
+    }
+
+    bool WriteFile(const std::string& filename, const std::string& s) {
         std::ofstream f;
-        f.open(ds_file, std::ios::out | std::ios::trunc | std::ios::binary);
+        f.open(filename, std::ios::out | std::ios::trunc | std::ios::binary);
         if (!f.is_open()) {
             return false;
         }
@@ -92,11 +108,28 @@ class TempDir
         return true;
     }
 
-    bool WriteBadData(const std::string& datastore_root, bool dev)
-    {
+    bool AppendFile(const std::string& filename, const std::string& s) {
+        std::ofstream f;
+        f.open(filename, std::ios::out | std::ios::app | std::ios::binary);
+        if (!f.is_open()) {
+            return false;
+        }
+        f << s;
+        f.close();
+        return true;
+    }
+
+    bool Write(const std::string& datastore_root, bool dev, const std::string& s) {
         auto ds_file = DatastoreFilepath(datastore_root, dev);
-        auto make_bad_file = "echo nonsense > " + ds_file;
-        return Write(datastore_root, dev, "this is bad data");
+        // Write the main datastore file
+        if (!WriteFile(ds_file, s)) {
+            return false;
+        }
+        // And the backup file
+        if (!WriteFile(BackupDatastoreFile(ds_file), s)) {
+            return false;
+        }
+        return true;
     }
 };
 

@@ -29,54 +29,54 @@ TEST(TestBase64, Encode)
   ASSERT_EQ(b64, "Zm9vYmFy");
 
   // The vector overload
-  vector<BYTE> v;
+  vector<uint8_t> v;
   b64 = B64Encode(v);
   ASSERT_EQ(b64, "");
 
-  BYTE b[] = "f";
-  v = vector<BYTE>(b, b+1);
+  uint8_t b[] = "f";
+  v = vector<uint8_t>(b, b+1);
   b64 = B64Encode(v);
   ASSERT_EQ(b64, "Zg==");
 }
 
 TEST(TestBase64, Decode)
 {
-  vector<BYTE> v, want;
+  vector<uint8_t> v, want;
   string s;
 
   s = "";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("");
   ASSERT_EQ(v, want);
 
   s = "fo";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm8=");
   ASSERT_EQ(v, want);
 
   s = "foo";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm9v");
   ASSERT_EQ(v, want);
 
   s = "foob";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm9vYg==");
   ASSERT_EQ(v, want);
 
   s = "fooba";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm9vYmE=");
   ASSERT_EQ(v, want);
 
   s = "foobar";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm9vYmFy");
   ASSERT_EQ(v, want);
 
   // Not padded
   s = "foob";
-  want = vector<BYTE>(s.c_str(), s.c_str()+s.size());
+  want = vector<uint8_t>(s.c_str(), s.c_str()+s.size());
   v = B64Decode("Zm9vYg");
   ASSERT_EQ(v, want);
 }

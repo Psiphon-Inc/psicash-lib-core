@@ -279,7 +279,7 @@ TEST_F(TestUserData, ServerTimeDiff)
         err = ud.SetServerTimeDiff(shifted_now);
         ASSERT_FALSE(err);
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
     }
     {
         UserData ud;
@@ -293,7 +293,7 @@ TEST_F(TestUserData, ServerTimeDiff)
         err = ud.SetServerTimeDiff(shifted_now);
         ASSERT_FALSE(err);
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
 
         // Set another field to force ServerTimeDiff to be written
         ud.SetBalance(1234);
@@ -305,7 +305,7 @@ TEST_F(TestUserData, ServerTimeDiff)
 
         // The value should have been stored
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
     }
 }
 
