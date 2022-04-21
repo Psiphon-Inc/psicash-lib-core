@@ -64,16 +64,16 @@ TEST_F(TestDatastore, InitCorrupt)
         kv_checksum = utils::TrimCopy(ds_contents->substr(close_brace+1));
     }
 
-    const string checksum_match = R"({"k":"v"})"s + kv_checksum;
-    const string checksum_mismatch = R"({"k":"z"})"s + kv_checksum;
+    const string checksum_match = R"({"k":"v"})"s + "\n\n" + kv_checksum;
+    const string checksum_mismatch = R"({"k":"z"})"s + "\n\n" + kv_checksum;
 
-    // Both the main and the backup datastore files are empty (JSON load will fail)
+    // Both the main and the backup datastore files are empty
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
-        auto ok = WriteFile(ds_file, "bad json file data");
+        auto ok = WriteFile(ds_file, "");
         ASSERT_TRUE(ok);
-        ok = WriteFile(BackupDatastoreFile(ds_file), "bad json file data");
+        ok = WriteFile(BackupDatastoreFile(ds_file), "");
         ASSERT_TRUE(ok);
 
         Datastore ds;
@@ -82,7 +82,22 @@ TEST_F(TestDatastore, InitCorrupt)
         ASSERT_GT(err.ToString().length(), 0);
     }
 
-    // The main datastore file is corrupt but loadable
+    // Both the main and the backup datastore files have checksum but empty content
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, "\n\nfakechecksum");
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), "\n\nfakechecksum");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_TRUE(err);
+        ASSERT_GT(err.ToString().length(), 0);
+    }
+
+    // The main datastore file is corrupt
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
@@ -99,7 +114,7 @@ TEST_F(TestDatastore, InitCorrupt)
         ASSERT_EQ(*val, "v");
     }
 
-    // The backup datastore file is corrupt but loadable
+    // The backup datastore file is corrupt
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
@@ -116,7 +131,7 @@ TEST_F(TestDatastore, InitCorrupt)
         ASSERT_EQ(*val, "v");
     }
 
-    // Both the main and backup datastore files are corrupt but loadable
+    // Both the main and backup datastore files are corrupt
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
@@ -127,13 +142,10 @@ TEST_F(TestDatastore, InitCorrupt)
 
         Datastore ds;
         auto err = ds.Init(temp_dir, GetSuffix(true));
-        ASSERT_FALSE(err);
-        auto val = ds.Get<string>("/k"_json_pointer);
-        ASSERT_TRUE(val);
-        ASSERT_EQ(*val, "z");
+        ASSERT_TRUE(err);
     }
 
-    // The main datastore file is not loadable, but the backup is fine
+    // The main datastore file has bad JSON and no checksum, but the backup is fine
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
@@ -150,7 +162,7 @@ TEST_F(TestDatastore, InitCorrupt)
         ASSERT_EQ(*val, "v");
     }
 
-    // The backup datastore file is not loadable, but the main is fine
+    // The backup datastore file has bad JSON and no checksum, but the main is fine
     {
         auto temp_dir = GetTempDir();
         auto ds_file = DatastoreFilepath(temp_dir, true);
