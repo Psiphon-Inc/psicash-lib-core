@@ -261,7 +261,7 @@ static string ChecksumString(const string& s) {
 
     // Convert the size_t value into a vector of bytes
     vector<uint8_t> checksum(hash_size);
-    for (int i = 0; i < hash_size; i++) {
+    for (size_t i = 0; i < hash_size; i++) {
         checksum[hash_size-1-i] = (hash >> (i * 8));
     }
 

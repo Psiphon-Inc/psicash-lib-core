@@ -191,7 +191,7 @@ TEST_F(TestDatastore, InitBadDir)
     Datastore ds2;
     err = ds2.Init(bad_dir.c_str(), ds_suffix);
     // This fails when running under Docker (via act) but not as a GitHub Action
-    ASSERT_TRUE(err);
+    ASSERT_TRUE(err) << "Expected to fail under local Docker (act)";
 }
 
 TEST_F(TestDatastore, InitMigrateChecksum)
