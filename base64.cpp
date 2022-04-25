@@ -23,7 +23,7 @@ namespace base64 {
 
 // From https://stackoverflow.com/a/31322410/729729
 
-static const BYTE from_base64[] = {
+static const uint8_t from_base64[] = {
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 62, 255, 63,
@@ -46,13 +46,13 @@ std::string B64Encode(const std::string& buf) {
     return B64Encode((const unsigned char*)buf.c_str(), (unsigned int)buf.size());
 }
 
-std::string B64Encode(const std::vector<BYTE>& buf) {
+std::string B64Encode(const std::vector<uint8_t>& buf) {
     if (buf.empty())
         return ""; // Avoid dereferencing buf if it's empty
     return B64Encode(&buf[0], (unsigned int)buf.size());
 }
 
-std::string B64Encode(const BYTE* buf, unsigned int bufLen) {
+std::string B64Encode(const uint8_t* buf, unsigned int bufLen) {
     // Calculate how many bytes that needs to be added to get a multiple of 3
     size_t missing = 0;
     size_t ret_size = bufLen;
@@ -70,13 +70,13 @@ std::string B64Encode(const BYTE* buf, unsigned int bufLen) {
     for (unsigned int i = 0; i < ret_size / 4; ++i) {
         // Read a group of three bytes (avoid buffer overrun by replacing with 0)
         size_t index = i * 3;
-        BYTE b3[3];
+        uint8_t b3[3];
         b3[0] = (index + 0 < bufLen) ? buf[index + 0] : 0;
         b3[1] = (index + 1 < bufLen) ? buf[index + 1] : 0;
         b3[2] = (index + 2 < bufLen) ? buf[index + 2] : 0;
 
         // Transform into four base 64 characters
-        BYTE b4[4];
+        uint8_t b4[4];
         b4[0] = ((b3[0] & 0xfc) >> 2);
         b4[1] = ((b3[0] & 0x03) << 4) + ((b3[1] & 0xf0) >> 4);
         b4[2] = ((b3[1] & 0x0f) << 2) + ((b3[2] & 0xc0) >> 6);
@@ -96,7 +96,7 @@ std::string B64Encode(const BYTE* buf, unsigned int bufLen) {
     return ret;
 }
 
-std::vector<BYTE> B64Decode(const std::string& b64encoded) {
+std::vector<uint8_t> B64Decode(const std::string& b64encoded) {
     std::string encoded_string = b64encoded;
 
     // Make sure string length is a multiple of 4
@@ -104,19 +104,19 @@ std::vector<BYTE> B64Decode(const std::string& b64encoded) {
         encoded_string.push_back('=');
 
     size_t encoded_size = encoded_string.size();
-    std::vector<BYTE> ret;
+    std::vector<uint8_t> ret;
     ret.reserve(3 * encoded_size / 4);
 
     for (size_t i = 0; i < encoded_size; i += 4) {
         // Get values for each group of four base 64 characters
-        BYTE b4[4];
+        uint8_t b4[4];
         b4[0] = (encoded_string[i + 0] <= 'z') ? from_base64[(size_t)encoded_string[i + 0]] : 0xff;
         b4[1] = (encoded_string[i + 1] <= 'z') ? from_base64[(size_t)encoded_string[i + 1]] : 0xff;
         b4[2] = (encoded_string[i + 2] <= 'z') ? from_base64[(size_t)encoded_string[i + 2]] : 0xff;
         b4[3] = (encoded_string[i + 3] <= 'z') ? from_base64[(size_t)encoded_string[i + 3]] : 0xff;
 
         // Transform into a group of three bytes
-        BYTE b3[3];
+        uint8_t b3[3];
         b3[0] = ((b4[0] & 0x3f) << 2) + ((b4[1] & 0x30) >> 4);
         b3[1] = ((b4[1] & 0x0f) << 4) + ((b4[2] & 0x3c) >> 2);
         b3[2] = ((b4[2] & 0x03) << 6) + ((b4[3] & 0x3f) >> 0);

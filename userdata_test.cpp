@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2022, Psiphon Inc.
+ * All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "test_helpers.hpp"
@@ -279,7 +298,7 @@ TEST_F(TestUserData, ServerTimeDiff)
         err = ud.SetServerTimeDiff(shifted_now);
         ASSERT_FALSE(err);
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
     }
     {
         UserData ud;
@@ -293,7 +312,7 @@ TEST_F(TestUserData, ServerTimeDiff)
         err = ud.SetServerTimeDiff(shifted_now);
         ASSERT_FALSE(err);
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
 
         // Set another field to force ServerTimeDiff to be written
         ud.SetBalance(1234);
@@ -305,7 +324,7 @@ TEST_F(TestUserData, ServerTimeDiff)
 
         // The value should have been stored
         auto got = ud.GetServerTimeDiff();
-        ASSERT_NEAR(want.count(), got.count(), 20);
+        ASSERT_NEAR(want.count(), got.count(), 50);
     }
 }
 

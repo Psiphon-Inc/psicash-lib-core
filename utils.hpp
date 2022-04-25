@@ -100,6 +100,24 @@ void Split(char delimiter, Output &output, Input const& input) {
     }
 }
 
+/// Trim whitespace from start of string (in place)
+void TrimLeft(std::string &s);
+
+/// Trim whitespace from start of string (in place)
+void TrimRight(std::string &s);
+
+/// Trim whitespace from both ends of string (in place)
+void Trim(std::string &s);
+
+/// Trim whitespace from start of string (copying)
+std::string TrimLeftCopy(std::string s);
+
+/// Trim whitespace from end of string (copying)
+std::string TrimRightCopy(std::string s);
+
+/// Trim whitespace from both ends of string (copying)
+std::string TrimCopy(std::string s);
+
 }
 
 #endif //PSICASHLIB_UTILS_H

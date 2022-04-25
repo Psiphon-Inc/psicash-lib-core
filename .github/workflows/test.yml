@@ -15,9 +15,5 @@ jobs:
 
     - run: sudo apt update && sudo apt install -y cmake
 
-    - name: Extract SecretTestValues.h
-      run: echo ${{ secrets.SECRET_TEST_VALUES }} | base64 -d > ./SecretTestValues.h
-      shell: bash
-
     - name: test
       run: bash ./test.sh
