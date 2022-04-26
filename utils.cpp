@@ -94,14 +94,38 @@ static string ToLowerASCII(const string& s) {
    return ss.str();
 }
 
-string FindHeaderValue(const map<string, vector<string>>& headers, const string& key) {
-    auto lower_key = ToLowerASCII(key);
+static vector<string> FindHeaderValues(const map<string, vector<string>>& headers, const string& key) {
+    const auto lower_key = ToLowerASCII(key);
     for (const auto& entry : headers) {
         if (lower_key == ToLowerASCII(entry.first)) {
-            return entry.second.empty() ? "" : entry.second.front();
+            return entry.second;
         }
     }
-    return "";
+    return {};
+}
+
+string FindHeaderValue(const map<string, vector<string>>& headers, const string& key) {
+    auto vec = FindHeaderValues(headers, key);
+    return vec.empty() ? "" : vec.front();
+}
+
+string GetCookies(const map<string, vector<string>>& headers) {
+    // Set-Cookie header values are of the form:
+    // AWSALB=abcxyz; Expires=Tue, 03 May 2022 19:47:19 GMT; Path=/
+    // We only care about the cookie name and the value.
+
+    stringstream res;
+    bool first = true;
+    for (const auto& c : FindHeaderValues(headers, "Set-Cookie")) {
+        if (!first) {
+            res << "; ";
+        }
+        first = false;
+
+        auto semi = c.find_first_of(';');
+        res << TrimCopy(c.substr(0, semi));
+    }
+    return res.str();
 }
 
 // Adapted from https://stackoverflow.com/a/22986486/729729

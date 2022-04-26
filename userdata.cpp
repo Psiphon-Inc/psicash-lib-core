@@ -64,6 +64,8 @@ static constexpr const char* LAST_TRANSACTION_ID = "lastTransactionID";
 static const auto kLastTransactionIDPtr = kUserPtr / LAST_TRANSACTION_ID;
 static const char* REQUEST_METADATA = "requestMetadata";
 const json::json_pointer kRequestMetadataPtr = kUserPtr / REQUEST_METADATA; // used in header, so not static
+static constexpr const char* COOKIES = "cookies";
+static const auto kCookiesPtr = kUserPtr / COOKIES;
 
 
 // These are the possible token types.
@@ -498,6 +500,18 @@ std::string UserData::GetLocale() const {
 
 error::Error UserData::SetLocale(const std::string& v) {
     return PassError(datastore_.Set(kLocalePtr, v));
+}
+
+std::string UserData::GetCookies() const {
+    auto v = datastore_.Get<string>(kCookiesPtr);
+    if (!v) {
+        return "";
+    }
+    return *v;
+}
+
+error::Error UserData::SetCookies(const std::string& v) {
+    return PassError(datastore_.Set(kCookiesPtr, v));
 }
 
 json UserData::GetStashedRequestMetadata() const {

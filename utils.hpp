@@ -66,6 +66,10 @@ std::string RandomID();
 /// If there are multiple header values for the key, the first one is returned.
 std::string FindHeaderValue(const std::map<std::string, std::vector<std::string>>& headers, const std::string& key);
 
+/// Returns all cookie name=values in the Set-Cookie headers in a single
+/// semicolon-separated string (suitable for sending in a request Cookie header).
+std::string GetCookies(const std::map<std::string, std::vector<std::string>>& headers);
+
 // From https://stackoverflow.com/a/5289170/729729
 /// note: delimiter cannot contain NUL characters
 template <typename Range, typename Value = typename Range::value_type>

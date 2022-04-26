@@ -803,6 +803,26 @@ TEST_F(TestUserData, Locale)
     ASSERT_EQ(v, "");
 }
 
+TEST_F(TestUserData, Cookies)
+{
+    UserData ud;
+    auto err = ud.Init(GetTempDir().c_str(), dev);
+    ASSERT_FALSE(err);
+
+    auto v = ud.GetCookies();
+    ASSERT_THAT(v, IsEmpty());
+
+    err = ud.SetCookies("x=y; a=b; m=n");
+    ASSERT_FALSE(err);
+    v = ud.GetCookies();
+    ASSERT_EQ(v, "x=y; a=b; m=n");
+
+    err = ud.SetCookies("");
+    ASSERT_FALSE(err);
+    v = ud.GetCookies();
+    ASSERT_EQ(v, "");
+}
+
 TEST_F(TestUserData, Transaction)
 {
     UserData ud;
