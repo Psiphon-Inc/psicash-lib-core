@@ -18,10 +18,12 @@
  */
 
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "utils.hpp"
 
 using namespace std;
 using namespace utils;
+using namespace testing;
 
 TEST(TestStringer, SingleValue) {
     auto s = Stringer("s");
@@ -55,4 +57,40 @@ TEST(TestFindHeaderValue, Simple) {
     headers = {{"a", {"xyz"}}, {"c", {"abc", "def"}}, {"DATE", {"expected", "second"}}};
     s = FindHeaderValue(headers, "Date");
     ASSERT_EQ(s, "expected");
+
+    headers = {{"a", {"xyz"}}, {"c", {"abc", "def"}}, {"DATE", {"expected", "second"}}};
+    s = FindHeaderValue(headers, "Nope");
+    ASSERT_EQ(s, "");
+}
+
+TEST(TestGetCookies, Simple) {
+    map<string, vector<string>> headers;
+
+    headers = {{"a", {"xyz"}}, {"set-COOKIE", {"AWSALBCORS=qxg5PeVRnxutG8kvdnISQvQM+PWqFzqoVZGJcyZh9c6su3O+u1121WEFwZ6DAEtVaKq6ufOzUIfAL8qRmUuSya5ODUxJOC9m3+006HBi71pSk6T88oiMgva0IOvi; Expires=Mon, 02 May 2022 20:53:02 GMT; Path=/; SameSite=None; Secure", "k1=v1", "k2=v2;"}}};
+    auto v = GetCookies(headers);
+    ASSERT_EQ(v, "AWSALBCORS=qxg5PeVRnxutG8kvdnISQvQM+PWqFzqoVZGJcyZh9c6su3O+u1121WEFwZ6DAEtVaKq6ufOzUIfAL8qRmUuSya5ODUxJOC9m3+006HBi71pSk6T88oiMgva0IOvi; k1=v1; k2=v2");
+
+    headers = {{"a", {"xyz"}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "");
+
+    headers = {{"a", {"xyz"}}, {"Set-Cookie", {}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "");
+
+    headers = {{"a", {"xyz"}}, {"Set-Cookie", {""}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "");
+
+    headers = {{"a", {"xyz"}}, {"Set-Cookie", {";"}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "");
+
+    headers = {{"a", {"xyz"}}, {"Set-Cookie", {"!;!;!"}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "!");
+
+    headers = {{"a", {"xyz"}}, {"Set-Cookie", {" x=y "}}};
+    v = GetCookies(headers);
+    ASSERT_EQ(v, "x=y");
 }
