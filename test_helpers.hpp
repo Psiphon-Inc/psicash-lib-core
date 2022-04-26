@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2022, Psiphon Inc.
+ * All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #ifndef PSICASHLIB_TEST_HELPERS_H
 #define PSICASHLIB_TEST_HELPERS_H
 
@@ -11,6 +30,7 @@
 #include <fstream>
 #include "gtest/gtest.h"
 #include "userdata.hpp"
+#include "error.hpp"
 
 class TempDir
 {
@@ -80,10 +100,25 @@ class TempDir
         return DatastoreFilepath(datastore_root, GetSuffix(dev));
     }
 
-    bool Write(const std::string& datastore_root, bool dev, const std::string& s) {
-        auto ds_file = DatastoreFilepath(datastore_root, dev);
+    std::string BackupDatastoreFile(const std::string& datastore_file) {
+        return datastore_file + ".2";
+    }
+
+    psicash::error::Result<std::string> ReadFile(const std::string& filename) {
+        std::ifstream f;
+        f.open(filename, std::ios::in | std::ios::binary);
+        if (!f.is_open()) {
+            return psicash::error::MakeCriticalError("failed to open file");
+        }
+        std::stringstream ss;
+        ss << f.rdbuf();
+        f.close();
+        return ss.str();
+    }
+
+    bool WriteFile(const std::string& filename, const std::string& s) {
         std::ofstream f;
-        f.open(ds_file, std::ios::out | std::ios::trunc | std::ios::binary);
+        f.open(filename, std::ios::out | std::ios::trunc | std::ios::binary);
         if (!f.is_open()) {
             return false;
         }
@@ -92,11 +127,28 @@ class TempDir
         return true;
     }
 
-    bool WriteBadData(const std::string& datastore_root, bool dev)
-    {
+    bool AppendFile(const std::string& filename, const std::string& s) {
+        std::ofstream f;
+        f.open(filename, std::ios::out | std::ios::app | std::ios::binary);
+        if (!f.is_open()) {
+            return false;
+        }
+        f << s;
+        f.close();
+        return true;
+    }
+
+    bool Write(const std::string& datastore_root, bool dev, const std::string& s) {
         auto ds_file = DatastoreFilepath(datastore_root, dev);
-        auto make_bad_file = "echo nonsense > " + ds_file;
-        return Write(datastore_root, dev, "this is bad data");
+        // Write the main datastore file
+        if (!WriteFile(ds_file, s)) {
+            return false;
+        }
+        // And the backup file
+        if (!WriteFile(BackupDatastoreFile(ds_file), s)) {
+            return false;
+        }
+        return true;
     }
 };
 

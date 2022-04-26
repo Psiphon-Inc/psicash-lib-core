@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2022, Psiphon Inc.
+ * All rights reserved.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "test_helpers.hpp"
@@ -259,21 +278,54 @@ TEST_F(TestUserData, IsLoggedOutAccount)
 
 TEST_F(TestUserData, ServerTimeDiff)
 {
-    UserData ud;
-    auto err = ud.Init(GetTempDir().c_str(), dev);
-    ASSERT_FALSE(err);
+    auto temp_dir = GetTempDir();
 
-    // Check default value
-    auto v = ud.GetServerTimeDiff();
-    ASSERT_EQ(v.count(), 0);
-
-    // Set then get
     auto want = datetime::Duration(54321);
     auto shifted_now = datetime::DateTime::Now().Add(want);
-    err = ud.SetServerTimeDiff(shifted_now);
-    ASSERT_FALSE(err);
-    auto got = ud.GetServerTimeDiff();
-    ASSERT_NEAR(want.count(), got.count(), 10);
+
+    // Note that ServerTimeDiff is not written to disk immediately when set. It will only
+    // be written by a following update of a different field.
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // Check default value
+        auto v = ud.GetServerTimeDiff();
+        ASSERT_EQ(v.count(), 0);
+
+        // Set then get
+        err = ud.SetServerTimeDiff(shifted_now);
+        ASSERT_FALSE(err);
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 50);
+    }
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // There should be not stored value, as there was no other field set
+        auto v = ud.GetServerTimeDiff();
+        ASSERT_EQ(v.count(), 0);
+
+        err = ud.SetServerTimeDiff(shifted_now);
+        ASSERT_FALSE(err);
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 50);
+
+        // Set another field to force ServerTimeDiff to be written
+        ud.SetBalance(1234);
+    }
+    {
+        UserData ud;
+        auto err = ud.Init(temp_dir.c_str(), dev);
+        ASSERT_FALSE(err);
+
+        // The value should have been stored
+        auto got = ud.GetServerTimeDiff();
+        ASSERT_NEAR(want.count(), got.count(), 50);
+    }
 }
 
 TEST_F(TestUserData, UpdatePurchaseLocalTimeExpiry)
@@ -748,6 +800,26 @@ TEST_F(TestUserData, Locale)
     err = ud.SetLocale("");
     ASSERT_FALSE(err);
     v = ud.GetLocale();
+    ASSERT_EQ(v, "");
+}
+
+TEST_F(TestUserData, Cookies)
+{
+    UserData ud;
+    auto err = ud.Init(GetTempDir().c_str(), dev);
+    ASSERT_FALSE(err);
+
+    auto v = ud.GetCookies();
+    ASSERT_THAT(v, IsEmpty());
+
+    err = ud.SetCookies("x=y; a=b; m=n");
+    ASSERT_FALSE(err);
+    v = ud.GetCookies();
+    ASSERT_EQ(v, "x=y; a=b; m=n");
+
+    err = ud.SetCookies("");
+    ASSERT_FALSE(err);
+    v = ud.GetCookies();
     ASSERT_EQ(v, "");
 }
 

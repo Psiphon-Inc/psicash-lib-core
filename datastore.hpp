@@ -105,11 +105,13 @@ public:
 
     error::Result<nlohmann::json> Get() const;
 
-    // Sets the value v in the datastore at path p.
+    /// Sets the value v in the datastore at path p.
+    /// If write_store is false, the change will stored in memory but not written to disk.
+    /// However, the dirty flag will be set and the change will be in the next write.
     /// NOTE: Set is not atomic. If the file operation fails, the intermediate object will still be
     /// updated. We may want this to be otherwise in the future, but for now I think that it's preferable.
     /// Returns false if the file operation failed.
-    error::Error Set(const json::json_pointer& p, json v);
+    error::Error Set(const json::json_pointer& p, json v, bool write_store=true);
 
 protected:
     /// Helper for the public Reset methods

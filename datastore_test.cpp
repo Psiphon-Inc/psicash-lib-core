@@ -41,20 +41,143 @@ class TestDatastore : public ::testing::Test, public TempDir
 TEST_F(TestDatastore, InitSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err) << err.ToString();
 }
 
 TEST_F(TestDatastore, InitCorrupt)
 {
-    auto temp_dir = GetTempDir();
-    auto ok = WriteBadData(temp_dir.c_str(), true);
-    ASSERT_TRUE(ok);
+    const auto k = "/k"_json_pointer;
 
-    Datastore ds;
-    auto err = ds.Init(temp_dir.c_str(), GetSuffix(true));
-    ASSERT_TRUE(err);
-    ASSERT_GT(err.ToString().length(), 0);
+    // Note that the underlying implementation of std::hash differs between platforms, so we can't just hardcode known datastore values and checksums. We'll need to compute a real value.
+    string kv_checksum;
+    {
+        auto temp_dir = GetTempDir();
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+        ASSERT_FALSE(ds.Set(k, "v"s));
+
+        auto ds_contents = ReadFile(DatastoreFilepath(temp_dir, true));
+        ASSERT_TRUE(ds_contents);
+        auto close_brace = ds_contents->find_last_of("}");
+        kv_checksum = utils::TrimCopy(ds_contents->substr(close_brace+1));
+    }
+
+    const string checksum_match = R"({"k":"v"})"s + "\n\n" + kv_checksum;
+    const string checksum_mismatch = R"({"k":"z"})"s + "\n\n" + kv_checksum;
+
+    // Both the main and the backup datastore files are empty
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, "");
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), "");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_TRUE(err);
+        ASSERT_GT(err.ToString().length(), 0);
+    }
+
+    // Both the main and the backup datastore files have checksum but empty content
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, "\n\nfakechecksum");
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), "\n\nfakechecksum");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_TRUE(err);
+        ASSERT_GT(err.ToString().length(), 0);
+    }
+
+    // The main datastore file is corrupt
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, checksum_mismatch);
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), checksum_match);
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
+
+    // The backup datastore file is corrupt
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, checksum_match);
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), checksum_mismatch);
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
+
+    // Both the main and backup datastore files are corrupt
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, checksum_mismatch);
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), checksum_mismatch);
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_TRUE(err);
+    }
+
+    // The main datastore file has bad JSON and no checksum, but the backup is fine
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, "bad json file data");
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), checksum_match);
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
+
+    // The backup datastore file has bad JSON and no checksum, but the main is fine
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        auto ok = WriteFile(ds_file, checksum_match);
+        ASSERT_TRUE(ok);
+        ok = WriteFile(BackupDatastoreFile(ds_file), "bad json file data");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
 }
 
 TEST_F(TestDatastore, InitBadDir)
@@ -67,7 +190,95 @@ TEST_F(TestDatastore, InitBadDir)
     bad_dir = "/";
     Datastore ds2;
     err = ds2.Init(bad_dir.c_str(), ds_suffix);
-    ASSERT_TRUE(err);
+    // This fails when running under Docker (via act) but not as a GitHub Action
+    ASSERT_TRUE(err) << "Expected to fail under local Docker (act)";
+}
+
+TEST_F(TestDatastore, InitMigrateChecksum)
+{
+    auto temp_dir = GetTempDir();
+    auto ds_file = DatastoreFilepath(temp_dir, true);
+    // Write the main file with no checksum
+    auto ok = WriteFile(ds_file, R"({"k":"v"})");
+    ASSERT_TRUE(ok);
+    // Don't write the backup file at all
+
+    Datastore ds;
+    auto err = ds.Init(temp_dir, GetSuffix(true));
+    ASSERT_FALSE(err);
+
+    auto val = ds.Get<string>("/k"_json_pointer);
+    ASSERT_TRUE(val);
+    ASSERT_EQ(*val, "v");
+}
+
+TEST_F(TestDatastore, InitPromoteCommitFile)
+{
+    // When reading, the .commit file takes precedence over an existing datastore file.
+
+    // .commit exists, no datastore file
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+        // Write the main commit file (the lack of checksum doesn't matter for this test)
+        auto ok = WriteFile(ds_file+".commit", R"({"k":"v"})");
+        ASSERT_TRUE(ok);
+        // We won't bother with the backup commit file, as it doesn't change this test
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
+
+    // .commit and datastore file both exist
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+
+        // Write the main commit file (the lack of checksum doesn't matter for this test)
+        auto ok = WriteFile(ds_file+".commit", R"({"k":"v"})");
+        ASSERT_TRUE(ok);
+
+        // Write the main file, with different values
+        ok = WriteFile(ds_file, R"({"k":"z"})");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+
+        // The .commit file should win
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "v");
+    }
+
+    // A .temp file should be ignored when reading
+    {
+        auto temp_dir = GetTempDir();
+        auto ds_file = DatastoreFilepath(temp_dir, true);
+
+        // Write the main commit file (the lack of checksum doesn't matter for this test)
+        auto ok = WriteFile(ds_file+".temp", R"({"k":"v"})");
+        ASSERT_TRUE(ok);
+
+        // Write the main file, with different values
+        ok = WriteFile(ds_file, R"({"k":"z"})");
+        ASSERT_TRUE(ok);
+
+        Datastore ds;
+        auto err = ds.Init(temp_dir, GetSuffix(true));
+        ASSERT_FALSE(err);
+
+        // The .commit file should win
+        auto val = ds.Get<string>("/k"_json_pointer);
+        ASSERT_TRUE(val);
+        ASSERT_EQ(*val, "z");
+    }
 }
 
 TEST_F(TestDatastore, CheckPersistence)
@@ -78,7 +289,7 @@ TEST_F(TestDatastore, CheckPersistence)
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -95,7 +306,7 @@ TEST_F(TestDatastore, CheckPersistence)
 
     // Create a new one and check that it has the same data.
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     got = ds->Get<string>(k);
@@ -110,7 +321,7 @@ TEST_F(TestDatastore, Reset)
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -127,7 +338,7 @@ TEST_F(TestDatastore, Reset)
 
     // Create a new one and check that it has the same data.
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     got = ds->Get<string>(k);
@@ -138,7 +349,7 @@ TEST_F(TestDatastore, Reset)
 
     // Reset with arguments
     ds = new Datastore();
-    err = ds->Reset(temp_dir.c_str(), ds_suffix, {});
+    err = ds->Reset(temp_dir, ds_suffix, {});
     ASSERT_FALSE(err) << err.ToString();
 
     // First Get without calling Init; should get "not initialized" error
@@ -147,7 +358,7 @@ TEST_F(TestDatastore, Reset)
     ASSERT_EQ(got.error(), psicash::Datastore::DatastoreGetError::kDatastoreUninitialized);
 
     // Then initialize and try again
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     // Key should not be found, since we haven't set it
@@ -168,7 +379,7 @@ TEST_F(TestDatastore, Reset)
 
     // Reset without arguments
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     got = ds->Get<string>(k);
@@ -187,13 +398,13 @@ TEST_F(TestDatastore, Reset)
     // Reset with non-empty new value
     temp_dir = GetTempDir(); // use a fresh dir to avoid pollution
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     got = ds->Get<string>("/k"_json_pointer);
     ASSERT_FALSE(got);
 
-    err = ds->Reset({{"k", want}});
+    err = ds->Reset({{"k"s, want}});
     ASSERT_FALSE(err);
 
     got = ds->Get<string>("/k"_json_pointer);
@@ -209,7 +420,7 @@ TEST_F(TestDatastore, Transactions)
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     // This should persist
@@ -252,7 +463,7 @@ TEST_F(TestDatastore, Transactions)
 
     // Reopen
     ds = new Datastore();
-    err = ds->Init(temp_dir.c_str(), ds_suffix);
+    err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     auto got = ds->Get<string>(trans_want1);
@@ -281,7 +492,7 @@ TEST_F(TestDatastore, NestedTransactions)
     auto temp_dir = GetTempDir();
 
     auto ds = new Datastore();
-    auto err = ds->Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds->Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     // Nest then commit
@@ -364,7 +575,7 @@ TEST_F(TestDatastore, TransactionRaceConditionBug)
     // multiple of them could be read separately).
 
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     const auto k = "/k"_json_pointer;
@@ -412,7 +623,7 @@ TEST_F(TestDatastore, TransactionRaceConditionBug)
 TEST_F(TestDatastore, SetSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     auto k = "/k"_json_pointer;
@@ -428,7 +639,7 @@ TEST_F(TestDatastore, SetSimple)
 TEST_F(TestDatastore, SetDeep)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     auto key1 = "/key1"_json_pointer, key2 = "/key2"_json_pointer;
@@ -452,7 +663,7 @@ TEST_F(TestDatastore, SetDeep)
 TEST_F(TestDatastore, SetAndClear)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     map<string, string> want = {{"a", "a"}, {"b", "b"}};
@@ -478,7 +689,7 @@ TEST_F(TestDatastore, SetTypes)
     // Test some types other than just string
 
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     // Start with string
@@ -512,30 +723,92 @@ TEST_F(TestDatastore, SetTypes)
     ASSERT_EQ(*gotInt, wantInt);
 }
 
+TEST_F(TestDatastore, SetNoStore)
+{
+    auto temp_dir = GetTempDir();
+    auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
+
+    auto k = "/k"_json_pointer;
+    auto v = "a";
+
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir, ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Set without writing to disk
+        err = ds.Set(k, v, false);
+        ASSERT_FALSE(err);
+        // Should be accessible
+        auto got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+    }
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir, ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Value should not have been stored
+        auto got = ds.Get<string>(k);
+        ASSERT_FALSE(got);
+
+        // Set without writing to disk
+        err = ds.Set(k, v, false);
+        ASSERT_FALSE(err);
+        // Should be accessible
+        got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+
+        // Write another value that is stored, prompting the storage of k
+        err = ds.Set("/x"_json_pointer, "y"s, true);
+        ASSERT_FALSE(err);
+    }
+    {
+        Datastore ds;
+        auto err = ds.Init(temp_dir, ds_suffix);
+        ASSERT_FALSE(err);
+
+        // Value should have been stored this time
+        auto got = ds.Get<string>(k);
+        ASSERT_TRUE(got);
+        ASSERT_EQ(*got, v);
+    }
+}
+
 TEST_F(TestDatastore, SetWriteDedup)
 {
     auto temp_dir = GetTempDir();
     auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
 
     Datastore ds;
-    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds.Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     auto k = "/k"_json_pointer;
-    err = ds.Set(k, "a");
+    err = ds.Set(k, "a"s);
     ASSERT_FALSE(err);
     auto file_time1 = std::filesystem::last_write_time(ds_path);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     // Try setting the same value again
-    err = ds.Set(k, "a");
+    err = ds.Set(k, "a"s);
     ASSERT_FALSE(err);
     auto file_time2 = std::filesystem::last_write_time(ds_path);
 
     // The file time should not have changed after setting the same value
     ASSERT_EQ(file_time1, file_time2);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     // Change to a different value
-    err = ds.Set(k, "b");
+    err = ds.Set(k, "b"s);
     ASSERT_FALSE(err);
     auto file_time3 = std::filesystem::last_write_time(ds_path);
 
@@ -549,23 +822,27 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     auto ds_path = DatastoreFilepath(temp_dir, ds_suffix);
 
     Datastore ds;
-    auto err = ds.Init(temp_dir.c_str(), ds_suffix);
+    auto err = ds.Init(temp_dir, ds_suffix);
     ASSERT_FALSE(err);
 
     auto k1 = "/k1"_json_pointer;
     auto k2 = "/k2"_json_pointer;
-    err = ds.Set(k1, "a");
+    err = ds.Set(k1, "a"s);
     ASSERT_FALSE(err);
-    err = ds.Set(k2, "a");
+    err = ds.Set(k2, "a"s);
     ASSERT_FALSE(err);
     auto file_time1 = std::filesystem::last_write_time(ds_path);
+
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     ds.BeginTransaction();
 
     // Try setting the same values again
-    err = ds.Set(k1, "a");
+    err = ds.Set(k1, "a"s);
     ASSERT_FALSE(err);
-    err = ds.Set(k2, "a");
+    err = ds.Set(k2, "a"s);
     ASSERT_FALSE(err);
 
     err = ds.EndTransaction(true);
@@ -575,12 +852,16 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     // The file time should not have changed after setting the same values
     ASSERT_EQ(file_time1, file_time2);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     ds.BeginTransaction();
 
     // Change to a different value
-    err = ds.Set(k1, "b");
+    err = ds.Set(k1, "b"s);
     ASSERT_FALSE(err);
-    err = ds.Set(k2, "b");
+    err = ds.Set(k2, "b"s);
     ASSERT_FALSE(err);
 
     err = ds.EndTransaction(true);
@@ -590,12 +871,16 @@ TEST_F(TestDatastore, TransactionWriteDedup)
     // The file should have been updated, so its time should be newer
     ASSERT_GT(file_time3, file_time1);
 
+    // Make sure there could be a file time difference, regardless of last_write_time resolution.
+    // This is necessary when running under Docker or GitHub Actions.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     ds.BeginTransaction();
 
     // Changing and then rolling back should still work as expected
-    err = ds.Set(k1, "c");
+    err = ds.Set(k1, "c"s);
     ASSERT_FALSE(err);
-    err = ds.Set(k2, "c");
+    err = ds.Set(k2, "c"s);
     ASSERT_FALSE(err);
 
     err = ds.EndTransaction(false);
@@ -609,7 +894,7 @@ TEST_F(TestDatastore, TransactionWriteDedup)
 TEST_F(TestDatastore, TypeMismatch)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     // string
@@ -666,7 +951,7 @@ TEST_F(TestDatastore, TypeMismatch)
 TEST_F(TestDatastore, GetSimple)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -683,7 +968,7 @@ TEST_F(TestDatastore, GetDeep)
     // This is a copy of SetDeep
 
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     auto key1 = "/key1"_json_pointer, key2 = "/key2"_json_pointer;
@@ -707,7 +992,7 @@ TEST_F(TestDatastore, GetDeep)
 TEST_F(TestDatastore, GetNotFound)
 {
     Datastore ds;
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     string want = "v";
@@ -735,7 +1020,7 @@ TEST_F(TestDatastore, GetFullDS)
     auto j = ds.Get();
     ASSERT_FALSE(j);
 
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     j = ds.Get();
@@ -751,15 +1036,14 @@ TEST_F(TestDatastore, GetFullDS)
     ASSERT_EQ(j->at("k").get<string>(), want);
 }
 
-
 /*
 This was a failed attempt to trigger a datastore corruption error we sometimes see.
-To run, FileStore and FileLoad need to be exported.
+To run, SaveDatastoreFile and LoadDatastoreFile need to be exported.
 TEST_F(TestDatastore, Errors)
 {
     Datastore ds;
 
-    auto err = ds.Init(GetTempDir().c_str(), ds_suffix);
+    auto err = ds.Init(GetTempDir(), ds_suffix);
     ASSERT_FALSE(err);
 
     for (size_t i = 0; i < 1000; i++) {
@@ -773,22 +1057,22 @@ TEST_F(TestDatastore, Errors)
 
     auto datastore_filename = DatastoreFilepath(GetTempDir(), true);
 
-    auto load_res = FileLoad(datastore_filename);
+    auto load_res = LoadDatastoreFile(datastore_filename);
     ASSERT_TRUE(load_res);
 
-    auto error = FileStore(false, datastore_filename, json::object());
+    auto error = SaveDatastoreFile(false, datastore_filename, json::object());
     ASSERT_FALSE(error) << error.ToString();
-    load_res = FileLoad(datastore_filename);
+    load_res = LoadDatastoreFile(datastore_filename);
     ASSERT_TRUE(load_res);
 
-    error = FileStore(false, datastore_filename, json());
+    error = SaveDatastoreFile(false, datastore_filename, json());
     ASSERT_FALSE(error) << error.ToString();
-    load_res = FileLoad(datastore_filename);
+    load_res = LoadDatastoreFile(datastore_filename);
     ASSERT_TRUE(load_res);
 
-    error = FileStore(false, datastore_filename, nullptr);
+    error = SaveDatastoreFile(false, datastore_filename, nullptr);
     ASSERT_FALSE(error) << error.ToString();
-    load_res = FileLoad(datastore_filename);
+    load_res = LoadDatastoreFile(datastore_filename);
     ASSERT_TRUE(load_res);
 }
 */

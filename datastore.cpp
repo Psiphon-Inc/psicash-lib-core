@@ -21,8 +21,10 @@
 #include <fstream>
 #include <cstdio>
 #include <mutex>
+#include <functional>
 #include "datastore.hpp"
 #include "utils.hpp"
+#include "base64.hpp"
 #include "vendor/nlohmann/json.hpp"
 
 using json = nlohmann::json;
@@ -33,8 +35,8 @@ using namespace std;
 using namespace error;
 
 static string FilePath(const string& file_root, const string& suffix);
-static Result<json> FileLoad(const string& file_path);
-static Error FileStore(const string& file_path, const json& json);
+static Result<json> LoadDatastore(const string& file_path);
+static Error SaveDatastore(const string& file_path, const json& json);
 
 Datastore::Datastore()
         : initialized_(false), explicit_lock_(mutex_, std::defer_lock),
@@ -44,7 +46,7 @@ Datastore::Datastore()
 Error Datastore::Init(const string& file_root, const string& suffix) {
     SYNCHRONIZE(mutex_);
     file_path_ = FilePath(file_root, suffix);
-    auto res = FileLoad(file_path_);
+    auto res = LoadDatastore(file_path_);
     if (!res) {
         return PassError(res.error());
     }
@@ -59,7 +61,7 @@ Error Datastore::Reset(const string& file_path, json new_value) {
     SYNCHRONIZE(mutex_);
     transaction_depth_ = 0;
     transaction_dirty_ = false;
-    if (auto err = FileStore(file_path, new_value)) {
+    if (auto err = SaveDatastore(file_path, new_value)) {
         return PassError(err);
     }
     json_ = new_value;
@@ -113,11 +115,11 @@ Error Datastore::EndTransaction(bool commit) {
     }
 
     if (commit) {
-        return PassError(FileStore(file_path_, json_));
+        return PassError(SaveDatastore(file_path_, json_));
     }
 
     // We're rolling back -- revert to what's on disk
-    auto res = FileLoad(file_path_);
+    auto res = LoadDatastore(file_path_);
     if (!res) {
         return PassError(res.error());
     }
@@ -131,13 +133,15 @@ error::Result<nlohmann::json> Datastore::Get() const {
     return json_;
 }
 
-Error Datastore::Set(const json::json_pointer& p, json v) {
+Error Datastore::Set(const json::json_pointer& p, json v, bool write_store/*=true*/) {
     SYNCHRONIZE(mutex_);
     MUST_BE_INITIALIZED;
 
     // We will use the transaction mechanism to do the writing. It will also help prevent
     // changes to the stored value between the time we check it and the time we set it.
-    BeginTransaction();
+    if (write_store) {
+        BeginTransaction();
+    }
 
     // Avoid modifying the datastore if the value is the same as what's already there.
     bool changed = true;
@@ -151,7 +155,10 @@ Error Datastore::Set(const json::json_pointer& p, json v) {
     json_[p] = v;
     transaction_dirty_ = changed;
 
-    return PassError(EndTransaction(true));
+    if (write_store) {
+        return PassError(EndTransaction(true));
+    }
+    return nullerr;
 }
 
 static string FilePath(const string& file_root, const string& suffix) {
@@ -173,61 +180,24 @@ When reading from file:
   a. If so, delete `file_path`, if it exists
   b. Rename `file_path.commit` to `file_path`
 2. Read `file_path`
+
+Additionally, two identical files are written: the "main" and "backup" datastore files.
+These files contain the JSON an a checksum/hash of the JSON data. Then enables us to
+detect and recover from file corruption.
+(Unless both files are corrupted. But the the probability of that should be very low. And
+if the storage device is so broken that multiple files are simultaneously getting corrupted,
+then there's very little we can do.)
 */
 
 static constexpr auto TEMP_EXT = ".temp";
 static constexpr auto COMMIT_EXT = ".commit";
+static constexpr auto BACKUP_EXT = ".2";
+// Note that the "main" datastore file doesn't get a special extension for backwards
+// compatiblity/migration reasons.
 
-static Result<json> FileLoad(const string& file_path) {
-    const auto commit_file_path = file_path + COMMIT_EXT;
-
-    // Do we have an existing commit file to promote?
-    if (utils::FileExists(commit_file_path)) {
-        int err;
-        if (utils::FileExists(file_path) && (err = std::remove(file_path.c_str())) != 0) {
-            return MakeCriticalError(utils::Stringer("removing file_path failed; err=", err, "; errno=", errno));
-        }
-        if ((err = std::rename(commit_file_path.c_str(), file_path.c_str())) != 0) {
-            return MakeCriticalError(utils::Stringer("renaming commit_file_path to file_path failed; err=", err, "; errno=", errno));
-        }
-    }
-
-    if (!utils::FileExists(file_path)) {
-        // Check that we can write here by trying to store.
-        auto empty_object = json::object();
-        if (auto err = FileStore(file_path, empty_object)) {
-            return WrapError(err, "file doesn't exist and FileStore failed");
-        }
-
-        // We'll continue on with the rest of the logic, which will read the new empty file.
-    }
-
-    uint64_t file_size = 0;
-    if (auto err = utils::FileSize(file_path, file_size)) {
-        return WrapError(err, utils::Stringer("unable to get file size; errno=", errno));
-    }
-    if (file_size == 0) {
-        return MakeCriticalError("file size is zero");
-    }
-
-    ifstream f;
-    f.open(file_path, ios::in | ios::binary);
-    if (!f) {
-        return MakeCriticalError(utils::Stringer("file open failed; errno=", errno));
-    }
-
-    json json;
-    try {
-        f >> json;
-    }
-    catch (json::exception& e) {
-        return MakeCriticalError(utils::Stringer("json load failed: ", e.what(), "; id:", e.id));
-    }
-
-    return json;
-}
-
-static Error FileStore(const string& file_path, const json& json) {
+// Write the contents of a single datastore file. The checksum will be written after the
+// contents, separated by an empty line. The contents must not contain an empty line.
+static Error WriteFileContents(const string& file_path, const string& contents, const string& checksum) {
     const auto temp_file_path = file_path + TEMP_EXT;
     const auto commit_file_path = file_path + COMMIT_EXT;
 
@@ -242,10 +212,10 @@ static Error FileStore(const string& file_path, const json& json) {
     }
 
     try {
-        f << json;
+        f << contents << "\n\n" << checksum;
     }
-    catch (json::exception& e) {
-        return MakeCriticalError(utils::Stringer("json dump failed: ", e.what(), "; id:", e.id));
+    catch (std::exception& e) {
+        return MakeCriticalError(utils::Stringer("file write failed: ", e.what()));
     }
 
     f.close();
@@ -280,6 +250,179 @@ static Error FileStore(const string& file_path, const json& json) {
     }
 
     return nullerr;
+}
+
+// Create a checksum for the given string (i.e., stringified JSON). This checksum is not
+// portable between platforms. (Because the C++ hash implementation is likely different
+// and because there's no endian-ness check. Local consistency is all that matters.)
+static string ChecksumString(const string& s) {
+    size_t hash = std::hash<std::string>{}(s);
+    const size_t hash_size = sizeof(hash);
+
+    // Convert the size_t value into a vector of bytes
+    vector<uint8_t> checksum(hash_size);
+    for (size_t i = 0; i < hash_size; i++) {
+        checksum[hash_size-1-i] = (hash >> (i * 8));
+    }
+
+    return base64::B64Encode(checksum);
+}
+
+// Write the datastore to disk
+static Error SaveDatastore(const string& file_path, const json& json) {
+    string json_string;
+    try {
+        json_string = json.dump(-1, ' ',  // most compact representation
+                                true);    // ensure ASCII
+    }
+    catch (json::exception& e) {
+        return MakeCriticalError(
+                utils::Stringer("json dump failed: ", e.what(), "; id:", e.id));
+    }
+
+    // Calculate the datstore checksum
+    auto checksum = ChecksumString(json_string);
+
+    // Write the main datastore file
+    auto err = WriteFileContents(file_path, json_string, checksum);
+    if (err) {
+        return WrapError(err, "failed to write main datastore file");
+    }
+
+    // Write the backup datastore file
+    err = WriteFileContents(file_path + BACKUP_EXT, json_string, checksum);
+    if (err) {
+        return WrapError(err, "failed to write backup datastore file");
+    }
+
+    return nullerr;
+}
+
+struct DatastoreFileContents {
+    string contents_;
+    bool checksum_absent_;
+};
+
+// Read the contents of a single datastore file. Returns an error if the checksum doesn't
+// match (but not if it's absent) or if the file contents are empty.
+static Result<DatastoreFileContents> ReadFileContents(const string& file_path) {
+    const auto commit_file_path = file_path + COMMIT_EXT;
+
+    // Do we have an existing commit file to promote?
+    if (utils::FileExists(commit_file_path)) {
+        int err;
+        if (utils::FileExists(file_path) && (err = std::remove(file_path.c_str())) != 0) {
+            return MakeCriticalError(utils::Stringer("removing file_path failed; err=", err, "; errno=", errno));
+        }
+        if ((err = std::rename(commit_file_path.c_str(), file_path.c_str())) != 0) {
+            return MakeCriticalError(utils::Stringer("renaming commit_file_path to file_path failed; err=", err, "; errno=", errno));
+        }
+    }
+
+    if (!utils::FileExists(file_path)) {
+        // Check that we can write here -- and initialize -- by storing an empty object.
+        if (auto err = WriteFileContents(file_path, "{}", "")) {
+            return WrapError(err, "file doesn't exist and FileStore failed");
+        }
+
+        // We'll continue on with the rest of the logic, which will read the new stub file.
+    }
+
+    uint64_t file_size = 0;
+    if (auto err = utils::FileSize(file_path, file_size)) {
+        return WrapError(err, utils::Stringer("unable to get file size; errno=", errno));
+    }
+    if (file_size == 0) {
+        return MakeCriticalError("file size is zero");
+    }
+
+    ifstream f;
+    f.open(file_path, ios::in | ios::binary);
+    if (!f) {
+        return MakeCriticalError(utils::Stringer("file open failed; errno=", errno));
+    }
+
+    // When there's a checksum, it should be after the strigified JSON, separated by a
+    // blank line. If there is no checksum (such as when migrating from a pre-checksum
+    // datastore), then there must be no empty line before the end.
+    vector<string> json_lines;
+    string checksum_line;
+    bool capture_checksum = false;
+    try {
+        for (string line; std::getline(f, line); ) {
+            utils::Trim(line);
+
+            if (line.length() == 0) {
+                capture_checksum = true;
+            }
+            else if (capture_checksum) {
+                checksum_line = line;
+                break;
+            }
+            else {
+                json_lines.push_back(line);
+            }
+        }
+    }
+    catch (std::exception& e) {
+        return MakeCriticalError(utils::Stringer("file read failed: ", e.what()));
+    }
+
+    DatastoreFileContents res;
+    res.contents_ = utils::Join(json_lines, "");
+
+    if (res.contents_.empty()) {
+        return MakeCriticalError("datastore file empty");
+    }
+
+    res.checksum_absent_ = true;
+    if (!checksum_line.empty()) {
+        res.checksum_absent_ = false;
+        string actual_checksum = ChecksumString(res.contents_);
+        if (checksum_line != actual_checksum) {
+            return MakeCriticalError("datastore file checksum mismatch");
+        }
+    }
+
+    return res;
+}
+
+// Load the datastore from disk
+static Result<json> LoadDatastore(const string& file_path) {
+    // Read the main datastore file
+    auto file_contents_1 = ReadFileContents(file_path);
+    // Read the backup datastore file
+    auto file_contents_2 = ReadFileContents(file_path + BACKUP_EXT);
+
+    // We won't use a file with a bad checksum, but we will use one with no checksum. This
+    // allows us to cleanly migrate from pre-checksum datastores, and to test with edited
+    // datastores. But we will still prefer a good checksum to a missing one.
+    // When migrating a pre-checksum datastore, there will be no checksum in the first
+    // file and only the stub empty JSON object (and no checksum) in the second file. In
+    // order to ensure the older data is successfully migrated, we need to prefer the
+    // first file.
+
+    string json_string;
+    if (!file_contents_1 && !file_contents_2) {
+        return PassError(file_contents_1.error());
+    }
+    else if (!file_contents_1 || (file_contents_2 && !file_contents_2->checksum_absent_)) {
+        // Either file_contents_1 is in an error state or file_contents_2 has a good checksum
+        json_string = std::move(file_contents_2->contents_);
+    }
+    else {
+        // If the checksum is absent, we prefer the main datastore file
+        json_string = std::move(file_contents_1->contents_);
+    }
+
+    // At this point we know we have a non-empty json_string
+    try {
+        return json::parse(json_string);
+    }
+    catch (json::exception& e) {
+        return MakeCriticalError(
+                utils::Stringer("json parse failed: ", e.what(), "; id:", e.id));
+    }
 }
 
 } // namespace psicash

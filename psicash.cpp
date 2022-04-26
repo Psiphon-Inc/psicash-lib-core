@@ -68,8 +68,6 @@ static constexpr const char* kLandingPageParamKey = "psicash";
 static constexpr const char* kMethodGET = "GET";
 static constexpr const char* kMethodPOST = "POST";
 
-static constexpr const char* kDateHeaderKey = "Date";
-
 //
 // PsiCash class implementation
 //
@@ -584,7 +582,6 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return WrapError(req_params.error(), "BuildRequestParams failed");
         }
 
-
         http_result = make_http_request_fn_(*req_params);
 
         // Error state sanity check
@@ -592,8 +589,8 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             return MakeCriticalError("HTTP result code is negative but no error message provided");
         }
 
-        // We just got a fresh server timestamp, so set the server time diff
-        auto date_header = utils::FindHeaderValue(http_result.headers, kDateHeaderKey);
+        // We just got a fresh server timestamp (Date header), so set the server time diff
+        auto date_header = utils::FindHeaderValue(http_result.headers, "Date");
         if (!date_header.empty()) {
             datetime::DateTime server_datetime;
             if (server_datetime.FromRFC7231(date_header)) {
@@ -602,6 +599,11 @@ Result<HTTPResult> PsiCash::MakeHTTPRequestWithRetry(
             }
             // else: we're not going to raise the error
         }
+
+        // Store/update any cookies we received, to send in the next request.
+        // We're not going to cause a general error if the cookies fail to save but
+        // everything else is successful.
+        (void)user_data_->SetCookies(utils::GetCookies(http_result.headers));
 
         if (http_result.code < 0) {
             // Something happened that prevented the request from nominally succeeding.
@@ -654,6 +656,7 @@ Result<HTTPParams> PsiCash::BuildRequestParams(
     params.headers = additional_headers;
     params.headers["Accept"] = "application/json";
     params.headers["User-Agent"] = user_agent_;
+    params.headers["Cookie"] = user_data_->GetCookies();
 
     if (include_auth_tokens) {
         params.headers["X-PsiCash-Auth"] = CommaDelimitTokens({});

@@ -64,6 +64,8 @@ static constexpr const char* LAST_TRANSACTION_ID = "lastTransactionID";
 static const auto kLastTransactionIDPtr = kUserPtr / LAST_TRANSACTION_ID;
 static const char* REQUEST_METADATA = "requestMetadata";
 const json::json_pointer kRequestMetadataPtr = kUserPtr / REQUEST_METADATA; // used in header, so not static
+static constexpr const char* COOKIES = "cookies";
+static const auto kCookiesPtr = kUserPtr / COOKIES;
 
 
 // These are the possible token types.
@@ -196,7 +198,11 @@ datetime::Duration UserData::GetServerTimeDiff() const {
 error::Error UserData::SetServerTimeDiff(const datetime::DateTime& serverTimeNow) {
     auto localTimeNow = datetime::DateTime::Now();
     auto diff = serverTimeNow.Diff(localTimeNow);
-    return PassError(datastore_.Set(kServerTimeDiffPtr, datetime::DurationToInt64(diff)));
+    // Updating the server time diff isn't so important that it needs to be written to disk
+    // immediately. Also, it is generally done outside of a transaction and then followed
+    // by a transaction, so it can lead to rapid datastore updates (which we suspect can
+    // cause corruption issues).
+    return PassError(datastore_.Set(kServerTimeDiffPtr, datetime::DurationToInt64(diff), /*write_store=*/false));
 }
 
 datetime::DateTime UserData::ServerTimeToLocal(const datetime::DateTime& server_time) const {
@@ -494,6 +500,18 @@ std::string UserData::GetLocale() const {
 
 error::Error UserData::SetLocale(const std::string& v) {
     return PassError(datastore_.Set(kLocalePtr, v));
+}
+
+std::string UserData::GetCookies() const {
+    auto v = datastore_.Get<string>(kCookiesPtr);
+    if (!v) {
+        return "";
+    }
+    return *v;
+}
+
+error::Error UserData::SetCookies(const std::string& v) {
+    return PassError(datastore_.Set(kCookiesPtr, v));
 }
 
 json UserData::GetStashedRequestMetadata() const {

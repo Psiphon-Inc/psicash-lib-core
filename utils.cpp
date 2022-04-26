@@ -21,6 +21,9 @@
 #include <iostream>
 #include <fstream>
 #include <limits>
+#include <algorithm>
+#include <cctype>
+#include <locale>
 #include "utils.hpp"
 #include "error.hpp"
 
@@ -91,14 +94,38 @@ static string ToLowerASCII(const string& s) {
    return ss.str();
 }
 
-string FindHeaderValue(const map<string, vector<string>>& headers, const string& key) {
-    auto lower_key = ToLowerASCII(key);
+static vector<string> FindHeaderValues(const map<string, vector<string>>& headers, const string& key) {
+    const auto lower_key = ToLowerASCII(key);
     for (const auto& entry : headers) {
         if (lower_key == ToLowerASCII(entry.first)) {
-            return entry.second.empty() ? "" : entry.second.front();
+            return entry.second;
         }
     }
-    return "";
+    return {};
+}
+
+string FindHeaderValue(const map<string, vector<string>>& headers, const string& key) {
+    auto vec = FindHeaderValues(headers, key);
+    return vec.empty() ? "" : vec.front();
+}
+
+string GetCookies(const map<string, vector<string>>& headers) {
+    // Set-Cookie header values are of the form:
+    // AWSALB=abcxyz; Expires=Tue, 03 May 2022 19:47:19 GMT; Path=/
+    // We only care about the cookie name and the value.
+
+    stringstream res;
+    bool first = true;
+    for (const auto& c : FindHeaderValues(headers, "Set-Cookie")) {
+        if (!first) {
+            res << "; ";
+        }
+        first = false;
+
+        auto semi = c.find_first_of(';');
+        res << TrimCopy(c.substr(0, semi));
+    }
+    return res.str();
 }
 
 // Adapted from https://stackoverflow.com/a/22986486/729729
@@ -117,6 +144,39 @@ error::Error FileSize(const string& path, uint64_t& o_size) {
 
     o_size = (uint64_t)length;
     return error::nullerr;
+}
+
+// From https://stackoverflow.com/a/217605/729729
+void TrimLeft(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+void TrimRight(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
+void Trim(std::string &s) {
+    TrimLeft(s);
+    TrimRight(s);
+}
+
+std::string TrimLeftCopy(std::string s) {
+    TrimLeft(s);
+    return s;
+}
+
+std::string TrimRightCopy(std::string s) {
+    TrimRight(s);
+    return s;
+}
+
+std::string TrimCopy(std::string s) {
+    Trim(s);
+    return s;
 }
 
 }

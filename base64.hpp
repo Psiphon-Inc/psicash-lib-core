@@ -25,13 +25,11 @@
 
 namespace base64 {
 
-typedef unsigned char BYTE;
-
 std::string B64Encode(const std::string& buf);
-std::string B64Encode(const std::vector<BYTE>& buf);
-std::string B64Encode(const BYTE* buf, unsigned int bufLen);
+std::string B64Encode(const std::vector<uint8_t>& buf);
+std::string B64Encode(const uint8_t* buf, unsigned int bufLen);
 
-std::vector<BYTE> B64Decode(const std::string& b64encoded);
+std::vector<uint8_t> B64Decode(const std::string& b64encoded);
 
 std::string TrimPadding(const std::string& s);
 

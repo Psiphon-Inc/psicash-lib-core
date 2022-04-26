@@ -148,6 +148,9 @@ public:
     std::string GetLocale() const;
     error::Error SetLocale(const std::string& v);
 
+    std::string GetCookies() const;
+    error::Error SetCookies(const std::string& v);
+
 protected:
     /// Modifies the purchases in the argument.
     void UpdatePurchasesLocalTimeExpiry(Purchases& purchases) const;
