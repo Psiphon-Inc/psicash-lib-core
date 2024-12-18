@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace base64 {
 
