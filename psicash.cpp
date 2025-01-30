@@ -388,7 +388,7 @@ Result<string> PsiCash::GetBuyPsiURL() const {
 
 std::string PsiCash::GetUserSiteURL(UserSiteURLType url_type, bool webview) const {
     URL url;
-    url.scheme_host_path_ = test_ ? "https://dev-my.psi.cash" : "https://my.psi.cash";
+    url.scheme_host_path_ = test_ ? "https://my.dev.psi.cash" : "https://my.psi.cash";
 
     switch (url_type) {
     case UserSiteURLType::AccountSignup:
